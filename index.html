@@ -80,6 +80,7 @@ nav.tabs a.on{color:var(--accent)}
 .pips{display:inline-flex;gap:2px;flex:none}
 .pip{width:17px;height:17px;border-radius:50%;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#1b2422;background:#cfd4d2}
 .pip.W{background:#f3ecc9}.pip.U{background:#a9d3ef}.pip.B{background:#b3a5ad}.pip.R{background:#f0a48c}.pip.G{background:#9fd3ad}
+.pips.sm .pip{width:14px;height:14px;font-size:9px}.mk{font-size:11px;flex:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;padding:8px;border-top:1px solid var(--line)}
 .grid button{padding:0;border:0;background:var(--sunk);border-radius:6px;overflow:hidden;aspect-ratio:488/680;min-height:0;position:relative;font-size:11px}
 .grid img{width:100%;height:100%;object-fit:cover;display:block}
@@ -144,8 +145,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.12';
+const VERSION='1.13';
 const NEWS=[
+ ['1.13','Nov 10, 2026',['Mana rocks and other spells that make mana now show "makes" and the colors, next to their cost.']],
  ['1.12','Nov 10, 2026',['Lands have a second filter, Makes any of my colors, for lands that tap for just one of your colors.','Lands now show the colors of mana they make, in Fill results and in your deck list. Colors outside your deck are dimmed.']],
  ['1.11','Nov 10, 2026',['Sections you name yourself now get Fill suggestions: the app looks for a matching theme or Scryfall tag, then falls back to card text, and saves the search that worked.','Similar cards from EDHREC: open any card in a deck and tap Similar cards on EDHREC.']],
  ['1.10','Nov 10, 2026',['Fill has a new filter for cards that make mana in your deck\'s colors. It is on by default for Ramp and Lands.','For decks with two or more colors, land suggestions are narrowed to lands that make at least two of them.']],
@@ -264,7 +266,7 @@ const pips=mc=>'<span class="pips">'+(mc.match(/\{[^}]+\}/g)||[]).map(s=>{s=s.sl
 /* mana a card makes, as pips; colors the current deck cannot use are dimmed */
 function prodPips(c){const pm=c.pm||[];if(!pm.length)return'<span class="pips"></span>';const d=location.hash==='#deck'?deck():null;const id=d&&d.cmd.length?ident(d):null;
   return'<span class="pips" title="Makes '+pm.join(', ')+'">'+['W','U','B','R','G','C'].filter(x=>pm.includes(x)).map(x=>`<span class="pip ${x==='C'?'':x}" style="${id&&x!=='C'&&!id.includes(x)?'opacity:.25':''}">${x}</span>`).join('')+'</span>'}
-const costOrMana=c=>c.mc?pips(c.mc):prodPips(c);
+const costOrMana=c=>c.mc?pips(c.mc)+((c.pm||[]).length?'<span class="muted mk">makes</span>'+prodPips(c).replace('class="pips"','class="pips sm"'):''):prodPips(c);
 const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
@@ -328,7 +330,7 @@ function catSelect(d){const{sugg,rest}=themeSuggest(d);UI.cats=[...sugg,...rest]
   return`<select id="addCat" class="grow" aria-label="Add a section"><option value="">Add a section…</option>${sugg.length?`<optgroup label="Suggested for ${esc(d.cmd.join(' + '))}">${sugg.map(o).join('')}</optgroup>`:''}<optgroup label="All themes">${rest.map((c,i)=>o(c,i+sugg.length)).join('')}</optgroup><option value="custom">Custom section…</option></select>`}
 
 const PMTRIED=new Set();
-async function pmRefresh(d){const need=d.cards.map(c=>c.n).filter(n=>CARDS[n]&&CARDS[n].pm===undefined&&/Land/.test(CARDS[n].t)&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
+async function pmRefresh(d){const need=[...d.cmd,...d.cards.map(c=>c.n)].filter(n=>CARDS[n]&&CARDS[n].pm===undefined&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
   try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(slim)}save();
     if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender()}catch(e){}}
 function vDeck(){
