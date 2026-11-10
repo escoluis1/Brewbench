@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brew Bench">
+<meta name="theme-color" content="#12181a">
+<title>Brew Bench</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: one column, phone first. Sticky top bar, fixed bottom tabs, bottom sheets for every action. Wider screens get a centred 760px column. */
+:root{
+  --bg:#f3f4f1;--surface:#ffffff;--sunk:#e9ece8;--ink:#1b2422;--muted:#62706c;--line:#d5dbd7;
+  --accent:#0f6b5c;--accent-ink:#ffffff;--warn:#a65f08;--ok:#2a7a4b;--over:#544fc0;--danger:#b3372f;
+  --display:"Space Grotesk","Avenir Next","Segoe UI",sans-serif;--body:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12181a;--surface:#1b2326;--sunk:#161d20;--ink:#e7ecea;--muted:#93a19d;--line:#2c373a;
+  --accent:#4cc2ab;--accent-ink:#06211c;--warn:#e0a044;--ok:#62c08a;--over:#9d98f0;--danger:#ef7d74;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);-webkit-text-size-adjust:100%;
+  padding:env(safe-area-inset-top,0) 0 calc(64px + env(safe-area-inset-bottom,0))}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;min-height:38px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{background:none;border-color:transparent;color:var(--accent);padding:8px}
+button.danger{color:var(--danger)}
+button.sm{min-height:32px;padding:4px 10px;font-size:13px}
+input,select,textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:16px}
+textarea{min-height:140px;font-size:14px}
+label.item{font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);margin:0}
+.item input[type=checkbox]{width:20px;height:20px;flex:none}
+label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:22px}h2{font-size:17px}h3{font-size:15px}
+.wrap{max-width:760px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.top{position:sticky;top:env(safe-area-inset-top,0);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:8px;min-height:52px}
+.top h1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{padding-block:14px;display:flex;flex-direction:column;gap:14px}
+.muted{color:var(--muted)}.small{font-size:13px}.num{font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;gap:8px}.grow{flex:1;min-width:0}.wrapf{flex-wrap:wrap}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);
+  display:flex;padding-bottom:env(safe-area-inset-bottom,0)}
+nav.tabs a{flex:1;text-align:center;padding:10px 4px;text-decoration:none;color:var(--muted);font-size:12px;font-weight:500}
+nav.tabs a b{display:block;font:700 15px var(--display)}
+nav.tabs a.on{color:var(--accent)}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--line);min-height:46px;width:100%;text-align:left;background:none;border-radius:0;border-width:1px 0 0}
+.item:first-child{border-top:0}
+.item .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--muted);text-align:center}
+/* deck header */
+.cmd{display:flex;gap:10px;align-items:stretch}
+.cmd .art{flex:1;min-width:0;aspect-ratio:5/3;max-height:150px;border-radius:10px;background:var(--sunk) center/cover;border:1px solid var(--line);
+  display:flex;align-items:flex-end;padding:8px;color:#fff;font:700 14px var(--display);text-shadow:0 1px 3px #000,0 0 8px #000}
+.cmd .art.none{color:var(--muted);text-shadow:none;align-items:center;justify-content:center;font-weight:500}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.stat b{display:block;font:700 17px var(--display)}
+.stat span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.curve{display:flex;align-items:flex-end;gap:4px;height:64px}
+.curve div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px;font-size:11px;color:var(--muted);height:100%}
+.curve i{display:block;width:100%;background:var(--accent);border-radius:3px 3px 0 0;min-height:1px}
+/* sections */
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sec>header{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.sec>header .ttl{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;min-height:0;font:700 15px var(--display)}
+.pill{font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;border:1px solid currentColor;white-space:nowrap}
+.pill.under{color:var(--warn)}.pill.ok{color:var(--ok)}.pill.over{color:var(--over)}.pill.plain{color:var(--muted)}
+.bar{height:3px;background:var(--sunk)}.bar i{display:block;height:100%;background:var(--accent)}
+.grp{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 2px -6px}
+.crow{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);width:100%;background:none;border-width:1px 0 0;border-radius:0;text-align:left;min-height:42px}
+.crow .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--muted);flex:none}.dot.own{background:var(--ok);border-color:var(--ok)}
+.pips{display:inline-flex;gap:2px;flex:none}
+.pip{width:17px;height:17px;border-radius:50%;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#1b2422;background:#cfd4d2}
+.pip.W{background:#f3ecc9}.pip.U{background:#a9d3ef}.pip.B{background:#b3a5ad}.pip.R{background:#f0a48c}.pip.G{background:#9fd3ad}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;padding:8px;border-top:1px solid var(--line)}
+.grid button{padding:0;border:0;background:var(--sunk);border-radius:6px;overflow:hidden;aspect-ratio:488/680;min-height:0;position:relative;font-size:11px}
+.grid img{width:100%;height:100%;object-fit:cover;display:block}
+.grid .q{position:absolute;right:4px;bottom:4px;background:var(--surface);border-radius:6px;padding:0 5px;font-weight:700}
+/* sheets */
+.scrim{position:fixed;inset:0;background:#0009;z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:760px;max-height:92%;border-radius:14px 14px 0 0;display:flex;flex-direction:column;
+  padding-bottom:env(safe-area-inset-bottom,0)}
+.sheet>header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.sheet>header h2{flex:1;min-width:0}
+.sheet .body{overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
+.sheet .body>*{flex-shrink:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border-radius:99px;min-height:32px;padding:4px 12px;font-size:13px}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.res{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-top:1px solid var(--line)}
+.res:first-child{border-top:0}
+.res .info{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;min-height:0}
+.res .info div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res .add{min-width:44px;font-weight:700}.res .add.in{background:var(--sunk);color:var(--ok)}
+.peek{position:fixed;inset:0;z-index:30;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px}
+.peek img{max-height:62vh;border-radius:14px}
+.peek p{color:#fff;max-width:420px;white-space:pre-wrap;font-size:14px;margin:0;max-height:22vh;overflow:auto}
+.cardimg{align-self:center;width:min(260px,70%);border-radius:12px}
+.otext{white-space:pre-wrap;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
+.secrow{display:grid;grid-template-columns:1fr 64px 38px;gap:6px}
+.secrow input.q{grid-column:1/-1;font-size:13px}
+.secbox{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface)}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
+  padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="tabs" id="tabs"></nav>
+<div id="sheet" hidden></div>
+<div id="peek" hidden></div>
+<div id="toast" hidden role="status"></div>
+<script>
+'use strict';
+/* ================= state ================= */
+const KEY='brewbench.v1';
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const SEC=(name,target,q='')=>({id:uid(),name,target,q});
+const core=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Card Draw',10,'otag:draw'),SEC('Removal',8,'otag:removal -otag:board-wipe'),SEC('Board Wipes',3,'otag:board-wipe')];
+const ARCH=(name,theme,lands=37)=>({id:uid(),name,sections:[...theme.map(t=>SEC(...t)),...core(),SEC('Lands',lands,'t:land -t:basic')]});
+const PROT='(o:hexproof or o:indestructible or o:"phase out") (t:instant or t:equipment)';
+function seedArch(){return [
+ ARCH('Tokens',[['Token Makers',14,'o:create o:"creature token"'],['Anthems & Payoffs',10,'o:"creatures you control get +"'],['Finishers',4],['Protection',3,PROT]]),
+ ARCH('+1/+1 Counters',[['Counter Sources',12,'o:"+1/+1 counter"'],['Counter Payoffs',10,'o:"+1/+1 counter" o:whenever'],['Proliferate & Doublers',5,'o:proliferate'],['Protection',4,PROT]]),
+ ARCH('Aristocrats',[['Sacrifice Outlets',8,'otag:sacrifice-outlet'],['Death Payoffs',9,'o:/whenever .* dies/'],['Fodder',10,'t:creature mv<=2 o:dies'],['Recursion',4,'otag:recursion']]),
+ ARCH('Voltron',[['Equipment & Auras',14,'(t:equipment or t:aura)'],['Protection',8,PROT],['Evasion & Support',5,'(o:"can\'t be blocked" or o:"double strike")'],['Tutors',4,'otag:tutor']]),
+ ARCH('Artifacts',[['Key Artifacts',12,'t:artifact -t:creature'],['Artifact Payoffs',10,'o:whenever o:artifact o:enters'],['Recursion',4,'o:artifact o:"from your graveyard"'],['Finishers',5]]),
+ ARCH('Lifegain',[['Life Sources',12,'o:"you gain" o:life'],['Lifegain Payoffs',12,'o:"whenever you gain life"'],['Finishers',4],['Protection',3,PROT]]),
+ ARCH('Spellslinger',[['Cheap Spells',12,'(t:instant or t:sorcery) mv<=2'],['Spell Payoffs',10,'o:"whenever you cast" (o:instant or o:noncreature)'],['Copy & Recursion',5,'o:"copy target" o:spell'],['Finishers',4]]),
+ ARCH('Reanimator',[['Reanimation',10,'otag:reanimate'],['Discard & Self-Mill',9,'(o:"discard a card" or o:mill)'],['Big Targets',9,'t:creature mv>=6'],['Protection',3,PROT]]),
+ ARCH('Enchantress',[['Key Enchantments',14,'t:enchantment'],['Enchantress Draw',8,'o:whenever o:enchantment o:"draw a card"'],['Payoffs',6],['Protection',3,PROT]]),
+ ARCH('Landfall',[['Landfall Payoffs',12,'o:landfall'],['Extra Land Drops',9,'o:"additional land"'],['Land Recursion',4,'o:land o:"from your graveyard"'],['Finishers',5]],38),
+ ARCH('Blink',[['ETB Creatures',14,'t:creature o:when o:enters'],['Blink Effects',10,'otag:flicker'],['Payoffs',4],['Protection',3,PROT]]),
+ ARCH('Kindred',[['Creatures of the Type',20,'t:creature'],['Lords & Payoffs',8,'o:"creatures you control get"'],['Protection',3,PROT]]),
+ ARCH('Mill',[['Mill Sources',14,'o:mill'],['Mill Payoffs',8,'o:graveyard o:opponent'],['Graveyard Use',5,'o:"from a graveyard"'],['Protection',4,PROT]]),
+ ARCH('Treasure',[['Treasure Makers',12,'o:"treasure token"'],['Treasure Payoffs',10,'o:treasure o:whenever'],['Finishers',5],['Protection',4,PROT]]),
+ ARCH('Burn',[['Damage Sources',14,'o:"damage to each opponent"'],['Damage Doublers',5,'(o:"double that damage" or o:"deals double")'],['Payoffs',8],['Protection',4,PROT]]),
+ ARCH('Control',[['Counterspells',8,'otag:counterspell'],['Extra Removal',6,'otag:removal'],['Card Advantage Engines',8,'otag:draw (t:enchantment or t:artifact)'],['Finishers',5],['Protection',4,PROT]]),
+ ARCH('Blank template',[['Theme',31]])
+];}
+function seedPkgs(){return [
+ {id:uid(),name:'Cheap ramp',type:'scryfall',q:'otag:ramp mv<=2',cards:[]},
+ {id:uid(),name:'Mana rocks',type:'scryfall',q:'otag:mana-rock mv<=3',cards:[]},
+ {id:uid(),name:'Instant-speed removal',type:'scryfall',q:'otag:removal t:instant mv<=3',cards:[]},
+ {id:uid(),name:'Board wipes',type:'scryfall',q:'otag:board-wipe',cards:[]},
+ {id:uid(),name:'Lands in my colors',type:'scryfall',q:'t:land -t:basic',cards:[]},
+ {id:uid(),name:'My staples (edit me)',type:'custom',q:'',cards:['Sol Ring','Arcane Signet','Command Tower','Swiftfoot Boots','Lightning Greaves']}
+];}
+const blank=()=>({v:1,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
+let S; let CARDS={};
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}S.loc=S.loc||{};CARDS=S.cards||{};}
+let saveT;
+function save(){clearTimeout(saveT);saveT=setTimeout(()=>{
+  const keep={};const add=n=>{if(CARDS[n])keep[n]=CARDS[n]};
+  S.decks.forEach(d=>{d.cmd.forEach(add);d.cards.forEach(c=>add(c.n))});Object.keys(S.coll).forEach(add);
+  S.packages.forEach(p=>p.cards.forEach(add));
+  S.cards=keep;
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Storage is full. Export a backup in Setup.')}
+},250);}
+let UI={deck:null,view:'list',closed:{},collQ:'',collColor:'',collLoc:''};
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
+
+/* ================= scryfall ================= */
+let lastCall=0;
+async function sf(path,body){
+  const wait=Math.max(0,lastCall+110-Date.now());lastCall=Date.now()+wait;if(wait)await new Promise(r=>setTimeout(r,wait));
+  let r;try{r=await fetch('https://api.scryfall.com'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined)}
+  catch(e){throw new Error('Could not reach Scryfall. Check your connection.')}
+  if(r.status===404)return{data:[]};
+  const j=await r.json();if(!r.ok)throw new Error(j.details||'Scryfall could not run that search.');return j;
+}
+function slim(c){
+  const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};
+  return CARDS[c.name]={n:c.name,mc:c.mana_cost||f.mana_cost||'',cmc:c.cmc||0,t:c.type_line||'',
+    o:c.oracle_text||(c.card_faces||[]).map(x=>x.name+'\n'+(x.oracle_text||'')).join('\n\n'),
+    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer};
+}
+async function search(q){const j=await sf('/cards/search?order=edhrec&q='+encodeURIComponent(q));return j.data.map(slim)}
+function lowerIndex(){const m=new Map();for(const n in CARDS){m.set(n.toLowerCase(),CARDS[n]);const f=n.split(' // ')[0].toLowerCase();if(!m.has(f))m.set(f,CARDS[n])}return m}
+/* look up many names; returns {cards:[card|null aligned to names], missing:[names]} */
+async function byNames(names){
+  let idx=lowerIndex();const need=[...new Set(names.filter(n=>!idx.has(n.toLowerCase())))];
+  for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(slim)}
+  idx=lowerIndex();const cards=names.map(n=>idx.get(n.toLowerCase())||null);
+  return{cards,missing:names.filter((n,i)=>!cards[i])};
+}
+function csvRow(l){const out=[];let cur='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===','){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out.map(s=>s.trim())}
+/* accepts plain lists ("2 Sol Ring") and CSV exports from scanner apps (needs a Name column; Quantity is optional) */
+function parseList(text){const lines=text.split(/\r?\n/);const head=csvRow(lines[0]||'').map(h=>h.toLowerCase());const ni=head.findIndex(h=>h==='name'||h==='card name'||h==='card');
+  if(head.length>1&&ni>=0){const qi=head.findIndex(h=>/^(quantity|qty|count|amount)$/.test(h));const m=new Map();
+    lines.slice(1).forEach(l=>{if(!l.trim())return;const r=csvRow(l);const n=r[ni];if(!n)return;m.set(n,(m.get(n)||0)+(qi>=0?parseInt(r[qi])||1:1))});return[...m].map(([n,q])=>({n,q}))}
+  const out=[];lines.forEach(l=>{l=l.trim();if(!l||/^(\/\/|#)/.test(l)||/^(deck|commander|sideboard|maybeboard|mainboard)\s*:?$/i.test(l))return;
+  const m=l.match(/^(\d+)\s*x?\s+(.+)$/i);let q=1,n=l;if(m){q=+m[1];n=m[2]}
+  n=n.replace(/\s+\([A-Za-z0-9]{2,6}\).*$/,'').replace(/\s+\*.*$/,'').trim();if(n)out.push({n,q})});return out}
+
+/* ================= deck helpers ================= */
+const deck=()=>S.decks.find(d=>d.id===UI.deck);
+const card=n=>CARDS[n]||{n,mc:'',cmc:0,t:'',o:'',ci:[],img:'',p:0};
+const ident=d=>[...new Set(d.cmd.flatMap(n=>card(n).ci))];
+const idf=d=>d.cmd.length?` id<=${ident(d).join('')||'c'} f:commander`:' f:commander';
+const owned=n=>S.coll[n]||0;
+const isBasic=n=>/^Basic/.test(card(n).t);
+const secOf=(d,sid)=>d.sections.find(s=>s.id===sid);
+const inSec=(d,sid)=>d.cards.filter(c=>c.s===sid);
+const cnt=cs=>cs.reduce((a,c)=>a+c.q,0);
+const main=d=>d.cards.filter(c=>c.s!=='m');
+const total=d=>d.cmd.length+cnt(main(d));
+const inDeck=(d,n)=>d.cmd.includes(n)||d.cards.some(c=>c.n===n);
+function addCard(d,n,sid){const e=d.cards.find(c=>c.n===n);if(e){if(isBasic(n))e.q++;else e.s=sid;}else d.cards.push({n,s:sid,q:1});save()}
+function removeCard(d,n){d.cards=d.cards.filter(c=>c.n!==n);save()}
+const pips=mc=>'<span class="pips">'+(mc.match(/\{[^}]+\}/g)||[]).map(s=>{s=s.slice(1,-1);return`<span class="pip ${/^[WUBRG]$/.test(s)?s:''}">${esc(s.replace('/',''))}</span>`}).join('')+'</span>';
+const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
+const money=v=>'$'+v.toFixed(2);
+
+/* ================= views ================= */
+function route(){const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','setup'].includes(h)?h:'decks';
+  if(v==='deck'&&!deck()){location.hash='decks';return}
+  $('#tabs').innerHTML=[['decks','Decks'],['packages','Packages'],['collection','Collection'],['setup','Setup']].map(([k,l])=>`<a href="#${k}" class="${(v===k||(v==='deck'&&k==='decks'))?'on':''}"><b>${l}</b></a>`).join('');
+  ({decks:vDecks,deck:vDeck,packages:vPkgs,collection:vColl,setup:vSetup})[v]();}
+const rerender=()=>route();
+const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div class="wrap">${title}${actions||''}</div></div><main class="wrap">${body}</main>`};
+
+function vDecks(){
+  page('<h1>Decks</h1>','<button class="pri" data-act="newDeck">New deck</button>',
+  S.decks.length?`<div class="list">${S.decks.map(d=>`<button class="item" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')} · ${esc(d.arch)}</span></span><span class="num muted">${total(d)}/100</span></button>`).join('')}</div>`
+  :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick an archetype, and its sections are set up for you.</div>`);
+}
+
+function vDeck(){
+  const d=deck();const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
+  const val=[...d.cmd.map(n=>card(n).p),...m.map(c=>card(c.n).p*c.q)].reduce((a,b)=>a+b,0);
+  const gc=m.filter(c=>card(c.n).gc).length+d.cmd.filter(n=>card(n).gc).length;
+  const non=m.filter(c=>!/Land/.test(card(c.n).t));const curve=Array(8).fill(0);non.forEach(c=>curve[Math.min(7,Math.floor(card(c.n).cmc))]+=c.q);
+  const mx=Math.max(1,...curve);const avg=cnt(non)?(non.reduce((a,c)=>a+card(c.n).cmc*c.q,0)/cnt(non)).toFixed(2):'0';
+  const cmdHtml=d.cmd.length?d.cmd.map(n=>`<button class="art" data-act="cardSheet" data-n="${esc(n)}" style="background-image:url('${esc(img(card(n),'art_crop'))}')">${esc(n)}</button>`).join(''):`<div class="art none">No commander set</div>`;
+  const secs=[{id:'u',name:'Unsorted',target:0,q:''},...d.sections,{id:'m',name:'Maybeboard',target:0,q:''}];
+  page(`<button class="ghost" data-act="back" aria-label="Back to decks">‹ Decks</button><h1>${esc(d.name)}</h1>`,`<button data-act="deckMenu" aria-label="Deck menu">Menu</button>`,`
+   <div class="cmd">${cmdHtml}</div>
+   <div class="row wrapf"><span class="pips">${ident(d).map(c=>`<span class="pip ${c}">${c}</span>`).join('')}</span><span class="muted small grow">${esc(d.arch)}</span>
+     <button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
+   <div class="stats">
+     <div class="stat"><b class="num">${total(d)}/100</b><span>Cards</span></div>
+     <div class="stat"><b class="num">${own}</b><span>Owned</span></div>
+     <div class="stat"><b class="num">${money(val)}</b><span>Value</span></div>
+     <div class="stat"><b class="num">${gc}</b><span>Game chg.</span></div>
+   </div>
+   <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small">avg ${avg}</span></header>
+     <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
+   <div class="row"><span class="grp grow" style="margin:0">Sections</span>
+     <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
+   ${secs.map(s=>secHtml(d,s)).join('')}`);
+}
+function secHtml(d,s){
+  const cs=inSec(d,s.id).sort((a,b)=>a.n.localeCompare(b.n));const n=cnt(cs);const special=s.id==='u'||s.id==='m';
+  if(s.id==='u'&&!n)return'';
+  const cls=special?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
+  const rows=UI.view==='grid'
+   ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
+   :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${pips(card(c.n).mc)}</button>`).join('');
+  return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
+    <span class="pill num ${cls}">${special?n:n+'/'+s.target}</span>
+    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
+    ${special?'':`<div class="bar"><i style="width:${Math.min(100,s.target?n/s.target*100:0)}%"></i></div>`}
+    ${closed?'':(cs.length?rows:'')}</section>`;
+}
+
+function vPkgs(){
+  page('<h1>Packages</h1>','<button class="pri" data-act="newPkg">New package</button>',`
+   <p class="muted small" style="margin:0">A package is a group of cards you can drop into any deck section with <b>Fill</b>. Scryfall packages run a saved search in your commander's colors. Custom packages are your own picks.</p>
+   <div class="list">${S.packages.map(p=>`<button class="item" data-act="editPkg" data-id="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')||'<div class="empty">No packages yet.</div>'}</div>`);
+}
+
+const COLORS=['White','Blue','Black','Red','Green','Multicolor','Colorless','Land'];
+const colorOf=n=>{const c=card(n);if(/Land/.test(c.t.split(' // ')[0]))return'Land';if(!c.ci.length)return'Colorless';return c.ci.length>1?'Multicolor':{W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'}[c.ci[0]]};
+const locs=()=>[...new Set(Object.values(S.loc))].sort();
+const locData=()=>`<datalist id="locs">${locs().map(l=>`<option value="${esc(l)}"></option>`).join('')}</datalist>`;
+const locField=(id,val)=>`<label for="${id}">Where are these stored? (optional)</label><input id="${id}" list="locs" value="${esc(val||'')}" placeholder="e.g. Red binder, Box 2" autocomplete="off">${locData()}`;
+function collShown(){const q=UI.collQ.toLowerCase();return Object.keys(S.coll).sort().filter(n=>(!q||n.toLowerCase().includes(q))&&(!UI.collColor||colorOf(n)===UI.collColor)&&(!UI.collLoc||(UI.collLoc==='-'?!S.loc[n]:S.loc[n]===UI.collLoc)))}
+function vColl(){
+  const names=Object.keys(S.coll);const tot=names.reduce((a,n)=>a+S.coll[n],0);const val=names.reduce((a,n)=>a+card(n).p*S.coll[n],0);
+  page('<h1>Collection</h1>','<button data-act="collPaste">Paste list</button><button class="pri" data-act="collAdd">Add cards</button>',`
+   <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${names.length}</b><span>Unique</span></div><div class="stat"><b class="num">${tot}</b><span>Cards</span></div><div class="stat"><b class="num">${money(val)}</b><span>Value</span></div></div>
+   ${names.length?`<input id="collQ" type="search" placeholder="Find a card you own" value="${esc(UI.collQ)}" aria-label="Find a card you own">
+   <div class="chips"><button class="chip ${UI.collColor?'':'on'}" data-act="collColor" data-c="">All</button>${COLORS.map(c=>`<button class="chip ${UI.collColor===c?'on':''}" data-act="collColor" data-c="${c}">${c}</button>`).join('')}</div>
+   <select id="collLocSel" aria-label="Filter by storage location"><option value="">Every location</option>${locs().map(l=>`<option ${UI.collLoc===l?'selected':''}>${esc(l)}</option>`).join('')}<option value="-" ${UI.collLoc==='-'?'selected':''}>No location set</option></select>
+   <div class="list" id="collList">${collRows(collShown())}</div>`:`<div class="empty">Your collection is empty. Tap <b>Add cards</b> to search, or <b>Paste list</b> to add a scanned batch and say which binder or box it came from. Cards you own get a green dot in every deck, and each deck has a pull list that tells you where to find them.</div>`}`);
+}
+const collRows=show=>show.slice(0,300).map(n=>`<div class="item"><button class="name ghost" style="text-align:left;color:inherit;padding:0" data-act="collCard" data-n="${esc(n)}">${esc(n)}<br><span class="muted small">${esc(S.loc[n]||'No location')} · ${colorOf(n)}</span></button><button class="sm" data-act="collDec" data-n="${esc(n)}" aria-label="Remove one ${esc(n)}">−</button><b class="num" style="min-width:22px;text-align:center">${S.coll[n]}</b><button class="sm" data-act="collInc" data-n="${esc(n)}" aria-label="Add one ${esc(n)}">+</button></div>`).join('')+(show.length>300?`<div class="item muted small">Showing 300 of ${show.length}. Filter to narrow down.</div>`:'')||'<div class="item muted">No matches.</div>';
+
+function vSetup(){
+  page('<h1>Setup</h1>','',`
+   <div class="row"><h2 class="grow">Archetypes</h2><button class="sm" data-act="newArch">New archetype</button></div>
+   <p class="muted small" style="margin:0">An archetype is a template: the sections a deck gets, how many cards each should hold, and the Scryfall search that suggests cards for it. Change anything here.</p>
+   <div class="list">${S.archetypes.map(a=>`<button class="item" data-act="editArch" data-id="${a.id}"><span class="name"><b>${esc(a.name)}</b><br><span class="muted small">${a.sections.map(s=>esc(s.name)+' '+s.target).join(' · ')}</span></span><span class="muted">›</span></button>`).join('')}</div>
+   <h2>Backup and moving devices</h2>
+   <p class="muted small" style="margin:0">Everything is saved on this device only. To move it to another device, export here and import there.</p>
+   <div class="row wrapf"><button data-act="export">Export backup</button><button data-act="importOpen">Import backup</button><button class="danger" data-act="resetAsk">Erase everything</button></div>`);
+}
+
+/* ================= sheets ================= */
+function sheet(title,body,foot){const el=$('#sheet');el.hidden=false;
+  el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;}
+function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null}
+function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p><span style="color:#fff" class="small">Tap anywhere to close</span></div>`}
+
+/* results list shared by search, fill, commander pick, collection add, package add */
+let R=null;
+function status(c){const x=R.ctx;const d=deck();
+  if(x.k==='deck'){const e=d.cards.find(k=>k.n===c.n);return d.cmd.includes(c.n)?{l:'Cmdr',on:1}:e?{l:isBasic(c.n)?'×'+e.q:'✓',on:1}:{l:'+'}}
+  if(x.k==='cmd')return d.cmd.includes(c.n)?{l:'✓',on:1}:{l:'Pick'};
+  if(x.k==='coll')return owned(c.n)?{l:'×'+owned(c.n),on:1}:{l:'+'};
+  if(x.k==='pkg'){const p=S.packages.find(p=>p.id===x.pid);return p.cards.includes(c.n)?{l:'✓',on:1}:{l:'+'}}
+}
+function shown(){let cs=R.cards;if(R.ownedOnly)cs=cs.filter(c=>owned(c.n));if(R.ownedFirst)cs=[...cs].sort((a,b)=>(owned(b.n)?1:0)-(owned(a.n)?1:0));return cs}
+function drawRes(){const box=$('#res');if(!box||!R)return;
+  if(R.loading){box.innerHTML='<div class="empty">Searching Scryfall…</div>';return}
+  if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
+  const cs=shown();const d=deck();let head='';
+  if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
+    head=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button></div>
+     <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
+  box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc(c.t)}${c.p?' · '+money(c.p):''}</div></button>${pips(c.mc)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
+}
+async function runQuery(q){if(!R)return;const mine=R;R.loading=true;R.err='';R.started=true;drawRes();
+  try{const cs=await search(q);if(R!==mine)return;R.cards=cs}catch(e){if(R!==mine)return;R.err=e.message;R.cards=[]}R.loading=false;drawRes()}
+function openSearch(ctx,title,extra=''){const d=deck();
+  R={ctx,cards:[],fill:false};
+  sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards"><div id="res"></div>`);
+  drawRes();const inp=$('#q');inp.focus();let t;
+  inp.addEventListener('input',()=>{clearTimeout(t);const v=inp.value.trim();if(v.length<2)return;t=setTimeout(()=>{
+    runQuery(v+(ctx.k==='deck'?idf(d):ctx.k==='cmd'?' is:commander':ctx.k==='pkg'?' f:commander':''))},350)});
+}
+function openFill(sid){const d=deck();const s=secOf(d,sid);
+  sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
+   <div class="list">${s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${esc(s.q)}</span></span><span class="muted">›</span></button>`:''}
+   ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>`);
+}
+async function fillSrc(sid,src){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);
+  R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:true,ownedOnly:false,loading:true,started:true};const mine=R;
+  sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');const el=$('#sheet');el.hidden=false;R=mine;drawRes();
+  if(!p||p.type==='scryfall'){await runQuery('('+(p?p.q:s.q)+')'+idf(d))}
+  else{try{const r=await byNames(p.cards);if(R!==mine)return;const id=ident(d);R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x))));save()}catch(e){if(R!==mine)return;R.err=e.message}R.loading=false;drawRes()}
+}
+function pick(n){const x=R.ctx;const d=deck();
+  if(x.k==='deck'){const e=d.cards.find(c=>c.n===n);if(d.cmd.includes(n))return;if(e&&!isBasic(n))removeCard(d,n);else addCard(d,n,x.sid)}
+  else if(x.k==='cmd'){if(d.cmd.includes(n))d.cmd=d.cmd.filter(k=>k!==n);else{if(d.cmd.length>=2)d.cmd.shift();d.cmd.push(n);removeCard(d,n)}save()}
+  else if(x.k==='coll'){S.coll[n]=owned(n)+1;const l=$('#addLoc')&&$('#addLoc').value.trim();if(l)S.loc[n]=l;save()}
+  else if(x.k==='pkg'){const p=S.packages.find(p=>p.id===x.pid);p.cards=p.cards.includes(n)?p.cards.filter(k=>k!==n):[...p.cards,n];save()}
+  drawRes();
+}
+
+function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n===n);const custom=S.packages.filter(p=>p.type==='custom');
+  const opts=[{id:'u',name:'Unsorted'},...d.sections,{id:'m',name:'Maybeboard'}];
+  sheet(n,`${c.img?`<img class="cardimg" alt="${esc(n)}" src="${esc(c.img)}">`:''}
+   <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${c.p?`<span class="muted num">${money(c.p)}</span>`:''}</div>
+   ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
+   <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
+   ${e?`<label for="mv">Section</label><select id="mv" data-n="${esc(n)}">${opts.map(s=>`<option value="${s.id}" ${e.s===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`:'<p class="muted small" style="margin:0">This is your commander.</p>'}
+   <div class="row wrapf"><span class="grow">Copies you own</span><button class="sm" data-act="ownDec" data-n="${esc(n)}" aria-label="Own one fewer">−</button><b class="num" id="ownN" style="min-width:22px;text-align:center">${owned(n)}</b><button class="sm" data-act="ownInc" data-n="${esc(n)}" aria-label="Own one more">+</button></div>
+   ${e&&isBasic(n)?`<div class="row"><span class="grow">Copies in deck</span><button class="sm" data-act="qDec" data-n="${esc(n)}" aria-label="One fewer in deck">−</button><b class="num" style="min-width:22px;text-align:center">${e.q}</b><button class="sm" data-act="qInc" data-n="${esc(n)}" aria-label="One more in deck">+</button></div>`:''}
+   ${custom.length?`<label for="toPkg">Add to one of your packages</label><select id="toPkg" data-n="${esc(n)}"><option value="">Choose a package</option>${custom.map(p=>`<option value="${p.id}">${esc(p.name)}${p.cards.includes(n)?' (already in)':''}</option>`).join('')}</select>`:''}`,
+   e?`<button class="danger" data-act="rmCard" data-n="${esc(n)}">Remove from deck</button>`:`<button class="danger" data-act="rmCmd" data-n="${esc(n)}">Remove as commander</button>`);
+}
+
+/* section editor: used for archetypes and for one deck's sections */
+let ED=null;
+function secEditor(title,name,sections,onSave,onDelete){ED={rows:sections.map(s=>({...s})),onSave,onDelete,hasName:name!==null,name,title};drawEd()}
+function readEd(){if(!ED)return;if(ED.hasName)ED.name=$('#edName').value;document.querySelectorAll('.secbox').forEach((b,i)=>{const r=ED.rows[i];r.name=$('.n',b).value;r.target=Math.max(0,parseInt($('.t',b).value)||0);r.q=$('.q',b).value.trim()})}
+function drawEd(){const sum=ED.rows.reduce((a,r)=>a+(+r.target||0),0);
+  sheet(ED.title,`${ED.hasName?`<label for="edName">Name</label><input id="edName" value="${esc(ED.name)}">`:''}
+   <p class="muted small" style="margin:0">Each section has a name, a target count, and an optional Scryfall search used for suggestions. Targets add up to <b class="num">${sum}</b>; a deck has 99 cards plus one commander, or 98 plus two.</p>
+   ${ED.rows.map((r,i)=>`<div class="secbox"><div class="secrow"><input class="n" value="${esc(r.name)}" aria-label="Section name"><input class="t" type="number" inputmode="numeric" min="0" value="${r.target}" aria-label="Target count"><button class="sm danger" data-act="edDel" data-i="${i}" aria-label="Delete section">✕</button><input class="q" value="${esc(r.q)}" placeholder="Scryfall search for suggestions (optional)" aria-label="Scryfall search"></div></div>`).join('')}
+   <button data-act="edAdd">Add a section</button>`,
+   `<div class="row"><button class="pri grow" data-act="edSave">Save</button>${ED.onDelete?'<button class="danger" data-act="edRemove">Delete</button>':''}</div>`);}
+
+function pkgSheet(p){sheet(p.id?'Edit package':'New package',`
+   <label for="pName">Name</label><input id="pName" value="${esc(p.name)}">
+   <label for="pType">Kind</label><select id="pType"><option value="scryfall" ${p.type==='scryfall'?'selected':''}>Scryfall search (live results)</option><option value="custom" ${p.type==='custom'?'selected':''}>Custom (my own picks)</option></select>
+   <div id="pS" ${p.type==='scryfall'?'':'hidden'}><label for="pQ">Scryfall search</label><input id="pQ" value="${esc(p.q)}" placeholder="e.g. otag:ramp mv<=2"><p class="muted small">Your commander's colors are added automatically when you use it in a deck.</p></div>
+   <div id="pC" ${p.type==='custom'?'':'hidden'}><label for="pCards">Cards, one per line</label><textarea id="pCards">${esc(p.cards.join('\n'))}</textarea>${p.id?`<button data-act="pkgSearch" data-id="${p.id}">Search and add cards</button>`:'<p class="muted small">Save first, then you can also add cards by search.</p>'}</div>`,
+   `<div class="row"><button class="pri grow" data-act="pkgSave" data-id="${p.id||''}">Save</button>${p.id?`<button class="danger" data-act="pkgDel" data-id="${p.id}">Delete</button>`:''}</div>`);}
+
+function confirmSheet(title,msg,act,label){sheet(title,`<p style="margin:0">${msg}</p>`,`<div class="row"><button class="grow" data-act="close">Cancel</button><button class="danger grow" data-act="${act}">${label}</button></div>`)}
+function download(name,text){try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}catch(e){}}
+async function copy(text){try{await navigator.clipboard.writeText(text);toast('Copied')}catch(e){toast('Select the text and copy it')}}
+async function importList(text,to,loc){const items=parseList(text);if(!items.length){toast('Nothing to import');return}
+  toast('Looking up '+items.length+' cards…');let r;try{r=await byNames(items.map(i=>i.n))}catch(e){toast(e.message);return}
+  let ok=0;items.forEach((it,i)=>{const c=r.cards[i];if(!c)return;ok++;
+    if(to==='coll'){S.coll[c.n]=owned(c.n)+it.q;if(loc)S.loc[c.n]=loc}else{const d=deck();if(d.cmd.includes(c.n))return;const e=d.cards.find(k=>k.n===c.n);if(e){if(isBasic(c.n))e.q+=it.q}else d.cards.push({n:c.n,s:'u',q:isBasic(c.n)?it.q:1})}});
+  save();closeSheet();rerender();
+  if(r.missing.length)sheet('Some cards were not found',`<p style="margin:0">Added ${ok}. Scryfall did not recognise these names:</p><div class="otext">${esc(r.missing.join('\n'))}</div>`);else toast('Added '+ok+' cards');}
+
+/* ================= actions ================= */
+const A={
+  back(){location.hash='decks'},
+  openDeck(e){UI.deck=e.dataset.id;location.hash='deck';route()},
+  newDeck(){sheet('New deck',`<label for="dName">Deck name</label><input id="dName" placeholder="e.g. Neriv go-wide">
+    <label for="dArch">Archetype</label><select id="dArch">${S.archetypes.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+    <p class="muted small" style="margin:0">The archetype sets up the deck's sections and targets. You can change them later.</p>`,`<button class="pri" data-act="createDeck">Create deck</button>`);$('#dName').focus()},
+  createDeck(){const a=S.archetypes.find(a=>a.id===$('#dArch').value);const d={id:uid(),name:$('#dName').value.trim()||'Untitled deck',cmd:[],arch:a.name,sections:a.sections.map(s=>({...s,id:uid()})),cards:[]};
+    S.decks.unshift(d);save();closeSheet();UI.deck=d.id;location.hash='deck';route();A.setCmd()},
+  setCmd(){openSearch({k:'cmd'},'Pick your commander (up to two)')},
+  view(e){UI.view=e.dataset.v;rerender()},
+  toggle(e){const k=deck().id+e.dataset.sid;UI.closed[k]=!UI.closed[k];rerender()},
+  addSearch(e){const d=deck();const s=e.dataset.sid;const nm=s==='u'?'Unsorted':s==='m'?'Maybeboard':secOf(d,s).name;openSearch({k:'deck',sid:s},'Add to '+nm)},
+  fill(e){openFill(e.dataset.sid)},
+  fillSrc(e){fillSrc(e.dataset.sid,e.dataset.src)},
+  pick(e){pick(e.dataset.n)},
+  peek(e){peek(e.dataset.n)},
+  unpeek(){$('#peek').hidden=true},
+  rOwnedFirst(){R.ownedFirst=!R.ownedFirst;drawRes()},
+  rOwnedOnly(){R.ownedOnly=!R.ownedOnly;drawRes()},
+  fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
+  cardSheet(e){cardSheet(e.dataset.n)},
+  rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
+  rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
+  ownInc(e){S.coll[e.dataset.n]=owned(e.dataset.n)+1;save();$('#ownN').textContent=owned(e.dataset.n)},
+  ownDec(e){const n=e.dataset.n;if(owned(n)>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n]}save();$('#ownN').textContent=owned(n)},
+  qInc(e){deck().cards.find(c=>c.n===e.dataset.n).q++;save();cardSheet(e.dataset.n)},
+  qDec(e){const c=deck().cards.find(c=>c.n===e.dataset.n);if(c.q>1){c.q--;save();cardSheet(e.dataset.n)}},
+  deckMenu(){const d=deck();sheet(d.name,`<div class="list">
+    <button class="item" data-act="pull">Pull list: find these cards in my collection</button>
+    <button class="item" data-act="rename">Rename deck</button>
+    <button class="item" data-act="editSecs">Edit sections and targets</button>
+    <button class="item" data-act="changeArch">Switch archetype</button>
+    <button class="item" data-act="saveArch">Save these sections as a new archetype</button>
+    <button class="item" data-act="basics">Add basic lands</button>
+    <button class="item" data-act="importDeck">Import a card list</button>
+    <button class="item" data-act="exportDeck">Export card list</button>
+    <button class="item" data-act="ownAll">Mark every card in this deck as owned</button>
+    <button class="item danger" data-act="delDeckAsk">Delete deck</button></div>`)},
+  rename(){sheet('Rename deck',`<label for="rn">Deck name</label><input id="rn" value="${esc(deck().name)}">`,`<button class="pri" data-act="renameSave">Save</button>`)},
+  renameSave(){deck().name=$('#rn').value.trim()||'Untitled deck';save();closeSheet();rerender()},
+  editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const ids=rows.map(r=>r.id);d.cards.forEach(c=>{if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s='u'});d.sections=rows})},
+  changeArch(){sheet('Switch archetype',`<p class="muted small" style="margin:0">Cards stay in sections that keep the same name. Everything else moves to Unsorted.</p><div class="list">${S.archetypes.map(a=>`<button class="item" data-act="applyArch" data-id="${a.id}">${esc(a.name)}</button>`).join('')}</div>`)},
+  applyArch(e){const d=deck();const a=S.archetypes.find(a=>a.id===e.dataset.id);const old=Object.fromEntries(d.sections.map(s=>[s.id,s.name]));const ns=a.sections.map(s=>({...s,id:uid()}));
+    d.cards.forEach(c=>{if(c.s==='u'||c.s==='m')return;const m=ns.find(s=>s.name===old[c.s]);c.s=m?m.id:'u'});d.sections=ns;d.arch=a.name;save();closeSheet();rerender()},
+  saveArch(){const d=deck();S.archetypes.push({id:uid(),name:d.name+' template',sections:d.sections.map(s=>({...s,id:uid()}))});save();closeSheet();toast('Saved to Setup → Archetypes')},
+  async basics(){const d=deck();const map={W:'Plains',U:'Island',B:'Swamp',R:'Mountain',G:'Forest'};const names=ident(d).map(c=>map[c]);if(!names.length)names.push('Wastes');
+    try{await byNames(names)}catch(e){}names.forEach(n=>{if(!CARDS[n])CARDS[n]={n,mc:'',cmc:0,t:'Basic Land',o:'',ci:[],img:'',p:0}});
+    const land=d.sections.find(s=>/land/i.test(s.name));const sid=land?land.id:'u';
+    sheet('Basic lands',`<p class="muted small" style="margin:0">Goes into ${land?esc(land.name):'Unsorted'}.</p>${names.map(n=>{const e=d.cards.find(c=>c.n===n);return`<div class="row"><span class="grow">${n}</span><button class="sm" data-act="bDec" data-n="${n}" aria-label="Remove one ${n}">−</button><b class="num" style="min-width:22px;text-align:center">${e?e.q:0}</b><button class="sm" data-act="bInc" data-n="${n}" data-sid="${sid}" aria-label="Add one ${n}">+</button></div>`}).join('')}`)},
+  bInc(e){const d=deck();const c=d.cards.find(c=>c.n===e.dataset.n);if(c)c.q++;else d.cards.push({n:e.dataset.n,s:e.dataset.sid,q:1});save();rerender();A.basics()},
+  bDec(e){const d=deck();const c=d.cards.find(c=>c.n===e.dataset.n);if(!c)return;if(c.q>1)c.q--;else removeCard(d,c.n);save();rerender();A.basics()},
+  importDeck(){sheet('Import a card list',`<p class="muted small" style="margin:0">Paste a list, one card per line, like <b>1 Sol Ring</b>. Cards land in Unsorted so you can file them.</p><textarea id="imp" placeholder="1 Sol Ring&#10;1 Arcane Signet"></textarea>`,`<button class="pri" data-act="importDeckGo">Import</button>`)},
+  importDeckGo(){importList($('#imp').value,'deck')},
+  exportDeck(){const d=deck();const txt=[...d.cmd.map(n=>'1 '+n),...main(d).map(c=>c.q+' '+c.n)].join('\n');sheet('Export card list',`<textarea readonly id="exp">${esc(txt)}</textarea>`,`<button class="pri" data-act="copyExp">Copy</button>`)},
+  copyExp(){copy($('#exp').value)},
+  ownAll(){const d=deck();d.cmd.forEach(n=>{if(!owned(n))S.coll[n]=1});main(d).forEach(c=>{if(owned(c.n)<c.q)S.coll[c.n]=c.q});save();closeSheet();rerender();toast('Added to your collection')},
+  delDeckAsk(){confirmSheet('Delete deck','This removes <b>'+esc(deck().name)+'</b> for good. Your collection is not affected.','delDeck','Delete deck')},
+  delDeck(){S.decks=S.decks.filter(d=>d.id!==UI.deck);save();closeSheet();location.hash='decks';route()},
+  /* packages */
+  newPkg(){pkgSheet({id:'',name:'',type:'scryfall',q:'',cards:[]})},
+  editPkg(e){pkgSheet(S.packages.find(p=>p.id===e.dataset.id))},
+  pkgSave(e){let p=S.packages.find(p=>p.id===e.dataset.id);if(!p){p={id:uid(),cards:[]};S.packages.push(p)}
+    p.name=$('#pName').value.trim()||'Untitled package';p.type=$('#pType').value;p.q=$('#pQ').value.trim();
+    if(p.type==='custom')p.cards=[...new Set(parseList($('#pCards').value).map(i=>i.n))];save();closeSheet();rerender()},
+  pkgDel(e){S.packages=S.packages.filter(p=>p.id!==e.dataset.id);save();closeSheet();rerender()},
+  pkgSearch(e){const p=S.packages.find(p=>p.id===e.dataset.id);p.cards=[...new Set(parseList($('#pCards').value).map(i=>i.n))];save();openSearch({k:'pkg',pid:p.id},'Add to '+p.name)},
+  /* collection */
+  collAdd(){openSearch({k:'coll'},'Add to collection',locField('addLoc',UI.lastLoc)+'<label for="q">Card</label>')},
+  collPaste(){sheet('Paste a list',`<p class="muted small" style="margin:0">One card per line, like <b>2 Lightning Greaves</b>. You can also paste a CSV export from a card scanner app, as long as it has a Name column.</p>${locField('impLoc',UI.lastLoc)}<label for="imp">Card list</label><textarea id="imp"></textarea>`,`<button class="pri" data-act="collPasteGo">Add to collection</button>`)},
+  collPasteGo(){const l=$('#impLoc').value.trim();UI.lastLoc=l;importList($('#imp').value,'coll',l)},
+  collInc(e){S.coll[e.dataset.n]++;save();rerender()},
+  collDec(e){const n=e.dataset.n;if(S.coll[n]>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n]}save();rerender()},
+  collColor(e){UI.collColor=e.dataset.c;rerender()},
+  collCard(e){const n=e.dataset.n;const c=card(n);sheet(n,`${c.img?`<img class="cardimg" alt="${esc(n)}" src="${esc(c.img)}">`:''}<div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}</div><div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
+    <label for="cLoc">Stored in</label><input id="cLoc" list="locs" value="${esc(S.loc[n]||'')}" placeholder="e.g. Red binder, Box 2" autocomplete="off">${locData()}`,`<button class="pri" data-act="collCardSave" data-n="${esc(n)}">Save</button>`)},
+  collCardSave(e){const l=$('#cLoc').value.trim();if(l)S.loc[e.dataset.n]=l;else delete S.loc[e.dataset.n];save();closeSheet();rerender()},
+  pull(){const d=deck();d.pulled=d.pulled||{};const all=[...d.cmd.map(n=>({n,q:1})),...main(d)];const have=all.filter(c=>owned(c.n));const need=all.filter(c=>!owned(c.n));
+    const g={};have.forEach(c=>{const k=S.loc[c.n]||colorOf(c.n)+' cards (no location set)';(g[k]=g[k]||[]).push(c)});
+    const ord=c=>COLORS.indexOf(colorOf(c.n));
+    sheet('Pull list',`<p class="muted small" style="margin:0">Pulled <b id="pullN" class="num">${have.filter(c=>d.pulled[c.n]).length}</b> of <b class="num">${have.length}</b> cards you own. Grouped by where they are stored; cards with no location are grouped by color.</p>
+     ${Object.keys(g).sort().map(k=>`<div class="grp">${esc(k)} · ${g[k].length}</div><div class="list">${g[k].sort((a,b)=>ord(a)-ord(b)||a.n.localeCompare(b.n)).map(c=>`<label class="item"><input type="checkbox" data-pull="${esc(c.n)}" ${d.pulled[c.n]?'checked':''}><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span><span class="muted small">${colorOf(c.n)}</span></label>`).join('')}</div>`).join('')||'<div class="empty">You do not own any cards in this deck yet.</div>'}
+     ${need.length?`<div class="grp">Not owned · ${need.length}</div><textarea readonly id="exp">${esc(need.map(c=>c.q+' '+c.n).join('\n'))}</textarea>`:''}`,
+     `<div class="row"><button class="grow" data-act="pullClear">Clear ticks</button>${need.length?'<button class="grow" data-act="copyExp">Copy cards to buy</button>':''}</div>`)},
+  pullClear(){deck().pulled={};save();A.pull()},
+  /* archetypes */
+  newArch(){const a={id:uid(),name:'New archetype',sections:[SEC('Theme',31),...core(),SEC('Lands',37,'t:land -t:basic')]};secEditor('New archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||'New archetype';S.archetypes.push(a)})},
+  editArch(e){const a=S.archetypes.find(a=>a.id===e.dataset.id);secEditor('Edit archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||a.name},()=>{S.archetypes=S.archetypes.filter(x=>x!==a)})},
+  edAdd(){readEd();ED.rows.push(SEC('New section',5));drawEd()},
+  edDel(e){readEd();ED.rows.splice(+e.dataset.i,1);drawEd()},
+  edSave(){readEd();ED.onSave(ED.rows,ED.name);ED=null;save();closeSheet();rerender()},
+  edRemove(){if(S.archetypes.length<2){toast('Keep at least one archetype');return}ED.onDelete();ED=null;save();closeSheet();rerender()},
+  /* backup */
+  export(){save();setTimeout(()=>{const txt=JSON.stringify(S);download('brew-bench-backup.json',txt);sheet('Export backup',`<p class="muted small" style="margin:0">A backup file should have downloaded. If not, copy the text below and save it somewhere.</p><textarea readonly id="exp">${esc(txt)}</textarea>`,`<button class="pri" data-act="copyExp">Copy</button>`)},300)},
+  importOpen(){sheet('Import backup',`<p class="muted small" style="margin:0">This replaces everything on this device with the backup.</p><label for="impF">Backup file</label><input id="impF" type="file" accept=".json,application/json"><label for="imp">Or paste the backup text</label><textarea id="imp"></textarea>`,`<button class="pri" data-act="importGo">Replace my data with this backup</button>`)},
+  async importGo(){let txt=$('#imp').value.trim();const f=$('#impF').files[0];if(f)txt=await f.text();
+    try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;S.loc=S.loc||{};CARDS=S.cards||{};save();closeSheet();rerender();toast('Backup imported')}catch(e){toast('That is not a Brew Bench backup')}},
+  resetAsk(){confirmSheet('Erase everything','This deletes all decks, packages, archetypes and your collection from this device. Export a backup first if you might want them back.','reset','Erase everything')},
+  reset(){S=blank();CARDS={};save();closeSheet();rerender()},
+  close(){closeSheet();if(location.hash==='#deck'||location.hash==='#collection'||location.hash==='#packages')rerender()},
+  scrim(e,ev){if(ev.target===e)A.close()}
+};
+document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
+document.addEventListener('change',ev=>{const t=ev.target;
+  if(t.id==='mv'){const c=deck().cards.find(c=>c.n===t.dataset.n);c.s=t.value;save();toast('Moved')}
+  if(t.id==='toPkg'&&t.value){const p=S.packages.find(p=>p.id===t.value);if(!p.cards.includes(t.dataset.n))p.cards.push(t.dataset.n);save();toast('Added to '+p.name)}
+  if(t.id==='collLocSel'){UI.collLoc=t.value;rerender()}
+  if(t.dataset.pull!==undefined){const d=deck();d.pulled=d.pulled||{};if(t.checked)d.pulled[t.dataset.pull]=1;else delete d.pulled[t.dataset.pull];save();$('#pullN').textContent=Object.keys(d.pulled).filter(n=>owned(n)).length}
+  if(t.id==='pType'){$('#pS').hidden=t.value!=='scryfall';$('#pC').hidden=t.value!=='custom'}});
+document.addEventListener('input',ev=>{if(ev.target.id==='collQ'){UI.collQ=ev.target.value;const q=UI.collQ.toLowerCase();const l=$('#collList');if(l)l.innerHTML=collRows(collShown())}});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('#peek').hidden)A.unpeek();else if(!$('#sheet').hidden)A.close()}});
+window.addEventListener('hashchange',route);
+load();route();
+</script>
+</body>
+</html>
