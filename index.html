@@ -144,8 +144,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.10';
+const VERSION='1.11';
 const NEWS=[
+ ['1.11','Nov 10, 2026',['Sections you name yourself now get Fill suggestions: the app looks for a matching theme or Scryfall tag, then falls back to card text, and saves the search that worked.','Similar cards from EDHREC: open any card in a deck and tap Similar cards on EDHREC.']],
  ['1.10','Nov 10, 2026',['Fill has a new filter for cards that make mana in your deck\'s colors. It is on by default for Ramp and Lands.','For decks with two or more colors, land suggestions are narrowed to lands that make at least two of them.']],
  ['1.9','Nov 10, 2026',['Every new deck gets a Lands section that suggests lands in your commander\'s colors, even if the archetype has none.','Default land count is now 38.']],
  ['1.8','Nov 10, 2026',['New game: tap your opponents to add them, then tap one of their saved decks.','Private tags for opponents (Friend, Rival, Nemesis). They show only on the profile and your opponents list, never in game setup or on the life counter.']],
@@ -291,7 +292,7 @@ const THEMES=[
 /* EDHREC theme tags for the commander, when the browser can reach them; null while loading or unavailable */
 const EDH={};
 const edhSlug=names=>names.map(n=>n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 -]/g,'').trim().replace(/\s+/g,'-')).join('-');
-async function edhFetch(slug){const ac=new AbortController();const t=setTimeout(()=>ac.abort(),7000);try{const r=await fetch('https://json.edhrec.com/pages/commanders/'+slug+'.json',{signal:ac.signal});return r.ok?await r.json():null}catch(e){return null}finally{clearTimeout(t)}}
+async function edhFetch(slug,kind='commanders'){const ac=new AbortController();const t=setTimeout(()=>ac.abort(),7000);try{const r=await fetch('https://json.edhrec.com/pages/'+kind+'/'+slug+'.json',{signal:ac.signal});return r.ok?await r.json():null}catch(e){return null}finally{clearTimeout(t)}}
 /* loads EDHREC's page data for the commander: theme tags and recommended card lists. {fail:true} when it cannot be reached */
 async function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!==undefined)return;EDH[key]=null;
   let j=await edhFetch(edhSlug(d.cmd));if(!j&&d.cmd.length>1)j=await edhFetch(edhSlug([...d.cmd].reverse()));
@@ -300,6 +301,16 @@ async function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!=
     const cl=j.container&&j.container.json_dict&&j.container.json_dict.cardlists;
     if(Array.isArray(cl))out.lists=cl.map(l=>({header:String(l.header||l.tag||'Cards'),cards:(l.cardviews||[]).filter(c=>c&&c.name).map(c=>({name:String(c.name),syn:typeof c.synergy==='number'?c.synergy:null,pct:c.potential_decks?(c.num_decks||c.inclusion||0)/c.potential_decks:null}))})).filter(l=>l.cards.length)}
   EDH[key]=out;const cur=deck();if(location.hash==='#deck'&&$('#sheet').hidden&&cur&&cur.cmd.join('|')===key)rerender()}
+/* pulls the similar-cards list out of an EDHREC card page, wherever it sits in the data */
+function findSimilar(j){let out=null;const ok=v=>Array.isArray(v)&&v.length&&v[0]&&typeof v[0]==='object'&&v[0].name;
+  const walk=(o,dep)=>{if(out||!o||typeof o!=='object'||dep>7)return;
+    if(!Array.isArray(o)){if(/similar/i.test(String(o.header||o.tag||''))&&ok(o.cardviews)){out=o.cardviews;return}for(const k in o){if(/similar/i.test(k)&&ok(o[k])){out=o[k];return}}}
+    for(const k in o)walk(o[k],dep+1)};walk(j,0);return out?[...new Set(out.map(c=>String(c.name)))]:[]}
+/* searches to try for a section the user named, best guess first */
+function autoQueries(name){const low=name.trim().toLowerCase();const slug=low.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');if(!slug)return[];const out=[];
+  const lib=THEMES.find(t=>t[2]&&(t[0].toLowerCase()===low||(low.length>3&&(t[0].toLowerCase().includes(low)||low.includes(t[0].toLowerCase())))));
+  if(lib)out.push({raw:lib[2],why:'the '+lib[0]+' theme search'});
+  out.push({raw:'otag:gives-'+slug,why:'the Scryfall tag "gives-'+slug+'"'},{raw:'otag:'+slug,why:'the Scryfall tag "'+slug+'"'},{raw:'o:"'+low.replace(/"/g,'')+'"',why:'card text containing "'+low+'"'});return out}
 function themeSuggest(d){const seen=new Set(d.sections.map(s=>s.name.toLowerCase()));const sugg=[];const push=(name,target,q,src)=>{const k=name.toLowerCase();if(seen.has(k))return;seen.add(k);sugg.push({name,target,q,src})};
   const cs=d.cmd.map(card);const text=cs.map(c=>c.o+' '+c.t).join(' ');const subs=[...new Set(cs.flatMap(c=>(c.t.split(' // ')[0].split('—')[1]||'').trim().split(/\s+/).filter(Boolean)))];const used=new Set();
   ((EDH[d.cmd.join('|')]||{}).tags||[]).forEach(({v:t,slug})=>{const lib=THEMES.find(x=>x[0].toLowerCase()===t.toLowerCase());const sub=subs.find(s=>t.toLowerCase().startsWith(s.toLowerCase().slice(0,Math.max(2,s.length-1))));if(sub)used.add(sub);
@@ -411,10 +422,11 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}</div></button>${pips(c.mc)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
 /* runs q; if it errors or finds nothing, tries each fallback in order and shows that fallback's note */
-async function runQuery(q,alts){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.started=true;drawRes();
+async function runQuery(q,alts,first){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.won='';R.started=true;drawRes();
   try{let cs=[];try{cs=await search(q)}catch(e){if(!alts.length)throw e}
-    for(let i=0;!cs.length&&i<alts.length;i++){try{cs=await search(alts[i].q)}catch(e){if(i===alts.length-1)throw e}if(R!==mine)return;if(cs.length)R.note=alts[i].note}
-    if(R!==mine)return;R.cards=cs}catch(e){if(R!==mine)return;R.err=e.message;R.cards=[]}R.loading=false;drawRes()}
+    if(R!==mine)return;if(cs.length&&first){R.note=first.note||'';R.won=first.raw||''}
+    for(let i=0;!cs.length&&i<alts.length;i++){try{cs=await search(alts[i].q)}catch(e){if(i===alts.length-1)throw e}if(R!==mine)return;if(cs.length){R.note=alts[i].note||'';R.won=alts[i].raw||''}}
+    R.cards=cs}catch(e){if(R!==mine)return;R.err=e.message;R.cards=[]}R.loading=false;drawRes()}
 /* Scryfall filter for cards that make mana in the deck's colors; lands in a multicolor deck must make two of them */
 function prodFilter(d,land){const id=ident(d).map(c=>c.toLowerCase());if(!id.length)return'';let parts=id;
   if(land&&id.length>1){parts=[];id.forEach((x,i)=>id.slice(i+1).forEach(y=>parts.push(x+y)))}
@@ -429,7 +441,7 @@ function openSearch(ctx,title,extra=''){const d=deck();
 function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
    ${(e=>!d.cmd.length?'':!e?'<p class="muted small" style="margin:0">Loading EDHREC recommendations…</p>':e.lists.length?'':'<p class="muted small" style="margin:0">EDHREC recommendations could not be loaded in this browser.</p>')(EDH[d.cmd.join('|')])}
-   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${esc(s.q)}</span></span><span class="muted">›</span></button>`:''}
+   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>
    ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>`);
 }
 async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const prev=R&&R.fill?R:null;
@@ -438,9 +450,14 @@ async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S
   R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:prev?prev.ownedFirst:true,ownedOnly:prev?prev.ownedOnly:false,loading:true,started:true,src,mk,
     mkLabel:scry&&ident(d).length?(land&&multi?'Makes 2+ of my colors':'Makes my colors'):''};const mine=R;
   sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');R=mine;drawRes();
-  if(scry){const tag=q.match(/^otag:([a-z0-9-]+)$/);const base='('+q+')'+idf(d);const pf=mk?prodFilter(d,land):'';
-    await runQuery(base+pf,[pf?{q:base,note:'Nothing matched the color filter, so this shows every card your deck can play.'}:null,
-      tag?{q:'(o:"'+tag[1].replace(/-/g,' ')+'")'+idf(d),note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'}:null])}
+  if(scry){let cands;
+    if(q){const tag=q.match(/^otag:([a-z0-9-]+)$/);cands=[{raw:q,note:''}];if(tag)cands.push({raw:'o:"'+tag[1].replace(/-/g,' ')+'"',note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'})}
+    else cands=autoQueries(s.name).map(c=>({raw:c.raw,note:'Suggestions use '+c.why+'.'}));
+    if(!cands.length){R.loading=false;R.err='Give this section a name or a Scryfall search in Edit sections.';drawRes();return}
+    const pf=mk?prodFilter(d,land):'';const W=c=>'('+c.raw+')'+idf(d);const list=[];
+    cands.forEach(c=>{if(pf)list.push({q:W(c)+pf,note:c.note,raw:c.raw});list.push({q:W(c),raw:c.raw,note:((pf?'Nothing matched the color filter, so this shows every card your deck can play. ':'')+c.note).trim()})});
+    await runQuery(list[0].q,list.slice(1),list[0]);
+    if(R===mine&&!q&&!p&&R.won&&R.cards.length){s.q=R.won;save();R.note=(R.note+' Saved as this section\'s search. Change it in Edit sections.').trim();drawRes()}}
   else{try{const r=await byNames(p.cards);if(R!==mine)return;const id=ident(d);R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x))));save()}catch(e){if(R!==mine)return;R.err=e.message}R.loading=false;drawRes()}
 }
 function pick(n){const x=R.ctx;const d=deck();
@@ -460,6 +477,7 @@ function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n
    <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${c.p?`<span class="muted num">${money(c.p)}</span>`:''}</div>
    ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
    <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
+   <button data-act="similar" data-n="${esc(n)}">Similar cards on EDHREC</button>
    ${e?`<label for="mv">Section</label><select id="mv" data-n="${esc(n)}">${opts.map(s=>`<option value="${s.id}" ${e.s===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>${e.s!=='m'&&d.sections.some(s=>s.id!==e.s)?`<label>Also counts toward</label><div class="chips">${d.sections.filter(s=>s.id!==e.s).map(s=>`<button class="chip ${(e.x||[]).includes(s.id)?'on':''}" data-act="xTog" data-n="${esc(n)}" data-sid="${s.id}">${esc(s.name)}</button>`).join('')}</div>`:''}`:'<p class="muted small" style="margin:0">This is your commander.</p>'}
    <div class="row wrapf"><span class="grow">Copies you own</span><button class="sm" data-act="ownDec" data-n="${esc(n)}" aria-label="Own one fewer">−</button><b class="num" id="ownN" style="min-width:22px;text-align:center">${owned(n)}</b><button class="sm" data-act="ownInc" data-n="${esc(n)}" aria-label="Own one more">+</button></div>
    ${e&&isBasic(n)?`<div class="row"><span class="grow">Copies in deck</span><button class="sm" data-act="qDec" data-n="${esc(n)}" aria-label="One fewer in deck">−</button><b class="num" style="min-width:22px;text-align:center">${e.q}</b><button class="sm" data-act="qInc" data-n="${esc(n)}" aria-label="One more in deck">+</button></div>`:''}
@@ -612,6 +630,13 @@ const A={
   rMk(){fillSrc(R.ctx.sid,R.src,!R.mk)},
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
+  async similar(e){const d=deck();const n=e.dataset.n;const c=d.cards.find(c=>c.n===n);const sid=c&&c.s!=='m'?c.s:'u';const sn=sid==='u'?'Unsorted':secOf(d,sid).name;
+    R={ctx:{k:'deck',sid},cards:[],fill:false,loading:true,started:true};const mine=R;sheet('Similar to '+n+' → '+sn,'<div id="res"></div>');R=mine;drawRes();
+    const j=await edhFetch(edhSlug([n]),'cards');if(R!==mine)return;const names=j?findSimilar(j):[];
+    if(!names.length){R.loading=false;R.err=j?'EDHREC lists no similar cards for '+n+'.':'Could not load this card from EDHREC.';drawRes();return}
+    try{const r=await byNames(names);if(R!==mine)return;const id=ident(d);const all=r.cards.filter(Boolean);R.cards=all.filter(x=>!d.cmd.length||x.ci.every(k=>id.includes(k)));
+      if(R.cards.length<all.length)R.note=(all.length-R.cards.length)+' similar card'+(all.length-R.cards.length===1?' is':'s are')+' outside this deck\'s colors and hidden.'}catch(err){if(R!==mine)return;R.err=err.message}
+    R.loading=false;drawRes()},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
   rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
