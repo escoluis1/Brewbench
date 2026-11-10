@@ -144,8 +144,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.9';
+const VERSION='1.10';
 const NEWS=[
+ ['1.10','Nov 10, 2026',['Fill has a new filter for cards that make mana in your deck\'s colors. It is on by default for Ramp and Lands.','For decks with two or more colors, land suggestions are narrowed to lands that make at least two of them.']],
  ['1.9','Nov 10, 2026',['Every new deck gets a Lands section that suggests lands in your commander\'s colors, even if the archetype has none.','Default land count is now 38.']],
  ['1.8','Nov 10, 2026',['New game: tap your opponents to add them, then tap one of their saved decks.','Private tags for opponents (Friend, Rival, Nemesis). They show only on the profile and your opponents list, never in game setup or on the life counter.']],
  ['1.7','Nov 9, 2026',['Version number and this What\'s new list, in Setup.','A banner on the Decks tab tells you when the app has updated.']],
@@ -405,14 +406,19 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
   const cs=shown();const d=deck();let head=R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'';
   if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
-    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button></div>
+    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${R.mkLabel?`<button class="chip ${R.mk?'on':''}" data-act="rMk">${R.mkLabel}</button>`:''}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
   box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}</div></button>${pips(c.mc)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
-async function runQuery(q,alt){if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.started=true;drawRes();
-  try{let cs=[];try{cs=await search(q)}catch(e){if(!alt)throw e}
-    if(!cs.length&&alt){cs=await search(alt.q);if(R!==mine)return;R.note=alt.note}
+/* runs q; if it errors or finds nothing, tries each fallback in order and shows that fallback's note */
+async function runQuery(q,alts){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.started=true;drawRes();
+  try{let cs=[];try{cs=await search(q)}catch(e){if(!alts.length)throw e}
+    for(let i=0;!cs.length&&i<alts.length;i++){try{cs=await search(alts[i].q)}catch(e){if(i===alts.length-1)throw e}if(R!==mine)return;if(cs.length)R.note=alts[i].note}
     if(R!==mine)return;R.cards=cs}catch(e){if(R!==mine)return;R.err=e.message;R.cards=[]}R.loading=false;drawRes()}
+/* Scryfall filter for cards that make mana in the deck's colors; lands in a multicolor deck must make two of them */
+function prodFilter(d,land){const id=ident(d).map(c=>c.toLowerCase());if(!id.length)return'';let parts=id;
+  if(land&&id.length>1){parts=[];id.forEach((x,i)=>id.slice(i+1).forEach(y=>parts.push(x+y)))}
+  return' ('+parts.map(c=>'produces:'+c).join(' or ')+')'}
 function openSearch(ctx,title,extra=''){const d=deck();
   R={ctx,cards:[],fill:false};
   sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards"><div id="res"></div>`);
@@ -426,11 +432,15 @@ function openFill(sid){const d=deck();const s=secOf(d,sid);
    <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${esc(s.q)}</span></span><span class="muted">›</span></button>`:''}
    ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>`);
 }
-async function fillSrc(sid,src){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);
-  R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:true,ownedOnly:false,loading:true,started:true};const mine=R;
-  sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');const el=$('#sheet');el.hidden=false;R=mine;drawRes();
-  if(!p||p.type==='scryfall'){const q=p?p.q:s.q;const tag=q.match(/^otag:([a-z0-9-]+)$/);
-    await runQuery('('+q+')'+idf(d),tag?{q:'(o:"'+tag[1].replace(/-/g,' ')+'")'+idf(d),note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'}:null)}
+async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const prev=R&&R.fill?R:null;
+  const scry=!p||p.type==='scryfall';const q=scry?(p?p.q:s.q):'';const land=/land/i.test(s.name+' '+(p?p.name:''))||/t:land/.test(q);const multi=ident(d).length>1;
+  if(mk===undefined)mk=/land|ramp|rock|mana/i.test(s.name+' '+(p?p.name:''));
+  R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:prev?prev.ownedFirst:true,ownedOnly:prev?prev.ownedOnly:false,loading:true,started:true,src,mk,
+    mkLabel:scry&&ident(d).length?(land&&multi?'Makes 2+ of my colors':'Makes my colors'):''};const mine=R;
+  sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');R=mine;drawRes();
+  if(scry){const tag=q.match(/^otag:([a-z0-9-]+)$/);const base='('+q+')'+idf(d);const pf=mk?prodFilter(d,land):'';
+    await runQuery(base+pf,[pf?{q:base,note:'Nothing matched the color filter, so this shows every card your deck can play.'}:null,
+      tag?{q:'(o:"'+tag[1].replace(/-/g,' ')+'")'+idf(d),note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'}:null])}
   else{try{const r=await byNames(p.cards);if(R!==mine)return;const id=ident(d);R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x))));save()}catch(e){if(R!==mine)return;R.err=e.message}R.loading=false;drawRes()}
 }
 function pick(n){const x=R.ctx;const d=deck();
@@ -599,6 +609,7 @@ const A={
   unpeek(){$('#peek').hidden=true},
   rOwnedFirst(){R.ownedFirst=!R.ownedFirst;drawRes()},
   rOwnedOnly(){R.ownedOnly=!R.ownedOnly;drawRes()},
+  rMk(){fillSrc(R.ctx.sid,R.src,!R.mk)},
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
