@@ -146,8 +146,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.15';
+const VERSION='1.16';
 const NEWS=[
+ ['1.16','Nov 10, 2026',['Auto-sort: imported cards are filed into your sections by checking each section\'s Scryfall search. Lands go to Lands. Cards that fit more than one section are shared.','An Auto-sort button on Unsorted does the same for anything sitting there.']],
  ['1.15','Nov 10, 2026',['Quick add: in Search, adding a card by name clears the box so you can type the next one right away, with a running list of what you added.','Paste several cards into any section, from Search or Fill. Text copied from a web page works; lines that are not card names are ignored.','Fill has a link that opens your commander\'s page on EDHREC.']],
  ['1.14','Nov 10, 2026',['Tidier mana display: what a rock makes now sits on the second line of Fill results, showing only colors your deck can use. The card screen has a Makes line too.','Similar cards now opens the card\'s similar-cards page on EDHREC, because the in-app list could not find the data.']],
  ['1.13','Nov 10, 2026',['Mana rocks and other spells that make mana now show "makes" and the colors, next to their cost.']],
@@ -369,7 +370,7 @@ function secHtml(d,s){
    :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${costOrMana(card(c.n))}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
     <span class="pill num ${cls}">${special?n:n+'/'+s.target}</span>
-    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
+    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${s.id==='u'?'<button class="sm pri" data-act="autoSort">Auto-sort</button>':''}${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
     ${special?'':`<div class="bar"><i style="width:${Math.min(100,s.target?n/s.target*100:0)}%"></i></div>`}
     ${closed?'':(cs.length?rows:'')}</section>`;
 }
@@ -408,6 +409,25 @@ function vSetup(){
    <p class="muted small" style="margin:0">Everything is saved on this device only. To move it to another device, export here and import there.</p>
    <div class="row wrapf"><button data-act="export">Export backup</button><button data-act="importOpen">Import backup</button><button class="danger" data-act="resetAsk">Erase everything</button></div>`);
 }
+
+/* Files Unsorted cards into sections. Scryfall does not list a card's tags, so for each section this asks
+   Scryfall which of the unsorted cards match that section's search. */
+async function autoSort(d){const todo=d.cards.filter(c=>c.s==='u');if(!todo.length){toast('Nothing in Unsorted to sort');return}
+  const front=n=>n.split(' // ')[0];const isLand=c=>/Land/.test(front(card(c.n).t));const landSec=d.sections.find(s=>/land/i.test(s.name));const got={};const bump=s=>got[s.id]=(got[s.id]||0)+1;let shared=0;
+  sheet('Sorting '+todo.length+' cards','<div id="sortP" class="empty">Starting…</div>');const P=t=>{const e=$('#sortP');if(e)e.textContent=t};
+  if(landSec)todo.forEach(c=>{if(isLand(c)){c.s=landSec.id;bump(landSec)}});
+  const pool=todo.filter(c=>!isLand(c)&&c.n.indexOf('"')<0);const chunks=[];let cur=[],len=0;
+  pool.forEach(c=>{const t=front(c.n).length+7;if(len+t>720&&cur.length){chunks.push(cur);cur=[];len=0}cur.push(c);len+=t});if(cur.length)chunks.push(cur);
+  const qs=d.sections.filter(s=>s!==landSec).map(s=>({s,q:s.q||(autoQueries(s.name)[0]||{}).raw||''})).filter(x=>x.q);
+  for(let i=0;i<qs.length;i++){const{s,q}=qs[i];P('Checking '+s.name+' ('+(i+1)+' of '+qs.length+')');
+    for(const ch of chunks){let hits;try{hits=(await sf('/cards/search?q='+encodeURIComponent('('+q+') ('+ch.map(c=>'!"'+front(c.n)+'"').join(' or ')+')'))).data.map(x=>x.name)}catch(e){break}
+      const set=new Set(hits.flatMap(n=>[n,front(n)]));ch.forEach(c=>{if(!set.has(c.n)&&!set.has(front(c.n)))return;
+        if(c.s==='u'){c.s=s.id;bump(s)}else if(c.s!==s.id&&!(c.x||[]).includes(s.id)){c.x=[...(c.x||[]),s.id];shared++}})}}
+  save();rerender();const left=d.cards.filter(c=>c.s==='u').length;
+  sheet('Sorted '+(todo.length-left)+' of '+todo.length,`<div class="list">${d.sections.filter(s=>got[s.id]).map(s=>`<div class="item"><span class="name">${esc(s.name)}</span><b class="num">${got[s.id]}</b></div>`).join('')||'<div class="item muted">Nothing matched any section.</div>'}</div>
+    ${shared?`<p class="muted small" style="margin:0">${shared} card${shared===1?'':'s'} also fit a second section and ${shared===1?'is':'are'} marked shared there.</p>`:''}
+    ${left?`<p class="muted small" style="margin:0">${left} card${left===1?'':'s'} did not match any section's search and stayed in Unsorted. Tap a card to file it by hand.</p>`:''}
+    <p class="muted small" style="margin:0">Each card went to the first section it matched, top to bottom. Tap any card to move it.</p>`)}
 
 /* ================= sheets ================= */
 function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;el.hidden=false;
@@ -530,7 +550,8 @@ async function importList(text,to,loc){const items=parseList(text);if(!items.len
   let ok=0;items.forEach((it,i)=>{const c=r.cards[i];if(!c)return;ok++;
     if(to==='coll'){S.coll[c.n]=owned(c.n)+it.q;if(loc)S.loc[c.n]=loc}else{const d=deck();if(d.cmd.includes(c.n))return;const e=d.cards.find(k=>k.n===c.n);if(e){if(isBasic(c.n))e.q+=it.q}else d.cards.push({n:c.n,s:'u',q:isBasic(c.n)?it.q:1})}});
   save();closeSheet();rerender();
-  if(r.missing.length)sheet('Some cards were not found',`<p style="margin:0">Added ${ok}. Scryfall did not recognise these names:</p><div class="otext">${esc(r.missing.join('\n'))}</div>`);else toast('Added '+ok+' cards');}
+  if(r.missing.length)sheet('Some cards were not found',`<p style="margin:0">Added ${ok}. Scryfall did not recognise these names:</p><div class="otext">${esc(r.missing.join('\n'))}</div>`,to==='deck'&&ok?'<button class="pri" data-act="autoSort">Sort the rest into sections</button>':'');
+  else if(to==='deck'&&ok)autoSort(deck());else toast('Added '+ok+' cards');}
 
 /* ================= play: life counter, game log, stats ================= */
 const PCOL=['#2f6f8f','#8f4a3a','#4d7a4a','#6a5192','#8a6d1f','#3d4a5c'];
@@ -660,6 +681,7 @@ const A={
   rMk(e){fillSrc(R.ctx.sid,R.src,R.mk===e.dataset.k?'':e.dataset.k)},
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
+  autoSort(){autoSort(deck())},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
   rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
