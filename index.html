@@ -179,7 +179,7 @@ function seedPkgs(){return [
 ];}
 const blank=()=>({v:1,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'})}
+function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||''})}
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
 let saveT;
 function save(){clearTimeout(saveT);saveT=setTimeout(()=>{
@@ -427,6 +427,13 @@ const PCOL=['#2f6f8f','#8f4a3a','#4d7a4a','#6a5192','#8a6d1f','#3d4a5c'];
 const pname=id=>(S.players.find(p=>p.id===id)||{}).name||'Removed player';
 const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
 const pct=(w,n)=>n?Math.round(w/n*100)+'%':'–';
+const NODECK='Deck not recorded';
+/* every deck tied to a player: ones saved on their profile plus ones seen in logged games */
+const pdecks=p=>{const m={};(p.decks||[]).forEach(k=>m[k]={n:0,w:0,saved:true});S.games.forEach(g=>{const x=g.players.find(x=>x.pid===p.id);if(!x)return;const k=x.deck||NODECK;m[k]=m[k]||{n:0,w:0};m[k].n++;if(g.winner===p.id)m[k].w++});return m};
+const learnDecks=players=>players.forEach(x=>{if(x.pid==='me'||!x.deck)return;const p=S.players.find(p=>p.id===x.pid);if(p&&!p.decks.some(d=>d.toLowerCase()===x.deck.toLowerCase()))p.decks.push(x.deck)});
+function deckOpts(i,name){let ds;if(!i)ds=[...S.decks.map(d=>d.name),...S.games.map(g=>(g.players.find(p=>p.pid==='me')||{}).deck)];
+  else{const p=S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===(name||'').toLowerCase());ds=p?Object.keys(pdecks(p)):S.players.filter(p=>p.id!=='me').flatMap(p=>p.decks)}
+  return[...new Set(ds.filter(d=>d&&d!==NODECK))].map(d=>`<option value="${esc(d)}"></option>`).join('')}
 const dead=p=>p.out||p.life<=0||p.poison>=10||Object.values(p.cd).some(v=>v>=21);
 function vPlay(){
   const mine=S.games.filter(g=>g.players.some(p=>p.pid==='me'));const dec=mine.filter(g=>g.winner);const wins=dec.filter(g=>g.winner==='me').length;
@@ -438,7 +445,8 @@ function vPlay(){
    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${mine.length}</b><span>Games</span></div><div class="stat"><b class="num">${wins}</b><span>Wins</span></div><div class="stat"><b class="num">${pct(wins,dec.length)}</b><span>Win rate</span></div></div>
    ${S.games.length?'':`<div class="empty">No games logged yet. <b>New game</b> opens a life counter for the table and saves the result when you finish. <b>Log a game</b> records one you already played.</div>`}
    ${Object.keys(dk).length?`<h2>My decks</h2><div class="list">${Object.entries(dk).sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="num muted">${v.w}–${v.n-v.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(v.w,v.n)}</b></div>`).join('')}</div>`:''}
-   ${pl.length?`<h2>Players</h2><div class="list">${pl.map(x=>`<button class="item" data-act="playerSheet" data-id="${x.p.id}"><span class="name" style="white-space:normal"><b>${esc(x.p.name)}</b><br><span class="muted small">${x.n} game${x.n===1?'':'s'} · they win ${pct(x.tw,x.n)} · you win ${pct(x.mw,x.mn)} at their table</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}
+   <div class="row"><h2 class="grow">Opponents</h2><button class="sm" data-act="playerNew">Add opponent</button></div>
+   ${pl.length?`<div class="list">${pl.map(x=>`<button class="item" data-act="playerSheet" data-id="${x.p.id}"><span class="name" style="white-space:normal"><b>${esc(x.p.name)}</b><br><span class="muted small">${(k=>k+' deck'+(k===1?'':'s'))(Object.keys(pdecks(x.p)).filter(k=>k!==NODECK).length)} · ${x.n} game${x.n===1?'':'s'} · they win ${pct(x.tw,x.n)} · you win ${pct(x.mw,x.mn)} at their table</span></span><span class="muted">›</span></button>`).join('')}</div>`:'<div class="empty">No opponents yet. Add the people you play with and the decks they bring. They are also added automatically when you start or log a game.</div>'}
    ${S.games.length?`<h2>Games</h2><div class="list">${S.games.map(g=>`<button class="item" data-act="gameSheet" data-id="${g.id}"><span class="name"><b>${g.winner?esc(pname(g.winner))+' won':'No winner'}</b><br><span class="muted small">${esc(g.date)} · ${g.players.map(p=>esc(pname(p.pid))).join(', ')}</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}`);
 }
 let GS=null,RES=null,DELTA={},hold=null;
@@ -448,8 +456,8 @@ function gameSetup(mode){const last=S.games[0];const me=S.players.find(p=>p.id==
 function readGS(){document.querySelectorAll('.gsrow').forEach((r,i)=>{GS.rows[i].name=$('.gn',r).value.trim();GS.rows[i].deck=$('.gd',r).value.trim()});if($('#gLife'))GS.life=parseInt($('#gLife').value)||40}
 function drawGS(){const live=GS.mode==='live';const dn=[...new Set([...S.decks.map(d=>d.name),...S.games.flatMap(g=>g.players.map(p=>p.deck)).filter(Boolean)])];
   sheet(live?'New game':'Log a past game',`<p class="muted small" style="margin:0">The first player is you. Type a name to add someone new. People you have played before are suggested as you type.</p>
-   ${GS.rows.map((r,i)=>`<div class="secbox gsrow"><div class="secrow" style="grid-template-columns:1fr 38px"><input class="gn" list="${i?'plist':''}" value="${esc(r.name)}" placeholder="${i?'Player name':'Your name'}" aria-label="Player ${i+1} name" autocomplete="off">${i>1?`<button class="sm danger" data-act="gsDel" data-i="${i}" aria-label="Remove player">✕</button>`:'<span></span>'}<input class="gd q" style="font-size:16px" list="dlist" value="${esc(r.deck)}" placeholder="${i?'Their commander or deck (optional)':'Your deck'}" aria-label="Player ${i+1} deck" autocomplete="off"></div></div>`).join('')}
-   <datalist id="plist">${S.players.filter(p=>p.id!=='me').map(p=>`<option value="${esc(p.name)}"></option>`).join('')}</datalist><datalist id="dlist">${dn.map(d=>`<option value="${esc(d)}"></option>`).join('')}</datalist>
+   ${GS.rows.map((r,i)=>`<div class="secbox gsrow"><div class="secrow" style="grid-template-columns:1fr 38px"><input class="gn" list="${i?'plist':''}" value="${esc(r.name)}" placeholder="${i?'Player name':'Your name'}" aria-label="Player ${i+1} name" autocomplete="off">${i>1?`<button class="sm danger" data-act="gsDel" data-i="${i}" aria-label="Remove player">✕</button>`:'<span></span>'}<input class="gd q" style="font-size:16px" list="dl${i}" value="${esc(r.deck)}" placeholder="${i?'Their commander or deck (optional)':'Your deck'}" aria-label="Player ${i+1} deck" autocomplete="off"><datalist id="dl${i}">${deckOpts(i,r.name)}</datalist></div></div>`).join('')}
+   <datalist id="plist">${S.players.filter(p=>p.id!=='me').map(p=>`<option value="${esc(p.name)}"></option>`).join('')}</datalist>
    ${GS.rows.length<6?'<button data-act="gsAdd">Add a player</button>':''}
    ${live?`<label for="gLife">Starting life</label><input id="gLife" type="number" inputmode="numeric" value="${GS.life}">`:''}`,
    `<button class="pri" data-act="gsGo">${live?'Start game':'Next: who won'}</button>`)}
@@ -477,6 +485,16 @@ document.addEventListener('pointerdown',ev=>{const z=ev.target.closest('[data-li
 function endHold(ev){if(!hold)return;clearInterval(hold.t);if(!hold.fired&&ev.type==='pointerup')bump(hold.pid,hold.dir);hold=null;drawLive()}
 document.addEventListener('pointerup',endHold);document.addEventListener('pointercancel',endHold);
 document.addEventListener('contextmenu',ev=>{if(ev.target.closest('#live'))ev.preventDefault()});
+function readPlayer(id){const p=S.players.find(p=>p.id===id);p.name=$('#plN').value.trim()||p.name;p.notes=$('#plNotes').value.trim();const d=$('#plD').value.trim();
+  if(d&&!p.decks.some(x=>x.toLowerCase()===d.toLowerCase()))p.decks.push(d);return p}
+function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.filter(g=>g.players.some(x=>x.pid===id));const dk=pdecks(p);const dec=gs.filter(g=>g.winner);
+  sheet(p.name,`<label for="plN">Name</label><input id="plN" value="${esc(p.name)}" autocomplete="off">
+   ${gs.length?`<p class="muted small" style="margin:0">${gs.length} game${gs.length===1?'':'s'} logged together. They won ${dec.filter(g=>g.winner===id).length}, you won ${dec.filter(g=>g.winner==='me').length}.</p>`:''}
+   <label for="plD">Decks they play</label>
+   ${Object.keys(dk).length?`<div class="list">${Object.entries(dk).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="muted small num">${v.n?v.n+' game'+(v.n===1?'':'s')+' · '+v.w+' win'+(v.w===1?'':'s'):'No games yet'}</span>${v.saved&&!v.n?`<button class="sm danger" data-act="playerDeckDel" data-id="${id}" data-k="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`:''}</div>`).join('')}</div>`:''}
+   <div class="row"><input id="plD" class="grow" placeholder="Add a deck or commander" autocomplete="off"><button data-act="playerDeckAdd" data-id="${id}">Add</button></div>
+   <label for="plNotes">Notes</label><textarea id="plNotes" style="min-height:80px" placeholder="Play style, cards to watch for, house rules">${esc(p.notes)}</textarea>`,
+   `<div class="row"><button class="pri grow" data-act="playerSave" data-id="${id}">Save</button>${gs.length?'':`<button class="danger" data-act="playerDel" data-id="${id}">Delete</button>`}</div>`)}
 function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
   sheet(pname(pid),`<p class="muted small" style="margin:0">Commander damage also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
    ${L.players.filter(o=>o.pid!==pid).map(o=>row('From '+esc(pname(o.pid))+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`)).join('')}
@@ -592,7 +610,7 @@ Object.assign(A,{
   gsGo(){readGS();const rows=GS.rows.filter((r,i)=>i===0||r.name);if(rows.length<2){toast('Add at least one other player');return}
     const low=rows.map(r=>r.name.toLowerCase());if(new Set(low).size<low.length){toast('Two players have the same name');return}
     const me=S.players.find(p=>p.id==='me');if(rows[0].name)me.name=rows[0].name;
-    const players=rows.map((r,i)=>{if(!i)return{pid:'me',deck:r.deck};let p=S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===r.name.toLowerCase());if(!p){p={id:uid(),name:r.name};S.players.push(p)}return{pid:p.id,deck:r.deck}});
+    const players=rows.map((r,i)=>{if(!i)return{pid:'me',deck:r.deck};let p=S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===r.name.toLowerCase());if(!p){p={id:uid(),name:r.name,decks:[],notes:''};S.players.push(p)}return{pid:p.id,deck:r.deck}});learnDecks(players);
     save();
     if(GS.mode==='live'){S.live={turn:1,table:false,start:GS.life,players:players.map(p=>({...p,life:GS.life,poison:0,cd:{},out:false}))};DELTA={};UI.liveOpen=true;save();closeSheet();rerender();drawLive();wake()}
     else resultSheet(players,{},()=>{})},
@@ -620,12 +638,13 @@ Object.assign(A,{
   liveEnd(){const L=S.live;const alive=L.players.filter(p=>!dead(p));resultSheet(L.players,{winner:alive.length===1?alive[0].pid:'',turns:L.turn},()=>{S.live=null;UI.liveOpen=false;drawLive()})},
   liveDiscardAsk(){confirmSheet('Discard game','This throws away the current game. Nothing is added to your game log.','liveDiscard','Discard game')},
   liveDiscard(){S.live=null;UI.liveOpen=false;save();closeSheet();drawLive();rerender()},
-  playerSheet(e){const p=S.players.find(p=>p.id===e.dataset.id);const gs=S.games.filter(g=>g.players.some(x=>x.pid===p.id));const dk={};
-    gs.forEach(g=>{const k=g.players.find(x=>x.pid===p.id).deck||'Deck not recorded';dk[k]=dk[k]||{n:0,w:0};dk[k].n++;if(g.winner===p.id)dk[k].w++});
-    sheet(p.name,`<label for="plN">Name</label><input id="plN" value="${esc(p.name)}">
-     ${gs.length?`<label>Decks they have played</label><div class="list">${Object.entries(dk).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="muted num">${v.n} game${v.n===1?'':'s'} · ${v.w} win${v.w===1?'':'s'}</span></div>`).join('')}</div>`:'<p class="muted small" style="margin:0">No games logged with this player.</p>'}`,
-     `<div class="row"><button class="pri grow" data-act="playerSave" data-id="${p.id}">Save</button>${gs.length?'':`<button class="danger" data-act="playerDel" data-id="${p.id}">Delete</button>`}</div>`)},
-  playerSave(e){const p=S.players.find(p=>p.id===e.dataset.id);p.name=$('#plN').value.trim()||p.name;save();closeSheet();rerender()},
+  playerNew(){sheet('Add opponent',`<label for="plNew">Name</label><input id="plNew" placeholder="Who do you play with?" autocomplete="off">`,`<button class="pri" data-act="playerCreate">Create profile</button>`);$('#plNew').focus()},
+  playerCreate(){const n=$('#plNew').value.trim();if(!n){toast('Type a name');return}if(S.players.some(p=>p.name.toLowerCase()===n.toLowerCase())){toast('You already have a player with that name');return}
+    const p={id:uid(),name:n,decks:[],notes:''};S.players.push(p);save();openPlayer(p.id)},
+  playerSheet(e){openPlayer(e.dataset.id)},
+  playerDeckAdd(e){const p=readPlayer(e.dataset.id);if(!$('#plD').value.trim())toast('Type a deck or commander name');save();openPlayer(p.id)},
+  playerDeckDel(e){const p=readPlayer(e.dataset.id);p.decks=p.decks.filter(d=>d!==e.dataset.k);save();openPlayer(p.id)},
+  playerSave(e){readPlayer(e.dataset.id);save();closeSheet();rerender()},
   playerDel(e){S.players=S.players.filter(p=>p.id!==e.dataset.id);save();closeSheet();rerender()},
   gameSheet(e){const g=S.games.find(g=>g.id===e.dataset.id);sheet(g.winner?pname(g.winner)+' won':'No winner',`<p class="muted small" style="margin:0">${esc(g.date)}${g.turns?' · '+g.turns+' turns':''}</p>
      <div class="list">${g.players.map(p=>`<div class="item"><span class="name">${esc(pname(p.pid))}${g.winner===p.pid?' <span class="pill ok">Winner</span>':''}</span><span class="muted small">${esc(p.deck||'Deck not recorded')}</span></div>`).join('')}</div>
@@ -639,7 +658,8 @@ document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='collLocSel'){UI.collLoc=t.value;rerender()}
   if(t.dataset.pull!==undefined){const d=deck();d.pulled=d.pulled||{};if(t.checked)d.pulled[t.dataset.pull]=1;else delete d.pulled[t.dataset.pull];save();$('#pullN').textContent=Object.keys(d.pulled).filter(n=>owned(n)).length}
   if(t.id==='pType'){$('#pS').hidden=t.value!=='scryfall';$('#pC').hidden=t.value!=='custom'}});
-document.addEventListener('input',ev=>{if(ev.target.id==='collQ'){UI.collQ=ev.target.value;const q=UI.collQ.toLowerCase();const l=$('#collList');if(l)l.innerHTML=collRows(collShown())}});
+document.addEventListener('input',ev=>{if(ev.target.classList.contains('gn')){const i=[...document.querySelectorAll('.gsrow')].indexOf(ev.target.closest('.gsrow'));const dl=$('#dl'+i);if(dl&&i>0)dl.innerHTML=deckOpts(i,ev.target.value.trim())}
+  if(ev.target.id==='collQ'){UI.collQ=ev.target.value;const q=UI.collQ.toLowerCase();const l=$('#collList');if(l)l.innerHTML=collRows(collShown())}});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('#peek').hidden)A.unpeek();else if(!$('#sheet').hidden)A.close()}});
 window.addEventListener('hashchange',route);
 load();route();
