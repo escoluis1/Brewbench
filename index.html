@@ -144,8 +144,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.11';
+const VERSION='1.12';
 const NEWS=[
+ ['1.12','Nov 10, 2026',['Lands have a second filter, Makes any of my colors, for lands that tap for just one of your colors.','Lands now show the colors of mana they make, in Fill results and in your deck list. Colors outside your deck are dimmed.']],
  ['1.11','Nov 10, 2026',['Sections you name yourself now get Fill suggestions: the app looks for a matching theme or Scryfall tag, then falls back to card text, and saves the search that worked.','Similar cards from EDHREC: open any card in a deck and tap Similar cards on EDHREC.']],
  ['1.10','Nov 10, 2026',['Fill has a new filter for cards that make mana in your deck\'s colors. It is on by default for Ramp and Lands.','For decks with two or more colors, land suggestions are narrowed to lands that make at least two of them.']],
  ['1.9','Nov 10, 2026',['Every new deck gets a Lands section that suggests lands in your commander\'s colors, even if the archetype has none.','Default land count is now 38.']],
@@ -224,7 +225,7 @@ function slim(c){
   const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};
   return CARDS[c.name]={n:c.name,mc:c.mana_cost||f.mana_cost||'',cmc:c.cmc||0,t:c.type_line||'',
     o:c.oracle_text||(c.card_faces||[]).map(x=>x.name+'\n'+(x.oracle_text||'')).join('\n\n'),
-    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer};
+    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer,pm:c.produced_mana||[]};
 }
 async function search(q){const j=await sf('/cards/search?order=edhrec&q='+encodeURIComponent(q));return j.data.map(slim)}
 function lowerIndex(){const m=new Map();for(const n in CARDS){m.set(n.toLowerCase(),CARDS[n]);const f=n.split(' // ')[0].toLowerCase();if(!m.has(f))m.set(f,CARDS[n])}return m}
@@ -260,6 +261,10 @@ const inDeck=(d,n)=>d.cmd.includes(n)||d.cards.some(c=>c.n===n);
 function addCard(d,n,sid){const e=d.cards.find(c=>c.n===n);if(e){if(isBasic(n))e.q++;else{e.s=sid;e.x=(e.x||[]).filter(i=>i!==sid)}}else d.cards.push({n,s:sid,q:1});save()}
 function removeCard(d,n){d.cards=d.cards.filter(c=>c.n!==n);save()}
 const pips=mc=>'<span class="pips">'+(mc.match(/\{[^}]+\}/g)||[]).map(s=>{s=s.slice(1,-1);return`<span class="pip ${/^[WUBRG]$/.test(s)?s:''}">${esc(s.replace('/',''))}</span>`}).join('')+'</span>';
+/* mana a card makes, as pips; colors the current deck cannot use are dimmed */
+function prodPips(c){const pm=c.pm||[];if(!pm.length)return'<span class="pips"></span>';const d=location.hash==='#deck'?deck():null;const id=d&&d.cmd.length?ident(d):null;
+  return'<span class="pips" title="Makes '+pm.join(', ')+'">'+['W','U','B','R','G','C'].filter(x=>pm.includes(x)).map(x=>`<span class="pip ${x==='C'?'':x}" style="${id&&x!=='C'&&!id.includes(x)?'opacity:.25':''}">${x}</span>`).join('')+'</span>'}
+const costOrMana=c=>c.mc?pips(c.mc):prodPips(c);
 const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
@@ -322,8 +327,12 @@ function themeSuggest(d){const seen=new Set(d.sections.map(s=>s.name.toLowerCase
 function catSelect(d){const{sugg,rest}=themeSuggest(d);UI.cats=[...sugg,...rest];const o=(c,i)=>`<option value="${i}">${esc(c.name)}${c.src==='EDHREC'?' (EDHREC)':''}</option>`;
   return`<select id="addCat" class="grow" aria-label="Add a section"><option value="">Add a section…</option>${sugg.length?`<optgroup label="Suggested for ${esc(d.cmd.join(' + '))}">${sugg.map(o).join('')}</optgroup>`:''}<optgroup label="All themes">${rest.map((c,i)=>o(c,i+sugg.length)).join('')}</optgroup><option value="custom">Custom section…</option></select>`}
 
+const PMTRIED=new Set();
+async function pmRefresh(d){const need=d.cards.map(c=>c.n).filter(n=>CARDS[n]&&CARDS[n].pm===undefined&&/Land/.test(CARDS[n].t)&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
+  try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(slim)}save();
+    if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender()}catch(e){}}
 function vDeck(){
-  const d=deck();edhLoad(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
+  const d=deck();edhLoad(d);pmRefresh(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
   const val=[...d.cmd.map(n=>card(n).p),...m.map(c=>card(c.n).p*c.q)].reduce((a,b)=>a+b,0);
   const gc=m.filter(c=>card(c.n).gc).length+d.cmd.filter(n=>card(n).gc).length;
   const non=m.filter(c=>!/Land/.test(card(c.n).t));const curve=Array(8).fill(0);non.forEach(c=>curve[Math.min(7,Math.floor(card(c.n).cmc))]+=c.q);
@@ -353,7 +362,7 @@ function secHtml(d,s){
   const cls=special?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
   const rows=UI.view==='grid'
    ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
-   :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${pips(card(c.n).mc)}</button>`).join('');
+   :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${costOrMana(card(c.n))}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
     <span class="pill num ${cls}">${special?n:n+'/'+s.target}</span>
     <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
@@ -417,9 +426,9 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
   const cs=shown();const d=deck();let head=R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'';
   if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
-    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${R.mkLabel?`<button class="chip ${R.mk?'on':''}" data-act="rMk">${R.mkLabel}</button>`:''}</div>
+    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
-  box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}</div></button>${pips(c.mc)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
+  box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
 /* runs q; if it errors or finds nothing, tries each fallback in order and shows that fallback's note */
 async function runQuery(q,alts,first){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.won='';R.started=true;drawRes();
@@ -446,15 +455,15 @@ function openFill(sid){const d=deck();const s=secOf(d,sid);
 }
 async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const prev=R&&R.fill?R:null;
   const scry=!p||p.type==='scryfall';const q=scry?(p?p.q:s.q):'';const land=/land/i.test(s.name+' '+(p?p.name:''))||/t:land/.test(q);const multi=ident(d).length>1;
-  if(mk===undefined)mk=/land|ramp|rock|mana/i.test(s.name+' '+(p?p.name:''));
+  if(mk===undefined)mk=/land|ramp|rock|mana/i.test(s.name+' '+(p?p.name:''))?(land&&multi?'2':'1'):'';
   R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:prev?prev.ownedFirst:true,ownedOnly:prev?prev.ownedOnly:false,loading:true,started:true,src,mk,
-    mkLabel:scry&&ident(d).length?(land&&multi?'Makes 2+ of my colors':'Makes my colors'):''};const mine=R;
+    mkOpts:scry&&ident(d).length?(land&&multi?[['2','Makes 2+ of my colors'],['1','Makes any of my colors']]:[['1','Makes my colors']]):[]};const mine=R;
   sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');R=mine;drawRes();
   if(scry){let cands;
     if(q){const tag=q.match(/^otag:([a-z0-9-]+)$/);cands=[{raw:q,note:''}];if(tag)cands.push({raw:'o:"'+tag[1].replace(/-/g,' ')+'"',note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'})}
     else cands=autoQueries(s.name).map(c=>({raw:c.raw,note:'Suggestions use '+c.why+'.'}));
     if(!cands.length){R.loading=false;R.err='Give this section a name or a Scryfall search in Edit sections.';drawRes();return}
-    const pf=mk?prodFilter(d,land):'';const W=c=>'('+c.raw+')'+idf(d);const list=[];
+    const pf=mk?prodFilter(d,mk==='2'):'';const W=c=>'('+c.raw+')'+idf(d);const list=[];
     cands.forEach(c=>{if(pf)list.push({q:W(c)+pf,note:c.note,raw:c.raw});list.push({q:W(c),raw:c.raw,note:((pf?'Nothing matched the color filter, so this shows every card your deck can play. ':'')+c.note).trim()})});
     await runQuery(list[0].q,list.slice(1),list[0]);
     if(R===mine&&!q&&!p&&R.won&&R.cards.length){s.q=R.won;save();R.note=(R.note+' Saved as this section\'s search. Change it in Edit sections.').trim();drawRes()}}
@@ -627,7 +636,7 @@ const A={
   unpeek(){$('#peek').hidden=true},
   rOwnedFirst(){R.ownedFirst=!R.ownedFirst;drawRes()},
   rOwnedOnly(){R.ownedOnly=!R.ownedOnly;drawRes()},
-  rMk(){fillSrc(R.ctx.sid,R.src,!R.mk)},
+  rMk(e){fillSrc(R.ctx.sid,R.src,R.mk===e.dataset.k?'':e.dataset.k)},
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
   async similar(e){const d=deck();const n=e.dataset.n;const c=d.cards.find(c=>c.n===n);const sid=c&&c.s!=='m'?c.s:'u';const sn=sid==='u'?'Unsorted':secOf(d,sid).name;
