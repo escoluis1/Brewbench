@@ -143,6 +143,18 @@ nav.tabs a b{font-size:13px}
 'use strict';
 /* ================= state ================= */
 const KEY='brewbench.v1';
+/* Bump VERSION and add an entry at the top of NEWS with every change. */
+const VERSION='1.7';
+const NEWS=[
+ ['1.7','Nov 9, 2026',['Version number and this What\'s new list, in Setup.','A banner on the Decks tab tells you when the app has updated.']],
+ ['1.6','Nov 9, 2026',['EDHREC recommendations for your commander as a source in Fill, with how many decks run each card and its synergy score.']],
+ ['1.5','Nov 9, 2026',['Cards can count toward more than one section.','Add a section dropdown with suggestions based on your commander, including EDHREC theme tags.','Edit sections button moved above the sections, with a running total of your targets.']],
+ ['1.4','Nov 9, 2026',['Find an opponent\'s commander on Scryfall from their profile.','Commander art behind deck rows and life counter panels.']],
+ ['1.3','Nov 9, 2026',['Opponent profiles with the decks they play and notes.','Deck suggestions for each opponent when you start or log a game.']],
+ ['1.2','Nov 9, 2026',['Play tab: Commander life counter with commander damage and poison.','Game log, win rates for you and each of your decks, and a record against each player.']],
+ ['1.1','Nov 9, 2026',['Storage locations for your collection, with color and location filters.','Pull list for each deck, grouped by where the cards are stored.','CSV import from card scanner apps.']],
+ ['1.0','Nov 9, 2026',['Deck builder with archetype templates, sections and targets.','Fill sections from Scryfall searches or your own packages.','Collection tracking, deck import and export, backups.']]];
+const newsHtml=list=>list.map(([v,d,items])=>`<div><h3>Version ${v} <span class="muted small" style="font-weight:400">${d}</span></h3><ul style="margin:6px 0 0;padding-left:20px">${items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('');
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -177,7 +189,7 @@ function seedPkgs(){return [
  {id:uid(),name:'Lands in my colors',type:'scryfall',q:'t:land -t:basic',cards:[]},
  {id:uid(),name:'My staples (edit me)',type:'custom',q:'',cards:['Sol Ring','Arcane Signet','Command Tower','Swiftfoot Boots','Lightning Greaves']}
 ];}
-const blank=()=>({v:1,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
+const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
 function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||''})}
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
@@ -254,8 +266,9 @@ const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div cla
 
 function vDecks(){
   page('<h1>Decks</h1>','<button class="pri" data-act="newDeck">New deck</button>',
+  (S.seen!==VERSION?`<button class="empty" style="width:100%;color:var(--ink);border-style:solid;border-color:var(--accent)" data-act="news">Brew Bench updated to version ${VERSION}. <b style="color:var(--accent)">See what's new</b></button>`:'')+(
   S.decks.length?`<div class="list">${S.decks.map(d=>`<button class="item" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')} · ${esc(d.arch)}</span></span><span class="num muted">${total(d)}/100</span></button>`).join('')}</div>`
-  :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick an archetype, and its sections are set up for you.</div>`);
+  :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick an archetype, and its sections are set up for you.</div>`));
 }
 
 /* themes that can be added to a deck as sections: [name, target, Scryfall search, pattern that suggests it from the commander's text] */
@@ -355,7 +368,9 @@ function vColl(){
 const collRows=show=>show.slice(0,300).map(n=>`<div class="item"><button class="name ghost" style="text-align:left;color:inherit;padding:0" data-act="collCard" data-n="${esc(n)}">${esc(n)}<br><span class="muted small">${esc(S.loc[n]||'No location')} · ${colorOf(n)}</span></button><button class="sm" data-act="collDec" data-n="${esc(n)}" aria-label="Remove one ${esc(n)}">−</button><b class="num" style="min-width:22px;text-align:center">${S.coll[n]}</b><button class="sm" data-act="collInc" data-n="${esc(n)}" aria-label="Add one ${esc(n)}">+</button></div>`).join('')+(show.length>300?`<div class="item muted small">Showing 300 of ${show.length}. Filter to narrow down.</div>`:'')||'<div class="item muted">No matches.</div>';
 
 function vSetup(){
-  page('<h1>Setup</h1>','',`
+  page('<h1>Setup</h1>',`<span class="muted small num">Version ${VERSION}</span>`,`
+   <div class="row"><h2 class="grow">What's new</h2><button class="sm" data-act="news">All versions</button></div>
+   <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
    <div class="row"><h2 class="grow">Archetypes</h2><button class="sm" data-act="newArch">New archetype</button></div>
    <p class="muted small" style="margin:0">An archetype is a template: the sections a deck gets, how many cards each should hold, and the Scryfall search that suggests cards for it. Change anything here.</p>
    <div class="list">${S.archetypes.map(a=>`<button class="item" data-act="editArch" data-id="${a.id}"><span class="name"><b>${esc(a.name)}</b><br><span class="muted small">${a.sections.map(s=>esc(s.name)+' '+s.target).join(' · ')}</span></span><span class="muted">›</span></button>`).join('')}</div>
@@ -549,6 +564,7 @@ function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);con
 /* ================= actions ================= */
 const A={
   back(){location.hash='decks'},
+  news(){S.seen=VERSION;save();sheet("What's new",`<p class="muted small" style="margin:0">You are on version ${VERSION}.</p>`+newsHtml(NEWS))},
   openDeck(e){UI.deck=e.dataset.id;location.hash='deck';route()},
   newDeck(){sheet('New deck',`<label for="dName">Deck name</label><input id="dName" placeholder="e.g. Neriv go-wide">
     <label for="dArch">Archetype</label><select id="dArch">${S.archetypes.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
@@ -652,7 +668,7 @@ const A={
     try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;norm();CARDS=S.cards||{};save();closeSheet();rerender();toast('Backup imported')}catch(e){toast('That is not a Brew Bench backup')}},
   resetAsk(){confirmSheet('Erase everything','This deletes all decks, packages, archetypes and your collection from this device. Export a backup first if you might want them back.','reset','Erase everything')},
   reset(){S=blank();norm();CARDS={};save();closeSheet();rerender()},
-  close(){closeSheet();if(location.hash==='#deck'||location.hash==='#collection'||location.hash==='#packages'||location.hash==='#play')rerender()},
+  close(){closeSheet();rerender()},
   scrim(e,ev){if(ev.target===e)A.close()}
 };
 Object.assign(A,{
