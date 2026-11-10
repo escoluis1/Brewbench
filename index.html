@@ -146,8 +146,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.14';
+const VERSION='1.15';
 const NEWS=[
+ ['1.15','Nov 10, 2026',['Quick add: in Search, adding a card by name clears the box so you can type the next one right away, with a running list of what you added.','Paste several cards into any section, from Search or Fill. Text copied from a web page works; lines that are not card names are ignored.','Fill has a link that opens your commander\'s page on EDHREC.']],
  ['1.14','Nov 10, 2026',['Tidier mana display: what a rock makes now sits on the second line of Fill results, showing only colors your deck can use. The card screen has a Makes line too.','Similar cards now opens the card\'s similar-cards page on EDHREC, because the in-app list could not find the data.']],
  ['1.13','Nov 10, 2026',['Mana rocks and other spells that make mana now show "makes" and the colors, next to their cost.']],
  ['1.12','Nov 10, 2026',['Lands have a second filter, Makes any of my colors, for lands that tap for just one of your colors.','Lands now show the colors of mana they make, in Fill results and in your deck list. Colors outside your deck are dimmed.']],
@@ -428,6 +429,7 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.loading){box.innerHTML='<div class="empty">Searching Scryfall…</div>';return}
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
   const cs=shown();const d=deck();let head=R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'';
+  if(R.added&&R.added.length)head+=`<p class="small" style="margin:0 0 8px"><b>Added ${R.added.length}:</b> <span class="muted">${esc(R.added.join(', '))}</span></p>`;
   if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
     head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
@@ -444,8 +446,8 @@ function prodFilter(d,land){const id=ident(d).map(c=>c.toLowerCase());if(!id.len
   if(land&&id.length>1){parts=[];id.forEach((x,i)=>id.slice(i+1).forEach(y=>parts.push(x+y)))}
   return' ('+parts.map(c=>'produces:'+c).join(' or ')+')'}
 function openSearch(ctx,title,extra=''){const d=deck();
-  R={ctx,cards:[],fill:false};
-  sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards"><div id="res"></div>`);
+  R={ctx,cards:[],fill:false,search:true,added:[]};
+  sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards">${ctx.k==='deck'?`<button class="sm" data-act="pasteOpen" data-sid="${ctx.sid}">Paste several cards instead</button>`:''}<div id="res"></div>`);
   drawRes();const inp=$('#q');inp.focus();let t;
   inp.addEventListener('input',()=>{clearTimeout(t);const v=inp.value.trim();if(v.length<2)return;t=setTimeout(()=>{
     runQuery(v+(ctx.k==='deck'?idf(d):(ctx.k==='cmd'||ctx.k==='opp')?' is:commander':ctx.k==='pkg'?' f:commander':''))},350)});
@@ -454,7 +456,9 @@ function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
    ${(e=>!d.cmd.length?'':!e?'<p class="muted small" style="margin:0">Loading EDHREC recommendations…</p>':e.lists.length?'':'<p class="muted small" style="margin:0">EDHREC recommendations could not be loaded in this browser.</p>')(EDH[d.cmd.join('|')])}
    <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>
-   ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>`);
+   ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>
+   <button data-act="pasteOpen" data-sid="${sid}">Paste a list of cards</button>
+   ${d.cmd.length?`<a class="btn" href="https://edhrec.com/commanders/${edhSlug(d.cmd)}" target="_blank" rel="noopener">Open ${esc(d.cmd.join(' + '))} on EDHREC ↗</a>`:''}`);
 }
 async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const prev=R&&R.fill?R:null;
   const scry=!p||p.type==='scryfall';const q=scry?(p?p.q:s.q):'';const land=/land/i.test(s.name+' '+(p?p.name:''))||/t:land/.test(q);const multi=ident(d).length>1;
@@ -475,7 +479,9 @@ async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S
 function pick(n){const x=R.ctx;const d=deck();
   if(x.k==='opp'){const p=S.players.find(p=>p.id===x.pid);if(!p.decks.includes(n))p.decks.push(n);save();openPlayer(p.id);return}
   if(x.k==='deck'){const e=d.cards.find(c=>c.n===n);if(d.cmd.includes(n))return;const sp=x.sid==='u'||x.sid==='m';
-    if(!e||isBasic(n))addCard(d,n,x.sid);else if(sp)removeCard(d,n);
+    if(!e||isBasic(n)){addCard(d,n,x.sid);
+      if(R.search){if(!R.added.includes(n))R.added.push(n);const inp=$('#q');if(inp&&!/[:<>=]/.test(inp.value)){inp.value='';R.cards=[];R.started=false;inp.focus()}}}
+    else if(sp)removeCard(d,n);
     else{e.x=e.x||[];if(e.s===x.sid){if(e.x.length)e.s=e.x.shift();else removeCard(d,n)}else if(e.x.includes(x.sid))e.x=e.x.filter(i=>i!==x.sid);else if(e.s==='u'||e.s==='m')e.s=x.sid;else e.x.push(x.sid);save()}}
   else if(x.k==='cmd'){if(d.cmd.includes(n))d.cmd=d.cmd.filter(k=>k!==n);else{if(d.cmd.length>=2)d.cmd.shift();d.cmd.push(n);removeCard(d,n)}save()}
   else if(x.k==='coll'){S.coll[n]=owned(n)+1;const l=$('#addLoc')&&$('#addLoc').value.trim();if(l)S.loc[n]=l;save()}
@@ -629,6 +635,17 @@ const A={
   addSearch(e){const d=deck();const s=e.dataset.sid;const nm=s==='u'?'Unsorted':s==='m'?'Maybeboard':secOf(d,s).name;openSearch({k:'deck',sid:s},'Add to '+nm)},
   fill(e){openFill(e.dataset.sid)},
   fillSrc(e){fillSrc(e.dataset.sid,e.dataset.src)},
+  pasteOpen(e){const d=deck();const sid=e.dataset.sid;const nm=sid==='u'?'Unsorted':sid==='m'?'Maybeboard':secOf(d,sid).name;
+    sheet('Paste cards → '+nm,`<p class="muted small" style="margin:0">One card per line. You can paste text copied straight from a web page such as EDHREC. Lines that are not card names are ignored.</p>
+     <button data-act="pasteClip">Paste from clipboard</button><textarea id="pasteT" aria-label="Cards to add" placeholder="Fervor&#10;Ogre Battledriver&#10;Hammer of Purphoros"></textarea>`,`<button class="pri" data-act="pasteGo" data-sid="${sid}">Add to ${esc(nm)}</button>`)},
+  async pasteClip(){try{const t=await navigator.clipboard.readText();if(t){$('#pasteT').value=t;return}}catch(e){}toast('Tap inside the box and choose Paste')},
+  async pasteGo(e){const d=deck();const sid=e.dataset.sid;const nm=sid==='u'?'Unsorted':sid==='m'?'Maybeboard':secOf(d,sid).name;
+    const names=[...new Set(parseList($('#pasteT').value).map(i=>i.n).filter(n=>n.length<=60&&/[a-z]/i.test(n)&&!/[%$]/.test(n)))].slice(0,300);
+    if(!names.length){toast('Nothing to add');return}toast('Looking up '+names.length+' lines…');let r;try{r=await byNames(names)}catch(err){toast(err.message);return}
+    const id=ident(d);const added=[],had=[],off=[];[...new Set(r.cards.filter(Boolean).map(c=>c.n))].forEach(n=>{const c=card(n);
+      if(d.cmd.length&&!c.ci.every(k=>id.includes(k)))off.push(n);else if(inDeck(d,n)&&!isBasic(n))had.push(n);else{addCard(d,n,sid);added.push(n)}});
+    save();rerender();const line=(t,a)=>a.length?`<div><h3>${t} · ${a.length}</h3><p class="muted small" style="margin:4px 0 0">${esc(a.join(', '))}</p></div>`:'';
+    sheet('Added '+added.length+' to '+nm,(line('Added',added)||'<p style="margin:0">No new cards were added.</p>')+line('Already in this deck',had)+line('Outside this deck\'s colors, skipped',off)+(r.missing.length?`<p class="muted small" style="margin:0">${r.missing.length} line${r.missing.length===1?' was':'s were'} not a card name and ignored.</p>`:''))},
   fillEdh(e){const d=deck();const ls=EDH[d.cmd.join('|')].lists;sheet('EDHREC picks',`<p class="muted small" style="margin:0">Pick a list. Cards go into ${esc(secOf(d,e.dataset.sid).name)}.</p><div class="list">${ls.map((l,i)=>`<button class="item" data-act="fillEdhList" data-sid="${e.dataset.sid}" data-i="${i}"><span class="name">${esc(l.header)}</span><span class="muted num">${l.cards.length}</span></button>`).join('')}</div>`)},
   async fillEdhList(e){const d=deck();const sid=e.dataset.sid;const l=EDH[d.cmd.join('|')].lists[+e.dataset.i];
     R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:false,ownedOnly:false,loading:true,started:true,meta:{}};const mine=R;
