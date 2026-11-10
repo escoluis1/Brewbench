@@ -233,12 +233,12 @@ const idf=d=>d.cmd.length?` id<=${ident(d).join('')||'c'} f:commander`:' f:comma
 const owned=n=>S.coll[n]||0;
 const isBasic=n=>/^Basic/.test(card(n).t);
 const secOf=(d,sid)=>d.sections.find(s=>s.id===sid);
-const inSec=(d,sid)=>d.cards.filter(c=>c.s===sid);
+const inSec=(d,sid)=>d.cards.filter(c=>c.s===sid||(c.x||[]).includes(sid));
 const cnt=cs=>cs.reduce((a,c)=>a+c.q,0);
 const main=d=>d.cards.filter(c=>c.s!=='m');
 const total=d=>d.cmd.length+cnt(main(d));
 const inDeck=(d,n)=>d.cmd.includes(n)||d.cards.some(c=>c.n===n);
-function addCard(d,n,sid){const e=d.cards.find(c=>c.n===n);if(e){if(isBasic(n))e.q++;else e.s=sid;}else d.cards.push({n,s:sid,q:1});save()}
+function addCard(d,n,sid){const e=d.cards.find(c=>c.n===n);if(e){if(isBasic(n))e.q++;else{e.s=sid;e.x=(e.x||[]).filter(i=>i!==sid)}}else d.cards.push({n,s:sid,q:1});save()}
 function removeCard(d,n){d.cards=d.cards.filter(c=>c.n!==n);save()}
 const pips=mc=>'<span class="pips">'+(mc.match(/\{[^}]+\}/g)||[]).map(s=>{s=s.slice(1,-1);return`<span class="pip ${/^[WUBRG]$/.test(s)?s:''}">${esc(s.replace('/',''))}</span>`}).join('')+'</span>';
 const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
@@ -258,8 +258,37 @@ function vDecks(){
   :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick an archetype, and its sections are set up for you.</div>`);
 }
 
+/* themes that can be added to a deck as sections: [name, target, Scryfall search, pattern that suggests it from the commander's text] */
+const THEMES=[
+ ['Tokens',10,'o:create o:"creature token"',/create[^.]*token/i],['+1/+1 Counters',10,'o:"+1/+1 counter"',/\+1\/\+1 counter/i],['Proliferate',5,'o:proliferate',/proliferate|counters? on/i],
+ ['Sacrifice Outlets',8,'otag:sacrifice-outlet',/sacrifice/i],['Death Triggers',8,'o:/whenever .* dies/',/\bdies\b/i],['Reanimation',8,'otag:reanimate',/graveyard/i],
+ ['Lifegain',10,'o:"whenever you gain life"',/gains? [^.]*life|lifelink/i],['Artifacts',10,'t:artifact',/artifact/i],['Enchantments',10,'t:enchantment',/enchantment|aura/i],['Equipment',8,'t:equipment',/equip/i],
+ ['Landfall',10,'o:landfall',/landfall|land enters/i],['Spellslinger',10,'(t:instant or t:sorcery) mv<=2',/instant|sorcery|noncreature spell/i],['Blink',8,'otag:flicker',/return (it|that card|them) to the battlefield/i],
+ ['ETB Creatures',10,'t:creature o:when o:enters',/\benter/i],['Haste Enablers',6,'o:"creatures you control have haste"',/haste|entered this turn/i],['Treasure',8,'o:"treasure token"',/treasure/i],
+ ['Burn',10,'o:"damage to each opponent"',/damage to (each|any|target) (opponent|player)/i],['Damage Doublers',5,'(o:"double that damage" or o:"deals double" or o:"twice that much damage")',/double|twice that/i],
+ ['Attack Triggers',10,'o:whenever o:attacks',/attack/i],['Extra Combats',5,'o:"additional combat phase"',/combat|attack/i],['Mill',10,'o:mill',/\bmill/i],['Discard',8,'o:discard',/discard/i],
+ ['Draw Payoffs',6,'o:"whenever you draw"',/whenever you draw|draws? [^.]*cards?/i],['Poison',8,'(o:infect or o:toxic)',/poison|infect|toxic/i],['Copies & Clones',6,'o:"copy of"',/\bcopy\b/i],
+ ['Protection',4,PROT,null],['Tutors',4,'otag:tutor',null],['Recursion',4,'otag:recursion',null],['Counterspells',6,'otag:counterspell',null],['Finishers',4,'',null]];
+/* EDHREC theme tags for the commander, when the browser can reach them; null while loading or unavailable */
+const EDH={};
+function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!==undefined)return;EDH[key]=null;
+  const slug=d.cmd.map(n=>n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 -]/g,'').trim().replace(/\s+/g,'-')).join('-');
+  try{const ac=new AbortController();setTimeout(()=>ac.abort(),6000);
+    fetch('https://json.edhrec.com/pages/commanders/'+slug+'.json',{signal:ac.signal}).then(r=>r.ok?r.json():null).then(j=>{const tl=j&&j.panels&&j.panels.taglinks;if(!Array.isArray(tl))return;
+      EDH[key]=tl.filter(t=>t&&t.value).slice(0,12).map(t=>({v:String(t.value),slug:String(t.slug||t.value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}));const cur=deck();if(location.hash==='#deck'&&$('#sheet').hidden&&cur&&cur.cmd.join('|')===key)rerender()}).catch(()=>{})}catch(e){}}
+function themeSuggest(d){const seen=new Set(d.sections.map(s=>s.name.toLowerCase()));const sugg=[];const push=(name,target,q,src)=>{const k=name.toLowerCase();if(seen.has(k))return;seen.add(k);sugg.push({name,target,q,src})};
+  const cs=d.cmd.map(card);const text=cs.map(c=>c.o+' '+c.t).join(' ');const subs=[...new Set(cs.flatMap(c=>(c.t.split(' // ')[0].split('—')[1]||'').trim().split(/\s+/).filter(Boolean)))];const used=new Set();
+  (EDH[d.cmd.join('|')]||[]).forEach(({v:t,slug})=>{const lib=THEMES.find(x=>x[0].toLowerCase()===t.toLowerCase());const sub=subs.find(s=>t.toLowerCase().startsWith(s.toLowerCase().slice(0,Math.max(2,s.length-1))));if(sub)used.add(sub);
+    /* an EDHREC tag becomes a section; its suggestions come from the Scryfall tag of the same name */
+    push(t,lib?lib[1]:sub?15:10,lib?lib[2]:sub?'t:'+sub.toLowerCase():'otag:'+slug,'EDHREC')});
+  subs.forEach(s=>{if(!used.has(s))push(s+' Kindred',15,'t:'+s.toLowerCase(),'card')});
+  if(cs.length)THEMES.forEach(t=>{if(t[3]&&t[3].test(text))push(t[0],t[1],t[2],'card')});
+  const rest=THEMES.filter(t=>!seen.has(t[0].toLowerCase())).map(t=>({name:t[0],target:t[1],q:t[2]}));return{sugg,rest}}
+function catSelect(d){const{sugg,rest}=themeSuggest(d);UI.cats=[...sugg,...rest];const o=(c,i)=>`<option value="${i}">${esc(c.name)}${c.src==='EDHREC'?' (EDHREC)':''}</option>`;
+  return`<select id="addCat" class="grow" aria-label="Add a section"><option value="">Add a section…</option>${sugg.length?`<optgroup label="Suggested for ${esc(d.cmd.join(' + '))}">${sugg.map(o).join('')}</optgroup>`:''}<optgroup label="All themes">${rest.map((c,i)=>o(c,i+sugg.length)).join('')}</optgroup><option value="custom">Custom section…</option></select>`}
+
 function vDeck(){
-  const d=deck();const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
+  const d=deck();edhLoad(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
   const val=[...d.cmd.map(n=>card(n).p),...m.map(c=>card(c.n).p*c.q)].reduce((a,b)=>a+b,0);
   const gc=m.filter(c=>card(c.n).gc).length+d.cmd.filter(n=>card(n).gc).length;
   const non=m.filter(c=>!/Land/.test(card(c.n).t));const curve=Array(8).fill(0);non.forEach(c=>curve[Math.min(7,Math.floor(card(c.n).cmc))]+=c.q);
@@ -278,8 +307,9 @@ function vDeck(){
    </div>
    <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small">avg ${avg}</span></header>
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
-   <div class="row"><span class="grp grow" style="margin:0">Sections</span>
+   <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
+   <div class="row">${catSelect(d)}<button data-act="editSecs" style="white-space:nowrap">Edit sections</button></div>
    ${secs.map(s=>secHtml(d,s)).join('')}`);
 }
 function secHtml(d,s){
@@ -288,7 +318,7 @@ function secHtml(d,s){
   const cls=special?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
   const rows=UI.view==='grid'
    ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
-   :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${pips(card(c.n).mc)}</button>`).join('');
+   :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${pips(card(c.n).mc)}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
     <span class="pill num ${cls}">${special?n:n+'/'+s.target}</span>
     <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
@@ -338,7 +368,7 @@ function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTM
 /* results list shared by search, fill, commander pick, collection add, package add */
 let R=null;
 function status(c){const x=R.ctx;const d=deck();
-  if(x.k==='deck'){const e=d.cards.find(k=>k.n===c.n);return d.cmd.includes(c.n)?{l:'Cmdr',on:1}:e?{l:isBasic(c.n)?'×'+e.q:'✓',on:1}:{l:'+'}}
+  if(x.k==='deck'){const e=d.cards.find(k=>k.n===c.n);return d.cmd.includes(c.n)?{l:'Cmdr',on:1}:e?((e.s===x.sid||(e.x||[]).includes(x.sid)||x.sid==='u'||x.sid==='m'||isBasic(c.n))?{l:isBasic(c.n)?'×'+e.q:'✓',on:1}:{l:'Share'}):{l:'+'}}
   if(x.k==='cmd')return d.cmd.includes(c.n)?{l:'✓',on:1}:{l:'Pick'};
   if(x.k==='opp')return{l:'Pick'};
   if(x.k==='coll')return owned(c.n)?{l:'×'+owned(c.n),on:1}:{l:'+'};
@@ -348,14 +378,16 @@ function shown(){let cs=R.cards;if(R.ownedOnly)cs=cs.filter(c=>owned(c.n));if(R.
 function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.loading){box.innerHTML='<div class="empty">Searching Scryfall…</div>';return}
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
-  const cs=shown();const d=deck();let head='';
+  const cs=shown();const d=deck();let head=R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'';
   if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
-    head=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button></div>
+    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button></div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
   box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc(c.t)}${c.p?' · '+money(c.p):''}</div></button>${pips(c.mc)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
-async function runQuery(q){if(!R)return;const mine=R;R.loading=true;R.err='';R.started=true;drawRes();
-  try{const cs=await search(q);if(R!==mine)return;R.cards=cs}catch(e){if(R!==mine)return;R.err=e.message;R.cards=[]}R.loading=false;drawRes()}
+async function runQuery(q,alt){if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.started=true;drawRes();
+  try{let cs=[];try{cs=await search(q)}catch(e){if(!alt)throw e}
+    if(!cs.length&&alt){cs=await search(alt.q);if(R!==mine)return;R.note=alt.note}
+    if(R!==mine)return;R.cards=cs}catch(e){if(R!==mine)return;R.err=e.message;R.cards=[]}R.loading=false;drawRes()}
 function openSearch(ctx,title,extra=''){const d=deck();
   R={ctx,cards:[],fill:false};
   sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards"><div id="res"></div>`);
@@ -371,12 +403,15 @@ function openFill(sid){const d=deck();const s=secOf(d,sid);
 async function fillSrc(sid,src){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);
   R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:true,ownedOnly:false,loading:true,started:true};const mine=R;
   sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');const el=$('#sheet');el.hidden=false;R=mine;drawRes();
-  if(!p||p.type==='scryfall'){await runQuery('('+(p?p.q:s.q)+')'+idf(d))}
+  if(!p||p.type==='scryfall'){const q=p?p.q:s.q;const tag=q.match(/^otag:([a-z0-9-]+)$/);
+    await runQuery('('+q+')'+idf(d),tag?{q:'(o:"'+tag[1].replace(/-/g,' ')+'")'+idf(d),note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'}:null)}
   else{try{const r=await byNames(p.cards);if(R!==mine)return;const id=ident(d);R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x))));save()}catch(e){if(R!==mine)return;R.err=e.message}R.loading=false;drawRes()}
 }
 function pick(n){const x=R.ctx;const d=deck();
   if(x.k==='opp'){const p=S.players.find(p=>p.id===x.pid);if(!p.decks.includes(n))p.decks.push(n);save();openPlayer(p.id);return}
-  if(x.k==='deck'){const e=d.cards.find(c=>c.n===n);if(d.cmd.includes(n))return;if(e&&!isBasic(n))removeCard(d,n);else addCard(d,n,x.sid)}
+  if(x.k==='deck'){const e=d.cards.find(c=>c.n===n);if(d.cmd.includes(n))return;const sp=x.sid==='u'||x.sid==='m';
+    if(!e||isBasic(n))addCard(d,n,x.sid);else if(sp)removeCard(d,n);
+    else{e.x=e.x||[];if(e.s===x.sid){if(e.x.length)e.s=e.x.shift();else removeCard(d,n)}else if(e.x.includes(x.sid))e.x=e.x.filter(i=>i!==x.sid);else if(e.s==='u'||e.s==='m')e.s=x.sid;else e.x.push(x.sid);save()}}
   else if(x.k==='cmd'){if(d.cmd.includes(n))d.cmd=d.cmd.filter(k=>k!==n);else{if(d.cmd.length>=2)d.cmd.shift();d.cmd.push(n);removeCard(d,n)}save()}
   else if(x.k==='coll'){S.coll[n]=owned(n)+1;const l=$('#addLoc')&&$('#addLoc').value.trim();if(l)S.loc[n]=l;save()}
   else if(x.k==='pkg'){const p=S.packages.find(p=>p.id===x.pid);p.cards=p.cards.includes(n)?p.cards.filter(k=>k!==n):[...p.cards,n];save()}
@@ -389,7 +424,7 @@ function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n
    <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${c.p?`<span class="muted num">${money(c.p)}</span>`:''}</div>
    ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
    <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
-   ${e?`<label for="mv">Section</label><select id="mv" data-n="${esc(n)}">${opts.map(s=>`<option value="${s.id}" ${e.s===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`:'<p class="muted small" style="margin:0">This is your commander.</p>'}
+   ${e?`<label for="mv">Section</label><select id="mv" data-n="${esc(n)}">${opts.map(s=>`<option value="${s.id}" ${e.s===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>${e.s!=='m'&&d.sections.some(s=>s.id!==e.s)?`<label>Also counts toward</label><div class="chips">${d.sections.filter(s=>s.id!==e.s).map(s=>`<button class="chip ${(e.x||[]).includes(s.id)?'on':''}" data-act="xTog" data-n="${esc(n)}" data-sid="${s.id}">${esc(s.name)}</button>`).join('')}</div>`:''}`:'<p class="muted small" style="margin:0">This is your commander.</p>'}
    <div class="row wrapf"><span class="grow">Copies you own</span><button class="sm" data-act="ownDec" data-n="${esc(n)}" aria-label="Own one fewer">−</button><b class="num" id="ownN" style="min-width:22px;text-align:center">${owned(n)}</b><button class="sm" data-act="ownInc" data-n="${esc(n)}" aria-label="Own one more">+</button></div>
    ${e&&isBasic(n)?`<div class="row"><span class="grow">Copies in deck</span><button class="sm" data-act="qDec" data-n="${esc(n)}" aria-label="One fewer in deck">−</button><b class="num" style="min-width:22px;text-align:center">${e.q}</b><button class="sm" data-act="qInc" data-n="${esc(n)}" aria-label="One more in deck">+</button></div>`:''}
    ${custom.length?`<label for="toPkg">Add to one of your packages</label><select id="toPkg" data-n="${esc(n)}"><option value="">Choose a package</option>${custom.map(p=>`<option value="${p.id}">${esc(p.name)}${p.cards.includes(n)?' (already in)':''}</option>`).join('')}</select>`:''}`,
@@ -527,6 +562,7 @@ const A={
   rOwnedOnly(){R.ownedOnly=!R.ownedOnly;drawRes()},
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
+  xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
   rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
   ownInc(e){S.coll[e.dataset.n]=owned(e.dataset.n)+1;save();$('#ownN').textContent=owned(e.dataset.n)},
@@ -546,10 +582,10 @@ const A={
     <button class="item danger" data-act="delDeckAsk">Delete deck</button></div>`)},
   rename(){sheet('Rename deck',`<label for="rn">Deck name</label><input id="rn" value="${esc(deck().name)}">`,`<button class="pri" data-act="renameSave">Save</button>`)},
   renameSave(){deck().name=$('#rn').value.trim()||'Untitled deck';save();closeSheet();rerender()},
-  editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const ids=rows.map(r=>r.id);d.cards.forEach(c=>{if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s='u'});d.sections=rows})},
+  editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const ids=rows.map(r=>r.id);d.cards.forEach(c=>{c.x=(c.x||[]).filter(i=>ids.includes(i));if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s=c.x.shift()||'u'});d.sections=rows})},
   changeArch(){sheet('Switch archetype',`<p class="muted small" style="margin:0">Cards stay in sections that keep the same name. Everything else moves to Unsorted.</p><div class="list">${S.archetypes.map(a=>`<button class="item" data-act="applyArch" data-id="${a.id}">${esc(a.name)}</button>`).join('')}</div>`)},
   applyArch(e){const d=deck();const a=S.archetypes.find(a=>a.id===e.dataset.id);const old=Object.fromEntries(d.sections.map(s=>[s.id,s.name]));const ns=a.sections.map(s=>({...s,id:uid()}));
-    d.cards.forEach(c=>{if(c.s==='u'||c.s==='m')return;const m=ns.find(s=>s.name===old[c.s]);c.s=m?m.id:'u'});d.sections=ns;d.arch=a.name;save();closeSheet();rerender()},
+    d.cards.forEach(c=>{c.x=(c.x||[]).map(i=>(ns.find(s=>s.name===old[i])||{}).id).filter(Boolean);if(c.s==='u'||c.s==='m')return;const m=ns.find(s=>s.name===old[c.s]);c.s=m?m.id:'u'});d.sections=ns;d.arch=a.name;save();closeSheet();rerender()},
   saveArch(){const d=deck();S.archetypes.push({id:uid(),name:d.name+' template',sections:d.sections.map(s=>({...s,id:uid()}))});save();closeSheet();toast('Saved to Setup → Archetypes')},
   async basics(){const d=deck();const map={W:'Plains',U:'Island',B:'Swamp',R:'Mountain',G:'Forest'};const names=ident(d).map(c=>map[c]);if(!names.length)names.push('Wastes');
     try{await byNames(names)}catch(e){}names.forEach(n=>{if(!CARDS[n])CARDS[n]={n,mc:'',cmc:0,t:'Basic Land',o:'',ci:[],img:'',p:0}});
@@ -659,8 +695,9 @@ Object.assign(A,{
 });
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
-  if(t.id==='mv'){const c=deck().cards.find(c=>c.n===t.dataset.n);c.s=t.value;save();toast('Moved')}
+  if(t.id==='mv'){const c=deck().cards.find(c=>c.n===t.dataset.n);c.s=t.value;c.x=(c.x||[]).filter(i=>i!==c.s);save();cardSheet(c.n);toast('Moved')}
   if(t.id==='toPkg'&&t.value){const p=S.packages.find(p=>p.id===t.value);if(!p.cards.includes(t.dataset.n))p.cards.push(t.dataset.n);save();toast('Added to '+p.name)}
+  if(t.id==='addCat'&&t.value){const d=deck();if(t.value==='custom'){d.sections.unshift(SEC('New section',5));save();A.editSecs()}else{const c=UI.cats[+t.value];d.sections.unshift(SEC(c.name,c.target,c.q));save();rerender();toast('Added '+c.name+'. Change its target in Edit sections.')}}
   if(t.id==='collLocSel'){UI.collLoc=t.value;rerender()}
   if(t.dataset.pull!==undefined){const d=deck();d.pulled=d.pulled||{};if(t.checked)d.pulled[t.dataset.pull]=1;else delete d.pulled[t.dataset.pull];save();$('#pullN').textContent=Object.keys(d.pulled).filter(n=>owned(n)).length}
   if(t.id==='pType'){$('#pS').hidden=t.value!=='scryfall';$('#pC').hidden=t.value!=='custom'}});
