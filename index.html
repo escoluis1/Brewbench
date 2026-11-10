@@ -146,8 +146,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.17';
+const VERSION='2.0';
 const NEWS=[
+ ['2.0','Nov 10, 2026',['New decks no longer start from one archetype. Every deck gets the same sections: Ramp, Interaction, Card Advantage and Lands, plus Game Plan, Pay Off and Finisher with looser targets.','Themes: pick as many as fit the deck, from EDHREC\'s tags for your commander, the commander\'s own text, or your own. Themes supply the suggestions for Game Plan, Pay Off and Finisher.','Auto-sort files cards that match any of your themes into Game Plan.','Older decks keep their sections. Menu has Convert to standard sections if you want to switch one over.','Default sections for new decks can be edited in Setup.']],
  ['1.17','Nov 10, 2026',['Two-sided cards with a land on the back now count as lands when sorting, and are still checked against your other sections.','Cards are shared across sections automatically: when you add a card anywhere, the app checks your other sections and marks it shared in any it fits. You can turn this off in Setup.']],
  ['1.16','Nov 10, 2026',['Auto-sort: imported cards are filed into your sections by checking each section\'s Scryfall search. Lands go to Lands. Cards that fit more than one section are shared.','An Auto-sort button on Unsorted does the same for anything sitting there.']],
  ['1.15','Nov 10, 2026',['Quick add: in Search, adding a card by name clears the box so you can type the next one right away, with a running list of what you added.','Paste several cards into any section, from Search or Fill. Text copied from a web page works; lines that are not card names are ignored.','Fill has a link that opens your commander\'s page on EDHREC.']],
@@ -203,9 +204,12 @@ function seedPkgs(){return [
  {id:uid(),name:'Lands in my colors',type:'scryfall',q:'t:land -t:basic',cards:[]},
  {id:uid(),name:'My staples (edit me)',type:'custom',q:'',cards:['Sol Ring','Arcane Signet','Command Tower','Swiftfoot Boots','Lightning Greaves']}
 ];}
+/* sections every new deck starts with: four fixed ones, then three with loose targets that are fed by the deck's themes */
+const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Interaction',10,'(otag:removal or otag:board-wipe or (t:instant o:"counter target"))'),SEC('Card Advantage',10,'otag:draw'),LANDS(),
+  {...SEC('Game Plan',20,''),flex:1,role:'plan'},{...SEC('Pay Off',8,''),flex:1,role:'payoff'},{...SEC('Finisher',3,'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")'),flex:1,role:'finisher'}];
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
+function norm(){S.loc=S.loc||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>d.themes=d.themes||[]);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
 let saveT;
@@ -290,8 +294,8 @@ const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div cla
 function vDecks(){
   page('<h1>Decks</h1>','<button class="pri" data-act="newDeck">New deck</button>',
   (S.seen!==VERSION?`<button class="empty" style="width:100%;color:var(--ink);border-style:solid;border-color:var(--accent)" data-act="news">Brew Bench updated to version ${VERSION}. <b style="color:var(--accent)">See what's new</b></button>`:'')+(
-  S.decks.length?`<div class="list">${S.decks.map(d=>`<button class="item" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')} · ${esc(d.arch)}</span></span><span class="num muted">${total(d)}/100</span></button>`).join('')}</div>`
-  :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick an archetype, and its sections are set up for you.</div>`));
+  S.decks.length?`<div class="list">${S.decks.map(d=>`<button class="item" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')}${d.themes.length?' · '+esc(d.themes.map(t=>t.name).join(', ')):''}</span></span><span class="num muted">${total(d)}/100</span></button>`).join('')}</div>`
+  :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick your commander, then choose the themes it is built around.</div>`));
 }
 
 /* themes that can be added to a deck as sections: [name, target, Scryfall search, pattern that suggests it from the commander's text] */
@@ -316,13 +320,13 @@ async function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!=
   if(j){const tl=j.panels&&j.panels.taglinks;if(Array.isArray(tl))out.tags=tl.filter(t=>t&&t.value).slice(0,12).map(t=>({v:String(t.value),slug:String(t.slug||t.value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}));
     const cl=j.container&&j.container.json_dict&&j.container.json_dict.cardlists;
     if(Array.isArray(cl))out.lists=cl.map(l=>({header:String(l.header||l.tag||'Cards'),cards:(l.cardviews||[]).filter(c=>c&&c.name).map(c=>({name:String(c.name),syn:typeof c.synergy==='number'?c.synergy:null,pct:c.potential_decks?(c.num_decks||c.inclusion||0)/c.potential_decks:null}))})).filter(l=>l.cards.length)}
-  EDH[key]=out;const cur=deck();if(location.hash==='#deck'&&$('#sheet').hidden&&cur&&cur.cmd.join('|')===key)rerender()}
+  EDH[key]=out;const cur=deck();if(location.hash==='#deck'&&cur&&cur.cmd.join('|')===key){if(UI.themeOpen)themeSheet();else if($('#sheet').hidden)rerender()}}
 /* searches to try for a section the user named, best guess first */
 function autoQueries(name){const low=name.trim().toLowerCase();const slug=low.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');if(!slug)return[];const out=[];
   const lib=THEMES.find(t=>t[2]&&(t[0].toLowerCase()===low||(low.length>3&&(t[0].toLowerCase().includes(low)||low.includes(t[0].toLowerCase())))));
   if(lib)out.push({raw:lib[2],why:'the '+lib[0]+' theme search'});
   out.push({raw:'otag:gives-'+slug,why:'the Scryfall tag "gives-'+slug+'"'},{raw:'otag:'+slug,why:'the Scryfall tag "'+slug+'"'},{raw:'o:"'+low.replace(/"/g,'')+'"',why:'card text containing "'+low+'"'});return out}
-function themeSuggest(d){const seen=new Set(d.sections.map(s=>s.name.toLowerCase()));const sugg=[];const push=(name,target,q,src)=>{const k=name.toLowerCase();if(seen.has(k))return;seen.add(k);sugg.push({name,target,q,src})};
+function themeSuggest(d){const seen=new Set();const sugg=[];const push=(name,target,q,src)=>{const k=name.toLowerCase();if(seen.has(k))return;seen.add(k);sugg.push({name,target,q,src})};
   const cs=d.cmd.map(card);const text=cs.map(c=>c.o+' '+c.t).join(' ');const subs=[...new Set(cs.flatMap(c=>(c.t.split(' // ')[0].split('—')[1]||'').trim().split(/\s+/).filter(Boolean)))];const used=new Set();
   ((EDH[d.cmd.join('|')]||{}).tags||[]).forEach(({v:t,slug})=>{const lib=THEMES.find(x=>x[0].toLowerCase()===t.toLowerCase());const sub=subs.find(s=>t.toLowerCase().startsWith(s.toLowerCase().slice(0,Math.max(2,s.length-1))));if(sub)used.add(sub);
     /* an EDHREC tag becomes a section; its suggestions come from the Scryfall tag of the same name */
@@ -347,8 +351,9 @@ function vDeck(){
   const secs=[{id:'u',name:'Unsorted',target:0,q:''},...d.sections,{id:'m',name:'Maybeboard',target:0,q:''}];
   page(`<button class="ghost" data-act="back" aria-label="Back to decks">‹ Decks</button><h1>${esc(d.name)}</h1>`,`<button data-act="deckMenu" aria-label="Deck menu">Menu</button>`,`
    <div class="cmd">${cmdHtml}</div>
-   <div class="row wrapf"><span class="pips">${ident(d).map(c=>`<span class="pip ${c}">${c}</span>`).join('')}</span><span class="muted small grow">${esc(d.arch)}</span>
+   <div class="row wrapf"><span class="pips">${ident(d).map(c=>`<span class="pip ${c}">${c}</span>`).join('')}</span><span class="grow"></span>
      <button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
+   <div class="chips">${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit themes':'Pick themes for this deck'}</button></div>
    <div class="stats">
      <div class="stat"><b class="num">${total(d)}/100</b><span>Cards</span></div>
      <div class="stat"><b class="num">${own}</b><span>Owned</span></div>
@@ -359,18 +364,18 @@ function vDeck(){
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
-   <div class="row">${catSelect(d)}<button data-act="editSecs" style="white-space:nowrap">Edit sections</button></div>
+   <div class="row"><span class="grow"></span><button class="sm" data-act="editSecs">Edit sections</button></div>
    ${secs.map(s=>secHtml(d,s)).join('')}`);
 }
 function secHtml(d,s){
   const cs=inSec(d,s.id).sort((a,b)=>a.n.localeCompare(b.n));const n=cnt(cs);const special=s.id==='u'||s.id==='m';
   if(s.id==='u'&&!n)return'';
-  const cls=special?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
+  const cls=special||s.flex?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
   const rows=UI.view==='grid'
    ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
    :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${costOrMana(card(c.n))}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
-    <span class="pill num ${cls}">${special?n:n+'/'+s.target}</span>
+    <span class="pill num ${cls}">${special?n:s.flex?n+' · about '+s.target:n+'/'+s.target}</span>
     <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${s.id==='u'?'<button class="sm pri" data-act="autoSort">Auto-sort</button>':''}${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
     ${special?'':`<div class="bar"><i style="width:${Math.min(100,s.target?n/s.target*100:0)}%"></i></div>`}
     ${closed?'':(cs.length?rows:'')}</section>`;
@@ -403,9 +408,8 @@ function vSetup(){
   page('<h1>Setup</h1>',`<span class="muted small num">Version ${VERSION}</span>`,`
    <div class="row"><h2 class="grow">What's new</h2><button class="sm" data-act="news">All versions</button></div>
    <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
-   <div class="row"><h2 class="grow">Archetypes</h2><button class="sm" data-act="newArch">New archetype</button></div>
-   <p class="muted small" style="margin:0">An archetype is a template: the sections a deck gets, how many cards each should hold, and the Scryfall search that suggests cards for it. Change anything here.</p>
-   <div class="list">${S.archetypes.map(a=>`<button class="item" data-act="editArch" data-id="${a.id}"><span class="name"><b>${esc(a.name)}</b><br><span class="muted small">${a.sections.map(s=>esc(s.name)+' '+s.target).join(' · ')}</span></span><span class="muted">›</span></button>`).join('')}</div>
+   <div class="row"><h2 class="grow">Default sections</h2><button class="sm" data-act="editTemplate">Edit</button></div>
+   <p class="muted small" style="margin:0">Every new deck starts with these: ${S.template.map(x=>esc(x.name)+' '+(x.flex?'about ':'')+x.target).join(' · ')}.</p>
    <h2>Deck building</h2>
    <div class="row"><span class="grow">Share cards across sections automatically<br><span class="muted small">When you add a card, it is also counted in any other section whose search it matches.</span></span><button data-act="shareTog" aria-pressed="${S.autoShare!==false}">${S.autoShare!==false?'On':'Off'}</button></div>
    <h2>Backup and moving devices</h2>
@@ -421,9 +425,10 @@ const pureLand=n=>/Land/.test(frontOf(card(n).t));    /* a land on the front: no
 async function matchSections(d,cards,step){const landSec=d.sections.find(s=>/land/i.test(s.name));
   const pool=cards.filter(c=>!pureLand(c.n)&&c.n.indexOf('"')<0);const chunks=[];let cur=[],len=0;
   pool.forEach(c=>{const t=frontOf(c.n).length+7;if(len+t>720&&cur.length){chunks.push(cur);cur=[];len=0}cur.push(c);len+=t});if(cur.length)chunks.push(cur);
-  const qs=d.sections.filter(s=>s!==landSec).map(s=>({s,q:s.q||(autoQueries(s.name)[0]||{}).raw||''})).filter(x=>x.q);const out=[];
-  for(let i=0;i<qs.length&&chunks.length;i++){const{s,q}=qs[i];if(step)step(s,i,qs.length);const names=new Set();
-    for(const ch of chunks){let hits;try{hits=(await sf('/cards/search?q='+encodeURIComponent('('+q+') ('+ch.map(c=>'!"'+frontOf(c.n)+'"').join(' or ')+')'))).data.map(x=>x.name)}catch(e){break}
+  const tq=t=>t.q||(autoQueries(t.name)[0]||{}).raw||'';
+  const qs=d.sections.filter(s=>s!==landSec).map(s=>({s,list:(s.role==='plan'?[s.q,...d.themes.map(tq)]:[s.q||(s.flex?'':tq(s))]).filter(Boolean)})).filter(x=>x.list.length);const out=[];
+  for(let i=0;i<qs.length&&chunks.length;i++){const{s,list}=qs[i];if(step)step(s,i,qs.length);const names=new Set();
+    for(const q of list)for(const ch of chunks){let hits;try{hits=(await sf('/cards/search?q='+encodeURIComponent('('+q+') ('+ch.map(c=>'!"'+frontOf(c.n)+'"').join(' or ')+')'))).data.map(x=>x.name)}catch(e){break}
       const set=new Set(hits.flatMap(n=>[n,frontOf(n)]));ch.forEach(c=>{if(set.has(c.n)||set.has(frontOf(c.n)))names.add(c.n)})}
     out.push({s,names})}
   return out}
@@ -452,9 +457,9 @@ async function runShare(){const items=[...SHAREQ];SHAREQ.clear();const byDeck={}
     if(n){save();if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender();toast(who.size===1?[...who][0]+' also counts toward another section':who.size+' cards also count toward other sections')}}}
 
 /* ================= sheets ================= */
-function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;el.hidden=false;
-  el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet ${was?'still':''}" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;}
-function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null}
+function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;el.hidden=false;
+  el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet ${was?'still':''}" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;if(keep&&$('.body',el))$('.body',el).scrollTop=keep}
+function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null;UI.themeOpen=false;sheet.last=''}
 function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p><span style="color:#fff" class="small">Tap anywhere to close</span></div>`}
 
 /* results list shared by search, fill, commander pick, collection add, package add */
@@ -496,26 +501,27 @@ function openSearch(ctx,title,extra=''){const d=deck();
 }
 function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
+   ${s.flex&&!d.themes.length?'<button data-act="themes">Pick themes for this deck to get suggestions here</button>':''}
    ${(e=>!d.cmd.length?'':!e?'<p class="muted small" style="margin:0">Loading EDHREC recommendations…</p>':e.lists.length?'':'<p class="muted small" style="margin:0">EDHREC recommendations could not be loaded in this browser.</p>')(EDH[d.cmd.join('|')])}
-   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>
+   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.flex?d.themes.map((t,i)=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="th:${i}"><span class="name"><b>Theme: ${esc(t.name)}</b><br><span class="muted small">Scryfall · ${t.q?esc(t.q):'finds a search from the theme name'}</span></span><span class="muted">›</span></button>`).join(''):''}${!s.flex||s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>`:''}
    ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>
    <button data-act="pasteOpen" data-sid="${sid}">Paste a list of cards</button>
    ${d.cmd.length?`<a class="btn" href="https://edhrec.com/commanders/${edhSlug(d.cmd)}" target="_blank" rel="noopener">Open ${esc(d.cmd.join(' + '))} on EDHREC ↗</a>`:''}`);
 }
-async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const prev=R&&R.fill?R:null;
-  const scry=!p||p.type==='scryfall';const q=scry?(p?p.q:s.q):'';const land=/land/i.test(s.name+' '+(p?p.name:''))||/t:land/.test(q);const multi=ident(d).length>1;
+async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const th=/^th:/.test(src)?d.themes[+src.slice(3)]:null;const prev=R&&R.fill?R:null;
+  const scry=!p||p.type==='scryfall';const q=scry?(th?th.q:p?p.q:s.q):'';const land=/land/i.test(s.name+' '+(p?p.name:''))||/t:land/.test(q);const multi=ident(d).length>1;
   if(mk===undefined)mk=/land|ramp|rock|mana/i.test(s.name+' '+(p?p.name:''))?(land&&multi?'2':'1'):'';
   R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:prev?prev.ownedFirst:true,ownedOnly:prev?prev.ownedOnly:false,loading:true,started:true,src,mk,
     mkOpts:scry&&ident(d).length?(land&&multi?[['2','Makes 2+ of my colors'],['1','Makes any of my colors']]:[['1','Makes my colors']]):[]};const mine=R;
-  sheet((p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');R=mine;drawRes();
+  sheet((th?th.name:p?p.name:'Suggested')+' → '+s.name,'<div id="res"></div>');R=mine;drawRes();
   if(scry){let cands;
     if(q){const tag=q.match(/^otag:([a-z0-9-]+)$/);cands=[{raw:q,note:''}];if(tag)cands.push({raw:'o:"'+tag[1].replace(/-/g,' ')+'"',note:'Scryfall has no tag called "'+tag[1]+'", so this searched card text for "'+tag[1].replace(/-/g,' ')+'" instead.'})}
-    else cands=autoQueries(s.name).map(c=>({raw:c.raw,note:'Suggestions use '+c.why+'.'}));
+    else cands=autoQueries(th?th.name:s.name).map(c=>({raw:c.raw,note:'Suggestions use '+c.why+'.'}));
     if(!cands.length){R.loading=false;R.err='Give this section a name or a Scryfall search in Edit sections.';drawRes();return}
     const pf=mk?prodFilter(d,mk==='2'):'';const W=c=>'('+c.raw+')'+idf(d);const list=[];
     cands.forEach(c=>{if(pf)list.push({q:W(c)+pf,note:c.note,raw:c.raw});list.push({q:W(c),raw:c.raw,note:((pf?'Nothing matched the color filter, so this shows every card your deck can play. ':'')+c.note).trim()})});
     await runQuery(list[0].q,list.slice(1),list[0]);
-    if(R===mine&&!q&&!p&&R.won&&R.cards.length){s.q=R.won;save();R.note=(R.note+' Saved as this section\'s search. Change it in Edit sections.').trim();drawRes()}}
+    if(R===mine&&!q&&!p&&R.won&&R.cards.length){(th||s).q=R.won;save();R.note=(R.note+(th?' Saved as this theme\'s search. Tap the theme on the deck to change it.':' Saved as this section\'s search. Change it in Edit sections.')).trim();drawRes()}}
   else{try{const r=await byNames(p.cards);if(R!==mine)return;const id=ident(d);R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x))));save()}catch(e){if(R!==mine)return;R.err=e.message}R.loading=false;drawRes()}
 }
 function pick(n){const x=R.ctx;const d=deck();
@@ -657,6 +663,20 @@ function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.fi
    <div class="row"><input id="plD" class="grow" placeholder="Or type a deck name" autocomplete="off"><button data-act="playerDeckAdd" data-id="${id}">Add</button></div>
    <label for="plNotes">Notes</label><textarea id="plNotes" style="min-height:80px" placeholder="Play style, cards to watch for, house rules">${esc(p.notes)}</textarea>`,
    `<div class="row"><button class="pri grow" data-act="playerSave" data-id="${id}">Save</button>${gs.length?'':`<button class="danger" data-act="playerDel" data-id="${id}">Delete</button>`}</div>`)}
+function themeSheet(){const d=deck();const e=EDH[d.cmd.join('|')];const{sugg,rest}=themeSuggest(d);const all=[...sugg,...rest];UI.cats=all;
+  const has=n=>d.themes.some(t=>t.name.toLowerCase()===n.toLowerCase());const chip=c=>`<button class="chip ${has(c.name)?'on':''}" data-act="thTog" data-i="${all.indexOf(c)}">${esc(c.name)}</button>`;
+  const edh=sugg.filter(c=>c.src==='EDHREC'),own=sugg.filter(c=>c.src!=='EDHREC');const mine=d.themes.filter(t=>!all.some(c=>c.name.toLowerCase()===t.name.toLowerCase()));
+  sheet('Themes for '+d.name,`<p class="muted small" style="margin:0">Pick every theme this deck is built around. Themes supply the suggestions for Game Plan, Pay Off and Finisher, and Auto-sort files matching cards into Game Plan.</p>
+   ${d.cmd.length?`<label>EDHREC themes for ${esc(d.cmd.join(' + '))}</label>${edh.length?`<div class="chips">${edh.map(chip).join('')}</div>`:`<p class="muted small" style="margin:0">${e?'EDHREC has no themes available for this commander here.':'Loading from EDHREC…'}</p>`}`:'<p class="muted small" style="margin:0">Set a commander to get suggestions for it.</p>'}
+   ${own.length?`<label>From the commander's card</label><div class="chips">${own.map(chip).join('')}</div>`:''}
+   <label>All themes</label><div class="chips">${rest.map(chip).join('')}</div>
+   <label for="thNew">Your own</label>${mine.length?`<div class="chips">${mine.map(t=>`<button class="chip on" data-act="thDel" data-n="${esc(t.name)}">${esc(t.name)} ✕</button>`).join('')}</div>`:''}
+   <div class="row"><input id="thNew" class="grow" placeholder="e.g. Scry" autocomplete="off"><button data-act="thAdd">Add</button></div>`,`<button class="pri" data-act="close">Done</button>`);UI.themeOpen=true}
+/* turns an older archetype-based deck into the standard sections; its old theme sections become themes */
+function convertStd(d){const ns=S.template.map(x=>({...x,id:uid()}));const by=re=>ns.find(x=>re.test(x.name));const plan=ns.find(x=>x.role==='plan')||ns[ns.length-1];const map={};
+  d.sections.forEach(o=>{const n=o.name;const t=/ramp/i.test(n)?by(/ramp/i):/draw|advantage/i.test(n)?by(/advantage|draw/i):/removal|wipe|interaction|counterspell|protection/i.test(n)?by(/interaction|removal/i):/land/i.test(n)?by(/land/i):/finisher/i.test(n)?by(/finisher/i):/pay ?off/i.test(n)?by(/pay ?off/i):null;
+    map[o.id]=(t||plan).id;if(!t&&!/^(theme|new section)$/i.test(n)&&!d.themes.some(x=>x.name.toLowerCase()===n.toLowerCase()))d.themes.push({name:n,q:o.q||''})});
+  d.cards.forEach(c=>{if(c.s!=='u'&&c.s!=='m')c.s=map[c.s]||'u';c.x=[...new Set((c.x||[]).map(i=>map[i]).filter(i=>i&&i!==c.s))]});d.sections=withLands(ns);d.arch=''}
 function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
   sheet(pname(pid),`<p class="muted small" style="margin:0">Commander damage also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
    ${L.players.filter(o=>o.pid!==pid).map(o=>row('From '+esc(pname(o.pid))+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`)).join('')}
@@ -668,10 +688,19 @@ const A={
   news(){S.seen=VERSION;save();sheet("What's new",`<p class="muted small" style="margin:0">You are on version ${VERSION}.</p>`+newsHtml(NEWS))},
   openDeck(e){UI.deck=e.dataset.id;location.hash='deck';route()},
   newDeck(){sheet('New deck',`<label for="dName">Deck name</label><input id="dName" placeholder="e.g. Neriv go-wide">
-    <label for="dArch">Archetype</label><select id="dArch">${S.archetypes.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
-    <p class="muted small" style="margin:0">The archetype sets up the deck's sections and targets. You can change them later.</p>`,`<button class="pri" data-act="createDeck">Create deck</button>`);$('#dName').focus()},
-  createDeck(){const a=S.archetypes.find(a=>a.id===$('#dArch').value);const d={id:uid(),name:$('#dName').value.trim()||'Untitled deck',cmd:[],arch:a.name,sections:withLands(a.sections.map(s=>({...s,id:uid()}))),cards:[]};
+    <p class="muted small" style="margin:0">Next you pick the commander, then the themes the deck is built around. Every deck starts with the same sections, which you can change.</p>`,`<button class="pri" data-act="createDeck">Create deck</button>`);$('#dName').focus()},
+  createDeck(){const d={id:uid(),name:$('#dName').value.trim()||'Untitled deck',cmd:[],arch:'',themes:[],sections:withLands(S.template.map(x=>({...x,id:uid()}))),cards:[]};
     S.decks.unshift(d);save();closeSheet();UI.deck=d.id;location.hash='deck';route();A.setCmd()},
+  themes(){themeSheet()},
+  thTog(e){const d=deck();const c=UI.cats[+e.dataset.i];const k=c.name.toLowerCase();if(d.themes.some(t=>t.name.toLowerCase()===k))d.themes=d.themes.filter(t=>t.name.toLowerCase()!==k);else d.themes.push({name:c.name,q:c.q||''});save();themeSheet()},
+  thAdd(){const d=deck();const n=$('#thNew').value.trim();if(!n){toast('Type a theme name');return}if(!d.themes.some(t=>t.name.toLowerCase()===n.toLowerCase()))d.themes.push({name:n,q:''});save();themeSheet()},
+  thDel(e){const d=deck();d.themes=d.themes.filter(t=>t.name!==e.dataset.n);save();themeSheet()},
+  thEdit(e){const t=deck().themes[+e.dataset.i];sheet('Theme: '+t.name,`<label for="thQ">Scryfall search for this theme</label><input id="thQ" value="${esc(t.q)}" placeholder="Left blank, the app finds one from the name" autocomplete="off">
+    <p class="muted small" style="margin:0">Used for suggestions in Game Plan, Pay Off and Finisher, and by Auto-sort.</p>`,`<div class="row"><button class="pri grow" data-act="thSave" data-i="${e.dataset.i}">Save</button><button class="danger" data-act="thRemove" data-i="${e.dataset.i}">Remove theme</button></div>`)},
+  thSave(e){deck().themes[+e.dataset.i].q=$('#thQ').value.trim();save();closeSheet();rerender()},
+  thRemove(e){deck().themes.splice(+e.dataset.i,1);save();closeSheet();rerender()},
+  convertAsk(){confirmSheet('Convert to standard sections','This replaces this deck\'s sections with Ramp, Interaction, Card Advantage, Lands, Game Plan, Pay Off and Finisher. Cards move to the closest match, and the old theme sections become themes. It cannot be undone, so export a backup first if you are unsure.','convertGo','Convert')},
+  convertGo(){convertStd(deck());save();closeSheet();rerender();toast('Converted')},
   setCmd(){openSearch({k:'cmd'},'Pick your commander (up to two)')},
   view(e){UI.view=e.dataset.v;rerender()},
   toggle(e){const k=deck().id+e.dataset.sid;UI.closed[k]=!UI.closed[k];rerender()},
@@ -704,6 +733,7 @@ const A={
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
   autoSort(){autoSort(deck())},
+  editTemplate(){secEditor('Default sections for new decks',null,S.template,rows=>{S.template=rows})},
   shareTog(){S.autoShare=S.autoShare===false;save();rerender()},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
@@ -716,8 +746,8 @@ const A={
     <button class="item" data-act="pull">Pull list: find these cards in my collection</button>
     <button class="item" data-act="rename">Rename deck</button>
     <button class="item" data-act="editSecs">Edit sections and targets</button>
-    <button class="item" data-act="changeArch">Switch archetype</button>
-    <button class="item" data-act="saveArch">Save these sections as a new archetype</button>
+    <button class="item" data-act="themes">Edit themes</button>
+    ${d.sections.some(x=>x.role==='plan')?'':'<button class="item" data-act="convertAsk">Convert to standard sections</button>'}
     <button class="item" data-act="basics">Add basic lands</button>
     <button class="item" data-act="importDeck">Import a card list</button>
     <button class="item" data-act="exportDeck">Export card list</button>
@@ -783,7 +813,7 @@ const A={
     try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;norm();CARDS=S.cards||{};save();closeSheet();rerender();toast('Backup imported')}catch(e){toast('That is not a Brew Bench backup')}},
   resetAsk(){confirmSheet('Erase everything','This deletes all decks, packages, archetypes and your collection from this device. Export a backup first if you might want them back.','reset','Erase everything')},
   reset(){S=blank();norm();CARDS={};save();closeSheet();rerender()},
-  close(){closeSheet();rerender()},
+  close(){const pickThemes=R&&R.ctx&&R.ctx.k==='cmd'&&deck()&&deck().cmd.length&&!deck().themes.length;closeSheet();rerender();if(pickThemes)themeSheet()},
   scrim(e,ev){if(ev.target===e)A.close()}
 };
 Object.assign(A,{
