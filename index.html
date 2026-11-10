@@ -185,7 +185,7 @@ let saveT;
 function save(){clearTimeout(saveT);saveT=setTimeout(()=>{
   const keep={};const add=n=>{if(CARDS[n])keep[n]=CARDS[n]};
   S.decks.forEach(d=>{d.cmd.forEach(add);d.cards.forEach(c=>add(c.n))});Object.keys(S.coll).forEach(add);
-  S.packages.forEach(p=>p.cards.forEach(add));
+  S.packages.forEach(p=>p.cards.forEach(add));(S.players||[]).forEach(p=>(p.decks||[]).forEach(add));
   S.cards=keep;
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Storage is full. Export a backup in Setup.')}
 },250);}
@@ -340,6 +340,7 @@ let R=null;
 function status(c){const x=R.ctx;const d=deck();
   if(x.k==='deck'){const e=d.cards.find(k=>k.n===c.n);return d.cmd.includes(c.n)?{l:'Cmdr',on:1}:e?{l:isBasic(c.n)?'×'+e.q:'✓',on:1}:{l:'+'}}
   if(x.k==='cmd')return d.cmd.includes(c.n)?{l:'✓',on:1}:{l:'Pick'};
+  if(x.k==='opp')return{l:'Pick'};
   if(x.k==='coll')return owned(c.n)?{l:'×'+owned(c.n),on:1}:{l:'+'};
   if(x.k==='pkg'){const p=S.packages.find(p=>p.id===x.pid);return p.cards.includes(c.n)?{l:'✓',on:1}:{l:'+'}}
 }
@@ -360,7 +361,7 @@ function openSearch(ctx,title,extra=''){const d=deck();
   sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards"><div id="res"></div>`);
   drawRes();const inp=$('#q');inp.focus();let t;
   inp.addEventListener('input',()=>{clearTimeout(t);const v=inp.value.trim();if(v.length<2)return;t=setTimeout(()=>{
-    runQuery(v+(ctx.k==='deck'?idf(d):ctx.k==='cmd'?' is:commander':ctx.k==='pkg'?' f:commander':''))},350)});
+    runQuery(v+(ctx.k==='deck'?idf(d):(ctx.k==='cmd'||ctx.k==='opp')?' is:commander':ctx.k==='pkg'?' f:commander':''))},350)});
 }
 function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
@@ -374,6 +375,7 @@ async function fillSrc(sid,src){const d=deck();const s=secOf(d,sid);const p=S.pa
   else{try{const r=await byNames(p.cards);if(R!==mine)return;const id=ident(d);R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x))));save()}catch(e){if(R!==mine)return;R.err=e.message}R.loading=false;drawRes()}
 }
 function pick(n){const x=R.ctx;const d=deck();
+  if(x.k==='opp'){const p=S.players.find(p=>p.id===x.pid);if(!p.decks.includes(n))p.decks.push(n);save();openPlayer(p.id);return}
   if(x.k==='deck'){const e=d.cards.find(c=>c.n===n);if(d.cmd.includes(n))return;if(e&&!isBasic(n))removeCard(d,n);else addCard(d,n,x.sid)}
   else if(x.k==='cmd'){if(d.cmd.includes(n))d.cmd=d.cmd.filter(k=>k!==n);else{if(d.cmd.length>=2)d.cmd.shift();d.cmd.push(n);removeCard(d,n)}save()}
   else if(x.k==='coll'){S.coll[n]=owned(n)+1;const l=$('#addLoc')&&$('#addLoc').value.trim();if(l)S.loc[n]=l;save()}
@@ -434,6 +436,8 @@ const learnDecks=players=>players.forEach(x=>{if(x.pid==='me'||!x.deck)return;co
 function deckOpts(i,name){let ds;if(!i)ds=[...S.decks.map(d=>d.name),...S.games.map(g=>(g.players.find(p=>p.pid==='me')||{}).deck)];
   else{const p=S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===(name||'').toLowerCase());ds=p?Object.keys(pdecks(p)):S.players.filter(p=>p.id!=='me').flatMap(p=>p.decks)}
   return[...new Set(ds.filter(d=>d&&d!==NODECK))].map(d=>`<option value="${esc(d)}"></option>`).join('')}
+/* commander art for a player's deck: my decks use their commander, opponents' decks match a card name */
+const artOf=(pid,deck)=>{if(!deck)return'';let c;if(pid==='me'){const d=S.decks.find(d=>d.name.toLowerCase()===deck.toLowerCase());c=d&&d.cmd[0]&&CARDS[d.cmd[0]]}c=c||CARDS[deck];return c&&c.img?img(c,'art_crop'):''};
 const dead=p=>p.out||p.life<=0||p.poison>=10||Object.values(p.cd).some(v=>v>=21);
 function vPlay(){
   const mine=S.games.filter(g=>g.players.some(p=>p.pid==='me'));const dec=mine.filter(g=>g.winner);const wins=dec.filter(g=>g.winner==='me').length;
@@ -471,8 +475,8 @@ function drawLive(){const el=$('#live');const L=S.live;if(!L||!UI.liveOpen){el.h
   const ps=L.table?[...L.players.filter(p=>p.pid!=='me'),...L.players.filter(p=>p.pid==='me')]:L.players;const n=ps.length;const alive=L.players.filter(p=>!dead(p));
   el.innerHTML=`<div class="lbar"><button class="sm" data-act="liveMin">‹ App</button><span class="grow" style="text-align:center">Turn <b class="num">${L.turn}</b></span><button class="sm" data-act="liveTurn">Next turn</button><button class="sm" data-act="liveMenu">Menu</button></div>
    ${alive.length===1?`<button class="lend" data-act="liveEnd">${esc(pname(alive[0].pid))} is the last one standing. End game</button>`:''}
-   <div class="lgrid" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}">${ps.map((p,i)=>{const d=DELTA[p.pid];const cd=Math.max(0,...Object.values(p.cd));
-     return`<div class="pan ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''}" style="background:${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
+   <div class="lgrid" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}">${ps.map((p,i)=>{const d=DELTA[p.pid];const art=artOf(p.pid,p.deck);const cd=Math.max(0,...Object.values(p.cd));
+     return`<div class="pan ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''}" style="background:${art?`linear-gradient(#000000a0,#000000a0),url('${esc(art)}') center/cover,`:''}${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
       <button class="zone minus" data-life="-1" data-pid="${p.pid}" aria-label="Lower ${esc(pname(p.pid))}'s life">−</button><button class="zone plus" data-life="1" data-pid="${p.pid}" aria-label="Raise ${esc(pname(p.pid))}'s life">+</button>
       <div class="who">${esc(pname(p.pid))}${p.deck?' · '+esc(p.deck):''}</div><div class="life" id="life-${p.pid}">${p.life}</div><div class="delta" id="delta-${p.pid}">${d?(d.d>0?'+':'')+d.d:''}</div>
       <button class="more" data-act="liveDmg" data-pid="${p.pid}">${dead(p)?'Out · ':''}Cmdr ${cd}${p.poison?' · Poison '+p.poison:''}</button></div>`}).join('')}</div>`}
@@ -491,8 +495,9 @@ function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.fi
   sheet(p.name,`<label for="plN">Name</label><input id="plN" value="${esc(p.name)}" autocomplete="off">
    ${gs.length?`<p class="muted small" style="margin:0">${gs.length} game${gs.length===1?'':'s'} logged together. They won ${dec.filter(g=>g.winner===id).length}, you won ${dec.filter(g=>g.winner==='me').length}.</p>`:''}
    <label for="plD">Decks they play</label>
-   ${Object.keys(dk).length?`<div class="list">${Object.entries(dk).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="muted small num">${v.n?v.n+' game'+(v.n===1?'':'s')+' · '+v.w+' win'+(v.w===1?'':'s'):'No games yet'}</span>${v.saved&&!v.n?`<button class="sm danger" data-act="playerDeckDel" data-id="${id}" data-k="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`:''}</div>`).join('')}</div>`:''}
-   <div class="row"><input id="plD" class="grow" placeholder="Add a deck or commander" autocomplete="off"><button data-act="playerDeckAdd" data-id="${id}">Add</button></div>
+   ${Object.keys(dk).length?`<div class="list">${Object.entries(dk).map(([k,v])=>{const a=artOf(id,k);return`<div class="item" style="min-height:66px;${a?`background:linear-gradient(90deg,var(--surface) 42%,transparent),url('${esc(a)}') right center/58% auto no-repeat`:''}"><span class="name"><b>${esc(k)}</b><br><span class="muted small num">${v.n?v.n+' game'+(v.n===1?'':'s')+' · '+v.w+' win'+(v.w===1?'':'s'):'No games yet'}</span></span>${v.saved&&!v.n?`<button class="sm danger" data-act="playerDeckDel" data-id="${id}" data-k="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`:''}</div>`}).join('')}</div>`:''}
+   <button class="pri" data-act="playerDeckSearch" data-id="${id}">Find their commander on Scryfall</button>
+   <div class="row"><input id="plD" class="grow" placeholder="Or type a deck name" autocomplete="off"><button data-act="playerDeckAdd" data-id="${id}">Add</button></div>
    <label for="plNotes">Notes</label><textarea id="plNotes" style="min-height:80px" placeholder="Play style, cards to watch for, house rules">${esc(p.notes)}</textarea>`,
    `<div class="row"><button class="pri grow" data-act="playerSave" data-id="${id}">Save</button>${gs.length?'':`<button class="danger" data-act="playerDel" data-id="${id}">Delete</button>`}</div>`)}
 function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
@@ -643,6 +648,7 @@ Object.assign(A,{
     const p={id:uid(),name:n,decks:[],notes:''};S.players.push(p);save();openPlayer(p.id)},
   playerSheet(e){openPlayer(e.dataset.id)},
   playerDeckAdd(e){const p=readPlayer(e.dataset.id);if(!$('#plD').value.trim())toast('Type a deck or commander name');save();openPlayer(p.id)},
+  playerDeckSearch(e){const p=readPlayer(e.dataset.id);save();openSearch({k:'opp',pid:p.id},p.name+"'s commander")},
   playerDeckDel(e){const p=readPlayer(e.dataset.id);p.decks=p.decks.filter(d=>d!==e.dataset.k);save();openPlayer(p.id)},
   playerSave(e){readPlayer(e.dataset.id);save();closeSheet();rerender()},
   playerDel(e){S.players=S.players.filter(p=>p.id!==e.dataset.id);save();closeSheet();rerender()},
