@@ -144,8 +144,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.8';
+const VERSION='1.9';
 const NEWS=[
+ ['1.9','Nov 10, 2026',['Every new deck gets a Lands section that suggests lands in your commander\'s colors, even if the archetype has none.','Default land count is now 38.']],
  ['1.8','Nov 10, 2026',['New game: tap your opponents to add them, then tap one of their saved decks.','Private tags for opponents (Friend, Rival, Nemesis). They show only on the profile and your opponents list, never in game setup or on the life counter.']],
  ['1.7','Nov 9, 2026',['Version number and this What\'s new list, in Setup.','A banner on the Decks tab tells you when the app has updated.']],
  ['1.6','Nov 9, 2026',['EDHREC recommendations for your commander as a source in Fill, with how many decks run each card and its synergy score.']],
@@ -161,7 +162,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const uid=()=>Math.random().toString(36).slice(2,9);
 const SEC=(name,target,q='')=>({id:uid(),name,target,q});
 const core=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Card Draw',10,'otag:draw'),SEC('Removal',8,'otag:removal -otag:board-wipe'),SEC('Board Wipes',3,'otag:board-wipe')];
-const ARCH=(name,theme,lands=37)=>({id:uid(),name,sections:[...theme.map(t=>SEC(...t)),...core(),SEC('Lands',lands,'t:land -t:basic')]});
+const LANDS=()=>SEC('Lands',38,'t:land -t:basic');
+const withLands=secs=>secs.some(s=>/land/i.test(s.name))?secs:[...secs,LANDS()];
+const ARCH=(name,theme,lands=38)=>({id:uid(),name,sections:[...theme.map(t=>SEC(...t)),...core(),SEC('Lands',lands,'t:land -t:basic')]});
 const PROT='(o:hexproof or o:indestructible or o:"phase out") (t:instant or t:equipment)';
 function seedArch(){return [
  ARCH('Tokens',[['Token Makers',14,'o:create o:"creature token"'],['Anthems & Payoffs',10,'o:"creatures you control get +"'],['Finishers',4],['Protection',3,PROT]]),
@@ -180,7 +183,7 @@ function seedArch(){return [
  ARCH('Treasure',[['Treasure Makers',12,'o:"treasure token"'],['Treasure Payoffs',10,'o:treasure o:whenever'],['Finishers',5],['Protection',4,PROT]]),
  ARCH('Burn',[['Damage Sources',14,'o:"damage to each opponent"'],['Damage Doublers',5,'(o:"double that damage" or o:"deals double")'],['Payoffs',8],['Protection',4,PROT]]),
  ARCH('Control',[['Counterspells',8,'otag:counterspell'],['Extra Removal',6,'otag:removal'],['Card Advantage Engines',8,'otag:draw (t:enchantment or t:artifact)'],['Finishers',5],['Protection',4,PROT]]),
- ARCH('Blank template',[['Theme',31]])
+ ARCH('Blank template',[['Theme',30]])
 ];}
 function seedPkgs(){return [
  {id:uid(),name:'Cheap ramp',type:'scryfall',q:'otag:ramp mv<=2',cards:[]},
@@ -192,7 +195,8 @@ function seedPkgs(){return [
 ];}
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''})}
+function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
+  if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
 let saveT;
 function save(){clearTimeout(saveT);saveT=setTimeout(()=>{
@@ -576,7 +580,7 @@ const A={
   newDeck(){sheet('New deck',`<label for="dName">Deck name</label><input id="dName" placeholder="e.g. Neriv go-wide">
     <label for="dArch">Archetype</label><select id="dArch">${S.archetypes.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
     <p class="muted small" style="margin:0">The archetype sets up the deck's sections and targets. You can change them later.</p>`,`<button class="pri" data-act="createDeck">Create deck</button>`);$('#dName').focus()},
-  createDeck(){const a=S.archetypes.find(a=>a.id===$('#dArch').value);const d={id:uid(),name:$('#dName').value.trim()||'Untitled deck',cmd:[],arch:a.name,sections:a.sections.map(s=>({...s,id:uid()})),cards:[]};
+  createDeck(){const a=S.archetypes.find(a=>a.id===$('#dArch').value);const d={id:uid(),name:$('#dName').value.trim()||'Untitled deck',cmd:[],arch:a.name,sections:withLands(a.sections.map(s=>({...s,id:uid()}))),cards:[]};
     S.decks.unshift(d);save();closeSheet();UI.deck=d.id;location.hash='deck';route();A.setCmd()},
   setCmd(){openSearch({k:'cmd'},'Pick your commander (up to two)')},
   view(e){UI.view=e.dataset.v;rerender()},
@@ -619,7 +623,7 @@ const A={
   renameSave(){deck().name=$('#rn').value.trim()||'Untitled deck';save();closeSheet();rerender()},
   editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const ids=rows.map(r=>r.id);d.cards.forEach(c=>{c.x=(c.x||[]).filter(i=>ids.includes(i));if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s=c.x.shift()||'u'});d.sections=rows})},
   changeArch(){sheet('Switch archetype',`<p class="muted small" style="margin:0">Cards stay in sections that keep the same name. Everything else moves to Unsorted.</p><div class="list">${S.archetypes.map(a=>`<button class="item" data-act="applyArch" data-id="${a.id}">${esc(a.name)}</button>`).join('')}</div>`)},
-  applyArch(e){const d=deck();const a=S.archetypes.find(a=>a.id===e.dataset.id);const old=Object.fromEntries(d.sections.map(s=>[s.id,s.name]));const ns=a.sections.map(s=>({...s,id:uid()}));
+  applyArch(e){const d=deck();const a=S.archetypes.find(a=>a.id===e.dataset.id);const old=Object.fromEntries(d.sections.map(s=>[s.id,s.name]));const ns=withLands(a.sections.map(s=>({...s,id:uid()})));
     d.cards.forEach(c=>{c.x=(c.x||[]).map(i=>(ns.find(s=>s.name===old[i])||{}).id).filter(Boolean);if(c.s==='u'||c.s==='m')return;const m=ns.find(s=>s.name===old[c.s]);c.s=m?m.id:'u'});d.sections=ns;d.arch=a.name;save();closeSheet();rerender()},
   saveArch(){const d=deck();S.archetypes.push({id:uid(),name:d.name+' template',sections:d.sections.map(s=>({...s,id:uid()}))});save();closeSheet();toast('Saved to Setup → Archetypes')},
   async basics(){const d=deck();const map={W:'Plains',U:'Island',B:'Swamp',R:'Mountain',G:'Forest'};const names=ident(d).map(c=>map[c]);if(!names.length)names.push('Wastes');
@@ -662,7 +666,7 @@ const A={
      `<div class="row"><button class="grow" data-act="pullClear">Clear ticks</button>${need.length?'<button class="grow" data-act="copyExp">Copy cards to buy</button>':''}</div>`)},
   pullClear(){deck().pulled={};save();A.pull()},
   /* archetypes */
-  newArch(){const a={id:uid(),name:'New archetype',sections:[SEC('Theme',31),...core(),SEC('Lands',37,'t:land -t:basic')]};secEditor('New archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||'New archetype';S.archetypes.push(a)})},
+  newArch(){const a={id:uid(),name:'New archetype',sections:[SEC('Theme',30),...core(),LANDS()]};secEditor('New archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||'New archetype';S.archetypes.push(a)})},
   editArch(e){const a=S.archetypes.find(a=>a.id===e.dataset.id);secEditor('Edit archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||a.name},()=>{S.archetypes=S.archetypes.filter(x=>x!==a)})},
   edAdd(){readEd();ED.rows.push(SEC('New section',5));drawEd()},
   edDel(e){readEd();ED.rows.splice(+e.dataset.i,1);drawEd()},
