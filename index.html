@@ -108,6 +108,25 @@ nav.tabs a.on{color:var(--accent)}
 .secrow{display:grid;grid-template-columns:1fr 64px 38px;gap:6px}
 .secrow input.q{grid-column:1/-1;font-size:13px}
 .secbox{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface)}
+
+/* life counter: one deliberate dark look so it reads at arm's length on a table */
+#live{position:fixed;inset:0;z-index:15;background:#0c1113;color:#fff;display:flex;flex-direction:column;gap:4px;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.lbar{display:flex;align-items:center;gap:6px;padding:6px 10px 0}
+#live button{color:#fff}
+.lbar button,.lend{background:#1d262a;border-color:#33404a}
+.lend{margin:0 4px}
+.lgrid{flex:1;display:grid;gap:4px;padding:0 4px 4px;grid-auto-rows:1fr;min-height:0}
+.pan{position:relative;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+.pan.rot{transform:rotate(180deg)}
+.pan.out{filter:grayscale(1) brightness(.5)}
+.pan .zone{position:absolute;top:0;bottom:0;width:50%;background:none;border:0;border-radius:0;font-size:30px;display:flex;align-items:center;padding:0 14px;min-height:0}
+.pan .zone:active{background:#ffffff22}
+.zone.minus{left:0;justify-content:flex-start}.zone.plus{right:0;justify-content:flex-end}
+.pan .life{font:700 clamp(46px,15vw,104px)/1 var(--display);pointer-events:none;font-variant-numeric:tabular-nums}
+.pan .who{pointer-events:none;font-weight:600;max-width:64%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pan .delta{pointer-events:none;height:18px;font-weight:700}
+.pan .more{position:relative;z-index:1;margin-top:4px;background:#00000055;border-color:#ffffff66;font-size:12px;min-height:30px;padding:2px 10px}
+nav.tabs a b{font-size:13px}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
   padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
@@ -116,6 +135,7 @@ nav.tabs a.on{color:var(--accent)}
 <body>
 <div id="app"></div>
 <nav class="tabs" id="tabs"></nav>
+<div id="live" hidden></div>
 <div id="sheet" hidden></div>
 <div id="peek" hidden></div>
 <div id="toast" hidden role="status"></div>
@@ -159,7 +179,8 @@ function seedPkgs(){return [
 ];}
 const blank=()=>({v:1,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}S.loc=S.loc||{};CARDS=S.cards||{};}
+function norm(){S.loc=S.loc||{};S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'})}
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
 let saveT;
 function save(){clearTimeout(saveT);saveT=setTimeout(()=>{
   const keep={};const add=n=>{if(CARDS[n])keep[n]=CARDS[n]};
@@ -224,10 +245,10 @@ const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
 /* ================= views ================= */
-function route(){const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','setup'].includes(h)?h:'decks';
+function route(){const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','play','setup'].includes(h)?h:'decks';
   if(v==='deck'&&!deck()){location.hash='decks';return}
-  $('#tabs').innerHTML=[['decks','Decks'],['packages','Packages'],['collection','Collection'],['setup','Setup']].map(([k,l])=>`<a href="#${k}" class="${(v===k||(v==='deck'&&k==='decks'))?'on':''}"><b>${l}</b></a>`).join('');
-  ({decks:vDecks,deck:vDeck,packages:vPkgs,collection:vColl,setup:vSetup})[v]();}
+  $('#tabs').innerHTML=[['decks','Decks'],['packages','Packages'],['collection','Collection'],['play','Play'],['setup','Setup']].map(([k,l])=>`<a href="#${k}" class="${(v===k||(v==='deck'&&k==='decks'))?'on':''}"><b>${l}</b></a>`).join('');
+  ({decks:vDecks,deck:vDeck,packages:vPkgs,collection:vColl,play:vPlay,setup:vSetup})[v]();}
 const rerender=()=>route();
 const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div class="wrap">${title}${actions||''}</div></div><main class="wrap">${body}</main>`};
 
@@ -401,6 +422,66 @@ async function importList(text,to,loc){const items=parseList(text);if(!items.len
   save();closeSheet();rerender();
   if(r.missing.length)sheet('Some cards were not found',`<p style="margin:0">Added ${ok}. Scryfall did not recognise these names:</p><div class="otext">${esc(r.missing.join('\n'))}</div>`);else toast('Added '+ok+' cards');}
 
+/* ================= play: life counter, game log, stats ================= */
+const PCOL=['#2f6f8f','#8f4a3a','#4d7a4a','#6a5192','#8a6d1f','#3d4a5c'];
+const pname=id=>(S.players.find(p=>p.id===id)||{}).name||'Removed player';
+const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
+const pct=(w,n)=>n?Math.round(w/n*100)+'%':'–';
+const dead=p=>p.out||p.life<=0||p.poison>=10||Object.values(p.cd).some(v=>v>=21);
+function vPlay(){
+  const mine=S.games.filter(g=>g.players.some(p=>p.pid==='me'));const dec=mine.filter(g=>g.winner);const wins=dec.filter(g=>g.winner==='me').length;
+  const dk={};dec.forEach(g=>{const k=g.players.find(p=>p.pid==='me').deck||'Deck not recorded';dk[k]=dk[k]||{n:0,w:0};dk[k].n++;if(g.winner==='me')dk[k].w++});
+  const pl=S.players.filter(p=>p.id!=='me').map(p=>{const gs=S.games.filter(g=>g.winner&&g.players.some(x=>x.pid===p.id));const wm=gs.filter(g=>g.players.some(x=>x.pid==='me'));
+    return{p,n:gs.length,tw:gs.filter(g=>g.winner===p.id).length,mn:wm.length,mw:wm.filter(g=>g.winner==='me').length}}).sort((a,b)=>b.n-a.n);
+  page('<h1>Play</h1>',S.live?'<button class="pri" data-act="liveOpen">Resume game</button>':'<button data-act="gameLog">Log a game</button><button class="pri" data-act="gameNew">New game</button>',`
+   ${S.live?`<div class="empty">A game is in progress on turn ${S.live.turn}. Tap <b>Resume game</b> to go back to the life counter.</div>`:''}
+   <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${mine.length}</b><span>Games</span></div><div class="stat"><b class="num">${wins}</b><span>Wins</span></div><div class="stat"><b class="num">${pct(wins,dec.length)}</b><span>Win rate</span></div></div>
+   ${S.games.length?'':`<div class="empty">No games logged yet. <b>New game</b> opens a life counter for the table and saves the result when you finish. <b>Log a game</b> records one you already played.</div>`}
+   ${Object.keys(dk).length?`<h2>My decks</h2><div class="list">${Object.entries(dk).sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="num muted">${v.w}–${v.n-v.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(v.w,v.n)}</b></div>`).join('')}</div>`:''}
+   ${pl.length?`<h2>Players</h2><div class="list">${pl.map(x=>`<button class="item" data-act="playerSheet" data-id="${x.p.id}"><span class="name" style="white-space:normal"><b>${esc(x.p.name)}</b><br><span class="muted small">${x.n} game${x.n===1?'':'s'} · they win ${pct(x.tw,x.n)} · you win ${pct(x.mw,x.mn)} at their table</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}
+   ${S.games.length?`<h2>Games</h2><div class="list">${S.games.map(g=>`<button class="item" data-act="gameSheet" data-id="${g.id}"><span class="name"><b>${g.winner?esc(pname(g.winner))+' won':'No winner'}</b><br><span class="muted small">${esc(g.date)} · ${g.players.map(p=>esc(pname(p.pid))).join(', ')}</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}`);
+}
+let GS=null,RES=null,DELTA={},hold=null;
+function gameSetup(mode){const last=S.games[0];const me=S.players.find(p=>p.id==='me');
+  const others=last?last.players.filter(p=>p.pid!=='me'&&S.players.some(x=>x.id===p.pid)).map(p=>({name:pname(p.pid),deck:''})):[{name:'',deck:''},{name:'',deck:''},{name:'',deck:''}];
+  GS={mode,life:40,rows:[{name:me.name,deck:''},...others]};if(GS.rows.length<2)GS.rows.push({name:'',deck:''});drawGS()}
+function readGS(){document.querySelectorAll('.gsrow').forEach((r,i)=>{GS.rows[i].name=$('.gn',r).value.trim();GS.rows[i].deck=$('.gd',r).value.trim()});if($('#gLife'))GS.life=parseInt($('#gLife').value)||40}
+function drawGS(){const live=GS.mode==='live';const dn=[...new Set([...S.decks.map(d=>d.name),...S.games.flatMap(g=>g.players.map(p=>p.deck)).filter(Boolean)])];
+  sheet(live?'New game':'Log a past game',`<p class="muted small" style="margin:0">The first player is you. Type a name to add someone new. People you have played before are suggested as you type.</p>
+   ${GS.rows.map((r,i)=>`<div class="secbox gsrow"><div class="secrow" style="grid-template-columns:1fr 38px"><input class="gn" list="${i?'plist':''}" value="${esc(r.name)}" placeholder="${i?'Player name':'Your name'}" aria-label="Player ${i+1} name" autocomplete="off">${i>1?`<button class="sm danger" data-act="gsDel" data-i="${i}" aria-label="Remove player">✕</button>`:'<span></span>'}<input class="gd q" style="font-size:16px" list="dlist" value="${esc(r.deck)}" placeholder="${i?'Their commander or deck (optional)':'Your deck'}" aria-label="Player ${i+1} deck" autocomplete="off"></div></div>`).join('')}
+   <datalist id="plist">${S.players.filter(p=>p.id!=='me').map(p=>`<option value="${esc(p.name)}"></option>`).join('')}</datalist><datalist id="dlist">${dn.map(d=>`<option value="${esc(d)}"></option>`).join('')}</datalist>
+   ${GS.rows.length<6?'<button data-act="gsAdd">Add a player</button>':''}
+   ${live?`<label for="gLife">Starting life</label><input id="gLife" type="number" inputmode="numeric" value="${GS.life}">`:''}`,
+   `<button class="pri" data-act="gsGo">${live?'Start game':'Next: who won'}</button>`)}
+function resultSheet(players,def,done){RES={players,done};
+  sheet('Game result',`<label for="gWin">Winner</label><select id="gWin"><option value="?">Choose the winner</option>${players.map(p=>`<option value="${p.pid}" ${def.winner===p.pid?'selected':''}>${esc(pname(p.pid))}</option>`).join('')}<option value="">No winner (draw or unfinished)</option></select>
+   <label for="gDate">Date</label><input id="gDate" type="date" value="${today()}">
+   <label for="gTurns">Turns (optional)</label><input id="gTurns" type="number" inputmode="numeric" value="${def.turns||''}">
+   <label for="gNotes">Notes (optional)</label><textarea id="gNotes" style="min-height:70px" placeholder="How it was won, what you would change"></textarea>`,`<button class="pri" data-act="resSave">Save game</button>`)}
+function wake(){try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}}
+function drawLive(){const el=$('#live');const L=S.live;if(!L||!UI.liveOpen){el.hidden=true;el.innerHTML='';return}el.hidden=false;
+  const ps=L.table?[...L.players.filter(p=>p.pid!=='me'),...L.players.filter(p=>p.pid==='me')]:L.players;const n=ps.length;const alive=L.players.filter(p=>!dead(p));
+  el.innerHTML=`<div class="lbar"><button class="sm" data-act="liveMin">‹ App</button><span class="grow" style="text-align:center">Turn <b class="num">${L.turn}</b></span><button class="sm" data-act="liveTurn">Next turn</button><button class="sm" data-act="liveMenu">Menu</button></div>
+   ${alive.length===1?`<button class="lend" data-act="liveEnd">${esc(pname(alive[0].pid))} is the last one standing. End game</button>`:''}
+   <div class="lgrid" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}">${ps.map((p,i)=>{const d=DELTA[p.pid];const cd=Math.max(0,...Object.values(p.cd));
+     return`<div class="pan ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''}" style="background:${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
+      <button class="zone minus" data-life="-1" data-pid="${p.pid}" aria-label="Lower ${esc(pname(p.pid))}'s life">−</button><button class="zone plus" data-life="1" data-pid="${p.pid}" aria-label="Raise ${esc(pname(p.pid))}'s life">+</button>
+      <div class="who">${esc(pname(p.pid))}${p.deck?' · '+esc(p.deck):''}</div><div class="life" id="life-${p.pid}">${p.life}</div><div class="delta" id="delta-${p.pid}">${d?(d.d>0?'+':'')+d.d:''}</div>
+      <button class="more" data-act="liveDmg" data-pid="${p.pid}">${dead(p)?'Out · ':''}Cmdr ${cd}${p.poison?' · Poison '+p.poison:''}</button></div>`}).join('')}</div>`}
+/* life changes update in place so a held finger keeps its target */
+function bump(pid,n){const p=S.live&&S.live.players.find(p=>p.pid===pid);if(!p)return;p.life+=n;const d=DELTA[pid]||(DELTA[pid]={d:0});d.d+=n;clearTimeout(d.t);
+  d.t=setTimeout(()=>{delete DELTA[pid];const e=$('#delta-'+pid);if(e)e.textContent=''},1800);
+  const l=$('#life-'+pid),e=$('#delta-'+pid);if(l)l.textContent=p.life;if(e)e.textContent=(d.d>0?'+':'')+d.d;save()}
+document.addEventListener('pointerdown',ev=>{const z=ev.target.closest('[data-life]');if(!z)return;const pid=z.dataset.pid,dir=+z.dataset.life;if(hold)clearInterval(hold.t);
+  hold={pid,dir,fired:false};hold.t=setInterval(()=>{hold.fired=true;bump(pid,dir*10)},550)});
+function endHold(ev){if(!hold)return;clearInterval(hold.t);if(!hold.fired&&ev.type==='pointerup')bump(hold.pid,hold.dir);hold=null;drawLive()}
+document.addEventListener('pointerup',endHold);document.addEventListener('pointercancel',endHold);
+document.addEventListener('contextmenu',ev=>{if(ev.target.closest('#live'))ev.preventDefault()});
+function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
+  sheet(pname(pid),`<p class="muted small" style="margin:0">Commander damage also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
+   ${L.players.filter(o=>o.pid!==pid).map(o=>row('From '+esc(pname(o.pid))+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`)).join('')}
+   ${row('Poison counters',p.poison,'poDec','poInc','')}`,`<button data-act="liveOut" data-pid="${pid}">${p.out?'Bring back into the game':'Mark as out (conceded)'}</button>`)}
+
 /* ================= actions ================= */
 const A={
   back(){location.hash='decks'},
@@ -497,12 +578,60 @@ const A={
   export(){save();setTimeout(()=>{const txt=JSON.stringify(S);download('brew-bench-backup.json',txt);sheet('Export backup',`<p class="muted small" style="margin:0">A backup file should have downloaded. If not, copy the text below and save it somewhere.</p><textarea readonly id="exp">${esc(txt)}</textarea>`,`<button class="pri" data-act="copyExp">Copy</button>`)},300)},
   importOpen(){sheet('Import backup',`<p class="muted small" style="margin:0">This replaces everything on this device with the backup.</p><label for="impF">Backup file</label><input id="impF" type="file" accept=".json,application/json"><label for="imp">Or paste the backup text</label><textarea id="imp"></textarea>`,`<button class="pri" data-act="importGo">Replace my data with this backup</button>`)},
   async importGo(){let txt=$('#imp').value.trim();const f=$('#impF').files[0];if(f)txt=await f.text();
-    try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;S.loc=S.loc||{};CARDS=S.cards||{};save();closeSheet();rerender();toast('Backup imported')}catch(e){toast('That is not a Brew Bench backup')}},
+    try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;norm();CARDS=S.cards||{};save();closeSheet();rerender();toast('Backup imported')}catch(e){toast('That is not a Brew Bench backup')}},
   resetAsk(){confirmSheet('Erase everything','This deletes all decks, packages, archetypes and your collection from this device. Export a backup first if you might want them back.','reset','Erase everything')},
-  reset(){S=blank();CARDS={};save();closeSheet();rerender()},
-  close(){closeSheet();if(location.hash==='#deck'||location.hash==='#collection'||location.hash==='#packages')rerender()},
+  reset(){S=blank();norm();CARDS={};save();closeSheet();rerender()},
+  close(){closeSheet();if(location.hash==='#deck'||location.hash==='#collection'||location.hash==='#packages'||location.hash==='#play')rerender()},
   scrim(e,ev){if(ev.target===e)A.close()}
 };
+Object.assign(A,{
+  gameNew(){gameSetup('live')},
+  gameLog(){gameSetup('log')},
+  gsAdd(){readGS();GS.rows.push({name:'',deck:''});drawGS()},
+  gsDel(e){readGS();GS.rows.splice(+e.dataset.i,1);drawGS()},
+  gsGo(){readGS();const rows=GS.rows.filter((r,i)=>i===0||r.name);if(rows.length<2){toast('Add at least one other player');return}
+    const low=rows.map(r=>r.name.toLowerCase());if(new Set(low).size<low.length){toast('Two players have the same name');return}
+    const me=S.players.find(p=>p.id==='me');if(rows[0].name)me.name=rows[0].name;
+    const players=rows.map((r,i)=>{if(!i)return{pid:'me',deck:r.deck};let p=S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===r.name.toLowerCase());if(!p){p={id:uid(),name:r.name};S.players.push(p)}return{pid:p.id,deck:r.deck}});
+    save();
+    if(GS.mode==='live'){S.live={turn:1,table:false,start:GS.life,players:players.map(p=>({...p,life:GS.life,poison:0,cd:{},out:false}))};DELTA={};UI.liveOpen=true;save();closeSheet();rerender();drawLive();wake()}
+    else resultSheet(players,{},()=>{})},
+  resSave(){const w=$('#gWin').value;if(w==='?'){toast('Choose the winner, or pick No winner');return}
+    S.games.unshift({id:uid(),date:$('#gDate').value||today(),players:RES.players.map(p=>({pid:p.pid,deck:p.deck||''})),winner:w||null,turns:parseInt($('#gTurns').value)||0,notes:$('#gNotes').value.trim()});
+    S.games.sort((a,b)=>b.date.localeCompare(a.date));RES.done();RES=null;save();closeSheet();location.hash='play';rerender();toast('Game saved')},
+  liveOpen(){UI.liveOpen=true;drawLive();wake()},
+  liveMin(){UI.liveOpen=false;drawLive();location.hash='play';rerender()},
+  liveTurn(){S.live.turn++;save();drawLive()},
+  liveDmg(e){dmgSheet(e.dataset.pid)},
+  cdInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.cd[e.dataset.from]=(p.cd[e.dataset.from]||0)+1;p.life--;save();dmgSheet(p.pid);drawLive()},
+  cdDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(!p.cd[e.dataset.from])return;p.cd[e.dataset.from]--;p.life++;save();dmgSheet(p.pid);drawLive()},
+  poInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.poison++;save();dmgSheet(p.pid);drawLive()},
+  poDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(p.poison)p.poison--;save();dmgSheet(p.pid);drawLive()},
+  liveOut(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.out=!p.out;save();closeSheet();drawLive()},
+  liveMenu(){sheet('Game menu',`<div class="list">
+    <button class="item" data-act="liveEnd">End game and save the result</button>
+    <button class="item" data-act="liveFirst">Pick who goes first at random</button>
+    <button class="item" data-act="liveTable">${S.live.table?'Turn off table layout':'Table layout: flip the far side to face across'}</button>
+    <button class="item" data-act="liveReset">Reset life totals</button>
+    <button class="item danger" data-act="liveDiscardAsk">Discard this game without saving</button></div>`)},
+  liveFirst(){const ps=S.live.players;closeSheet();toast(pname(ps[Math.floor(Math.random()*ps.length)].pid)+' goes first')},
+  liveTable(){S.live.table=!S.live.table;save();closeSheet();drawLive()},
+  liveReset(){S.live.players.forEach(p=>{p.life=S.live.start||40;p.poison=0;p.cd={};p.out=false});S.live.turn=1;DELTA={};save();closeSheet();drawLive()},
+  liveEnd(){const L=S.live;const alive=L.players.filter(p=>!dead(p));resultSheet(L.players,{winner:alive.length===1?alive[0].pid:'',turns:L.turn},()=>{S.live=null;UI.liveOpen=false;drawLive()})},
+  liveDiscardAsk(){confirmSheet('Discard game','This throws away the current game. Nothing is added to your game log.','liveDiscard','Discard game')},
+  liveDiscard(){S.live=null;UI.liveOpen=false;save();closeSheet();drawLive();rerender()},
+  playerSheet(e){const p=S.players.find(p=>p.id===e.dataset.id);const gs=S.games.filter(g=>g.players.some(x=>x.pid===p.id));const dk={};
+    gs.forEach(g=>{const k=g.players.find(x=>x.pid===p.id).deck||'Deck not recorded';dk[k]=dk[k]||{n:0,w:0};dk[k].n++;if(g.winner===p.id)dk[k].w++});
+    sheet(p.name,`<label for="plN">Name</label><input id="plN" value="${esc(p.name)}">
+     ${gs.length?`<label>Decks they have played</label><div class="list">${Object.entries(dk).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="muted num">${v.n} game${v.n===1?'':'s'} · ${v.w} win${v.w===1?'':'s'}</span></div>`).join('')}</div>`:'<p class="muted small" style="margin:0">No games logged with this player.</p>'}`,
+     `<div class="row"><button class="pri grow" data-act="playerSave" data-id="${p.id}">Save</button>${gs.length?'':`<button class="danger" data-act="playerDel" data-id="${p.id}">Delete</button>`}</div>`)},
+  playerSave(e){const p=S.players.find(p=>p.id===e.dataset.id);p.name=$('#plN').value.trim()||p.name;save();closeSheet();rerender()},
+  playerDel(e){S.players=S.players.filter(p=>p.id!==e.dataset.id);save();closeSheet();rerender()},
+  gameSheet(e){const g=S.games.find(g=>g.id===e.dataset.id);sheet(g.winner?pname(g.winner)+' won':'No winner',`<p class="muted small" style="margin:0">${esc(g.date)}${g.turns?' · '+g.turns+' turns':''}</p>
+     <div class="list">${g.players.map(p=>`<div class="item"><span class="name">${esc(pname(p.pid))}${g.winner===p.pid?' <span class="pill ok">Winner</span>':''}</span><span class="muted small">${esc(p.deck||'Deck not recorded')}</span></div>`).join('')}</div>
+     ${g.notes?`<div class="otext">${esc(g.notes)}</div>`:''}`,`<button class="danger" data-act="gameDel" data-id="${g.id}">Delete this game</button>`)},
+  gameDel(e){S.games=S.games.filter(g=>g.id!==e.dataset.id);save();closeSheet();rerender();toast('Game deleted')}
+});
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='mv'){const c=deck().cards.find(c=>c.n===t.dataset.n);c.s=t.value;save();toast('Moved')}
