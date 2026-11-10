@@ -146,8 +146,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.16';
+const VERSION='1.17';
 const NEWS=[
+ ['1.17','Nov 10, 2026',['Two-sided cards with a land on the back now count as lands when sorting, and are still checked against your other sections.','Cards are shared across sections automatically: when you add a card anywhere, the app checks your other sections and marks it shared in any it fits. You can turn this off in Setup.']],
  ['1.16','Nov 10, 2026',['Auto-sort: imported cards are filed into your sections by checking each section\'s Scryfall search. Lands go to Lands. Cards that fit more than one section are shared.','An Auto-sort button on Unsorted does the same for anything sitting there.']],
  ['1.15','Nov 10, 2026',['Quick add: in Search, adding a card by name clears the box so you can type the next one right away, with a running list of what you added.','Paste several cards into any section, from Search or Fill. Text copied from a web page works; lines that are not card names are ignored.','Fill has a link that opens your commander\'s page on EDHREC.']],
  ['1.14','Nov 10, 2026',['Tidier mana display: what a rock makes now sits on the second line of Fill results, showing only colors your deck can use. The card screen has a Makes line too.','Similar cards now opens the card\'s similar-cards page on EDHREC, because the in-app list could not find the data.']],
@@ -264,7 +265,7 @@ const cnt=cs=>cs.reduce((a,c)=>a+c.q,0);
 const main=d=>d.cards.filter(c=>c.s!=='m');
 const total=d=>d.cmd.length+cnt(main(d));
 const inDeck=(d,n)=>d.cmd.includes(n)||d.cards.some(c=>c.n===n);
-function addCard(d,n,sid){const e=d.cards.find(c=>c.n===n);if(e){if(isBasic(n))e.q++;else{e.s=sid;e.x=(e.x||[]).filter(i=>i!==sid)}}else d.cards.push({n,s:sid,q:1});save()}
+function addCard(d,n,sid){if(sid!=='u'&&sid!=='m'&&!isBasic(n))queueShare(d,n);const e=d.cards.find(c=>c.n===n);if(e){if(isBasic(n))e.q++;else{e.s=sid;e.x=(e.x||[]).filter(i=>i!==sid)}}else d.cards.push({n,s:sid,q:1});save()}
 function removeCard(d,n){d.cards=d.cards.filter(c=>c.n!==n);save()}
 const pips=mc=>'<span class="pips">'+(mc.match(/\{[^}]+\}/g)||[]).map(s=>{s=s.slice(1,-1);return`<span class="pip ${/^[WUBRG]$/.test(s)?s:''}">${esc(s.replace('/',''))}</span>`}).join('')+'</span>';
 /* mana a card makes, as pips; colors the current deck cannot use are dimmed */
@@ -405,29 +406,50 @@ function vSetup(){
    <div class="row"><h2 class="grow">Archetypes</h2><button class="sm" data-act="newArch">New archetype</button></div>
    <p class="muted small" style="margin:0">An archetype is a template: the sections a deck gets, how many cards each should hold, and the Scryfall search that suggests cards for it. Change anything here.</p>
    <div class="list">${S.archetypes.map(a=>`<button class="item" data-act="editArch" data-id="${a.id}"><span class="name"><b>${esc(a.name)}</b><br><span class="muted small">${a.sections.map(s=>esc(s.name)+' '+s.target).join(' · ')}</span></span><span class="muted">›</span></button>`).join('')}</div>
+   <h2>Deck building</h2>
+   <div class="row"><span class="grow">Share cards across sections automatically<br><span class="muted small">When you add a card, it is also counted in any other section whose search it matches.</span></span><button data-act="shareTog" aria-pressed="${S.autoShare!==false}">${S.autoShare!==false?'On':'Off'}</button></div>
    <h2>Backup and moving devices</h2>
    <p class="muted small" style="margin:0">Everything is saved on this device only. To move it to another device, export here and import there.</p>
    <div class="row wrapf"><button data-act="export">Export backup</button><button data-act="importOpen">Import backup</button><button class="danger" data-act="resetAsk">Erase everything</button></div>`);
 }
 
-/* Files Unsorted cards into sections. Scryfall does not list a card's tags, so for each section this asks
-   Scryfall which of the unsorted cards match that section's search. */
+const frontOf=n=>n.split(' // ')[0];
+const anyLand=n=>/Land/.test(card(n).t);              /* a land on either face, so spell/land two-sided cards count */
+const pureLand=n=>/Land/.test(frontOf(card(n).t));    /* a land on the front: nothing else to check */
+/* Scryfall does not list a card's tags, so for each section this asks Scryfall which of the given cards match that
+   section's search. Returns [{s, names:Set}] in deck order. */
+async function matchSections(d,cards,step){const landSec=d.sections.find(s=>/land/i.test(s.name));
+  const pool=cards.filter(c=>!pureLand(c.n)&&c.n.indexOf('"')<0);const chunks=[];let cur=[],len=0;
+  pool.forEach(c=>{const t=frontOf(c.n).length+7;if(len+t>720&&cur.length){chunks.push(cur);cur=[];len=0}cur.push(c);len+=t});if(cur.length)chunks.push(cur);
+  const qs=d.sections.filter(s=>s!==landSec).map(s=>({s,q:s.q||(autoQueries(s.name)[0]||{}).raw||''})).filter(x=>x.q);const out=[];
+  for(let i=0;i<qs.length&&chunks.length;i++){const{s,q}=qs[i];if(step)step(s,i,qs.length);const names=new Set();
+    for(const ch of chunks){let hits;try{hits=(await sf('/cards/search?q='+encodeURIComponent('('+q+') ('+ch.map(c=>'!"'+frontOf(c.n)+'"').join(' or ')+')'))).data.map(x=>x.name)}catch(e){break}
+      const set=new Set(hits.flatMap(n=>[n,frontOf(n)]));ch.forEach(c=>{if(set.has(c.n)||set.has(frontOf(c.n)))names.add(c.n)})}
+    out.push({s,names})}
+  return out}
+const shareInto=(c,sid)=>{if(c.s===sid||(c.x||[]).includes(sid))return 0;c.x=[...(c.x||[]),sid];return 1};
+/* Files Unsorted cards: lands (either face) to Lands, everything else to the first section it matches, shared into the rest. */
 async function autoSort(d){const todo=d.cards.filter(c=>c.s==='u');if(!todo.length){toast('Nothing in Unsorted to sort');return}
-  const front=n=>n.split(' // ')[0];const isLand=c=>/Land/.test(front(card(c.n).t));const landSec=d.sections.find(s=>/land/i.test(s.name));const got={};const bump=s=>got[s.id]=(got[s.id]||0)+1;let shared=0;
-  sheet('Sorting '+todo.length+' cards','<div id="sortP" class="empty">Starting…</div>');const P=t=>{const e=$('#sortP');if(e)e.textContent=t};
-  if(landSec)todo.forEach(c=>{if(isLand(c)){c.s=landSec.id;bump(landSec)}});
-  const pool=todo.filter(c=>!isLand(c)&&c.n.indexOf('"')<0);const chunks=[];let cur=[],len=0;
-  pool.forEach(c=>{const t=front(c.n).length+7;if(len+t>720&&cur.length){chunks.push(cur);cur=[];len=0}cur.push(c);len+=t});if(cur.length)chunks.push(cur);
-  const qs=d.sections.filter(s=>s!==landSec).map(s=>({s,q:s.q||(autoQueries(s.name)[0]||{}).raw||''})).filter(x=>x.q);
-  for(let i=0;i<qs.length;i++){const{s,q}=qs[i];P('Checking '+s.name+' ('+(i+1)+' of '+qs.length+')');
-    for(const ch of chunks){let hits;try{hits=(await sf('/cards/search?q='+encodeURIComponent('('+q+') ('+ch.map(c=>'!"'+front(c.n)+'"').join(' or ')+')'))).data.map(x=>x.name)}catch(e){break}
-      const set=new Set(hits.flatMap(n=>[n,front(n)]));ch.forEach(c=>{if(!set.has(c.n)&&!set.has(front(c.n)))return;
-        if(c.s==='u'){c.s=s.id;bump(s)}else if(c.s!==s.id&&!(c.x||[]).includes(s.id)){c.x=[...(c.x||[]),s.id];shared++}})}}
+  const landSec=d.sections.find(s=>/land/i.test(s.name));const got={};const bump=s=>got[s.id]=(got[s.id]||0)+1;let shared=0;
+  sheet('Sorting '+todo.length+' cards','<div id="sortP" class="empty">Starting…</div>');
+  if(landSec)todo.forEach(c=>{if(anyLand(c.n)){c.s=landSec.id;bump(landSec)}});
+  const res=await matchSections(d,todo,(s,i,n)=>{const e=$('#sortP');if(e)e.textContent='Checking '+s.name+' ('+(i+1)+' of '+n+')'});
+  res.forEach(({s,names})=>todo.forEach(c=>{if(!names.has(c.n))return;if(c.s==='u'){c.s=s.id;bump(s)}else shared+=shareInto(c,s.id)}));
   save();rerender();const left=d.cards.filter(c=>c.s==='u').length;
   sheet('Sorted '+(todo.length-left)+' of '+todo.length,`<div class="list">${d.sections.filter(s=>got[s.id]).map(s=>`<div class="item"><span class="name">${esc(s.name)}</span><b class="num">${got[s.id]}</b></div>`).join('')||'<div class="item muted">Nothing matched any section.</div>'}</div>
-    ${shared?`<p class="muted small" style="margin:0">${shared} card${shared===1?'':'s'} also fit a second section and ${shared===1?'is':'are'} marked shared there.</p>`:''}
+    ${shared?`<p class="muted small" style="margin:0">${shared} time${shared===1?'':'s'} a card also fit another section and was marked shared there.</p>`:''}
     ${left?`<p class="muted small" style="margin:0">${left} card${left===1?'':'s'} did not match any section's search and stayed in Unsorted. Tap a card to file it by hand.</p>`:''}
     <p class="muted small" style="margin:0">Each card went to the first section it matched, top to bottom. Tap any card to move it.</p>`)}
+/* After cards are added to a section, quietly check the other sections and share each card into any it also fits. */
+const SHAREQ=new Set();let shareT=null;
+function queueShare(d,n){if(S.autoShare===false)return;SHAREQ.add(d.id+'|'+n);clearTimeout(shareT);shareT=setTimeout(runShare,1300)}
+async function runShare(){const items=[...SHAREQ];SHAREQ.clear();const byDeck={};items.forEach(k=>{const i=k.indexOf('|');(byDeck[k.slice(0,i)]=byDeck[k.slice(0,i)]||[]).push(k.slice(i+1))});
+  for(const id in byDeck){const d=S.decks.find(x=>x.id===id);if(!d)continue;const cards=d.cards.filter(c=>byDeck[id].includes(c.n)&&c.s!=='u'&&c.s!=='m');if(!cards.length)continue;
+    const landSec=d.sections.find(s=>/land/i.test(s.name));let n=0;const who=new Set();
+    if(landSec)cards.forEach(c=>{if(anyLand(c.n)&&shareInto(c,landSec.id)){n++;who.add(c.n)}});
+    let res=[];try{res=await matchSections(d,cards)}catch(e){}
+    res.forEach(({s,names})=>cards.forEach(c=>{if(names.has(c.n)&&d.cards.includes(c)&&shareInto(c,s.id)){n++;who.add(c.n)}}));
+    if(n){save();if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender();toast(who.size===1?[...who][0]+' also counts toward another section':who.size+' cards also count toward other sections')}}}
 
 /* ================= sheets ================= */
 function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;el.hidden=false;
@@ -682,6 +704,7 @@ const A={
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
   autoSort(){autoSort(deck())},
+  shareTog(){S.autoShare=S.autoShare===false;save();rerender()},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
   rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
