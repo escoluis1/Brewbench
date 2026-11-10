@@ -80,7 +80,8 @@ nav.tabs a.on{color:var(--accent)}
 .pips{display:inline-flex;gap:2px;flex:none}
 .pip{width:17px;height:17px;border-radius:50%;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#1b2422;background:#cfd4d2}
 .pip.W{background:#f3ecc9}.pip.U{background:#a9d3ef}.pip.B{background:#b3a5ad}.pip.R{background:#f0a48c}.pip.G{background:#9fd3ad}
-.pips.sm .pip{width:14px;height:14px;font-size:9px}.mk{font-size:11px;flex:none}
+.pips.sm .pip{width:14px;height:14px;font-size:9px}
+.btn{display:block;text-align:center;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 12px;color:inherit;text-decoration:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;padding:8px;border-top:1px solid var(--line)}
 .grid button{padding:0;border:0;background:var(--sunk);border-radius:6px;overflow:hidden;aspect-ratio:488/680;min-height:0;position:relative;font-size:11px}
 .grid img{width:100%;height:100%;object-fit:cover;display:block}
@@ -145,8 +146,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='1.13';
+const VERSION='1.14';
 const NEWS=[
+ ['1.14','Nov 10, 2026',['Tidier mana display: what a rock makes now sits on the second line of Fill results, showing only colors your deck can use. The card screen has a Makes line too.','Similar cards now opens the card\'s similar-cards page on EDHREC, because the in-app list could not find the data.']],
  ['1.13','Nov 10, 2026',['Mana rocks and other spells that make mana now show "makes" and the colors, next to their cost.']],
  ['1.12','Nov 10, 2026',['Lands have a second filter, Makes any of my colors, for lands that tap for just one of your colors.','Lands now show the colors of mana they make, in Fill results and in your deck list. Colors outside your deck are dimmed.']],
  ['1.11','Nov 10, 2026',['Sections you name yourself now get Fill suggestions: the app looks for a matching theme or Scryfall tag, then falls back to card text, and saves the search that worked.','Similar cards from EDHREC: open any card in a deck and tap Similar cards on EDHREC.']],
@@ -266,7 +268,11 @@ const pips=mc=>'<span class="pips">'+(mc.match(/\{[^}]+\}/g)||[]).map(s=>{s=s.sl
 /* mana a card makes, as pips; colors the current deck cannot use are dimmed */
 function prodPips(c){const pm=c.pm||[];if(!pm.length)return'<span class="pips"></span>';const d=location.hash==='#deck'?deck():null;const id=d&&d.cmd.length?ident(d):null;
   return'<span class="pips" title="Makes '+pm.join(', ')+'">'+['W','U','B','R','G','C'].filter(x=>pm.includes(x)).map(x=>`<span class="pip ${x==='C'?'':x}" style="${id&&x!=='C'&&!id.includes(x)?'opacity:.25':''}">${x}</span>`).join('')+'</span>'}
-const costOrMana=c=>c.mc?pips(c.mc)+((c.pm||[]).length?'<span class="muted mk">makes</span>'+prodPips(c).replace('class="pips"','class="pips sm"'):''):prodPips(c);
+const costOrMana=c=>c.mc?pips(c.mc):prodPips(c);
+/* for spells: " · makes ●●" using only colors the deck can use (all of them when none match) */
+function makesInline(c){const pm=c.pm||[];if(!c.mc||!pm.length)return'';const d=location.hash==='#deck'?deck():null;const id=d&&d.cmd.length?ident(d):null;let show=['W','U','B','R','G','C'].filter(x=>pm.includes(x));
+  if(id){const use=show.filter(x=>x==='C'||id.includes(x));if(use.length)show=use}
+  return' · makes <span class="pips sm" style="vertical-align:-2px">'+show.map(x=>`<span class="pip ${x==='C'?'':x}">${x}</span>`).join('')+'</span>'}
 const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
@@ -308,11 +314,6 @@ async function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!=
     const cl=j.container&&j.container.json_dict&&j.container.json_dict.cardlists;
     if(Array.isArray(cl))out.lists=cl.map(l=>({header:String(l.header||l.tag||'Cards'),cards:(l.cardviews||[]).filter(c=>c&&c.name).map(c=>({name:String(c.name),syn:typeof c.synergy==='number'?c.synergy:null,pct:c.potential_decks?(c.num_decks||c.inclusion||0)/c.potential_decks:null}))})).filter(l=>l.cards.length)}
   EDH[key]=out;const cur=deck();if(location.hash==='#deck'&&$('#sheet').hidden&&cur&&cur.cmd.join('|')===key)rerender()}
-/* pulls the similar-cards list out of an EDHREC card page, wherever it sits in the data */
-function findSimilar(j){let out=null;const ok=v=>Array.isArray(v)&&v.length&&v[0]&&typeof v[0]==='object'&&v[0].name;
-  const walk=(o,dep)=>{if(out||!o||typeof o!=='object'||dep>7)return;
-    if(!Array.isArray(o)){if(/similar/i.test(String(o.header||o.tag||''))&&ok(o.cardviews)){out=o.cardviews;return}for(const k in o){if(/similar/i.test(k)&&ok(o[k])){out=o[k];return}}}
-    for(const k in o)walk(o[k],dep+1)};walk(j,0);return out?[...new Set(out.map(c=>String(c.name)))]:[]}
 /* searches to try for a section the user named, best guess first */
 function autoQueries(name){const low=name.trim().toLowerCase();const slug=low.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');if(!slug)return[];const out=[];
   const lib=THEMES.find(t=>t[2]&&(t[0].toLowerCase()===low||(low.length>3&&(t[0].toLowerCase().includes(low)||low.includes(t[0].toLowerCase())))));
@@ -430,7 +431,7 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
     head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
-  box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
+  box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}${makesInline(c)}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
 /* runs q; if it errors or finds nothing, tries each fallback in order and shows that fallback's note */
 async function runQuery(q,alts,first){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.won='';R.started=true;drawRes();
@@ -488,7 +489,8 @@ function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n
    <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${c.p?`<span class="muted num">${money(c.p)}</span>`:''}</div>
    ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
    <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
-   <button data-act="similar" data-n="${esc(n)}">Similar cards on EDHREC</button>
+   ${(c.pm||[]).length?`<div class="row"><span class="muted small">Makes</span>${prodPips(c)}</div>`:''}
+   <a class="btn" href="https://edhrec.com/cards/${edhSlug([n])}/similar-cards" target="_blank" rel="noopener">Open similar cards on EDHREC ↗</a>
    ${e?`<label for="mv">Section</label><select id="mv" data-n="${esc(n)}">${opts.map(s=>`<option value="${s.id}" ${e.s===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>${e.s!=='m'&&d.sections.some(s=>s.id!==e.s)?`<label>Also counts toward</label><div class="chips">${d.sections.filter(s=>s.id!==e.s).map(s=>`<button class="chip ${(e.x||[]).includes(s.id)?'on':''}" data-act="xTog" data-n="${esc(n)}" data-sid="${s.id}">${esc(s.name)}</button>`).join('')}</div>`:''}`:'<p class="muted small" style="margin:0">This is your commander.</p>'}
    <div class="row wrapf"><span class="grow">Copies you own</span><button class="sm" data-act="ownDec" data-n="${esc(n)}" aria-label="Own one fewer">−</button><b class="num" id="ownN" style="min-width:22px;text-align:center">${owned(n)}</b><button class="sm" data-act="ownInc" data-n="${esc(n)}" aria-label="Own one more">+</button></div>
    ${e&&isBasic(n)?`<div class="row"><span class="grow">Copies in deck</span><button class="sm" data-act="qDec" data-n="${esc(n)}" aria-label="One fewer in deck">−</button><b class="num" style="min-width:22px;text-align:center">${e.q}</b><button class="sm" data-act="qInc" data-n="${esc(n)}" aria-label="One more in deck">+</button></div>`:''}
@@ -641,13 +643,6 @@ const A={
   rMk(e){fillSrc(R.ctx.sid,R.src,R.mk===e.dataset.k?'':e.dataset.k)},
   fillTarget(){const d=deck();const s=secOf(d,R.ctx.sid);const need=s.target-cnt(inSec(d,s.id));const add=shown().filter(c=>!inDeck(d,c.n)).slice(0,need);add.forEach(c=>addCard(d,c.n,s.id));toast('Added '+add.length+' to '+s.name);drawRes()},
   cardSheet(e){cardSheet(e.dataset.n)},
-  async similar(e){const d=deck();const n=e.dataset.n;const c=d.cards.find(c=>c.n===n);const sid=c&&c.s!=='m'?c.s:'u';const sn=sid==='u'?'Unsorted':secOf(d,sid).name;
-    R={ctx:{k:'deck',sid},cards:[],fill:false,loading:true,started:true};const mine=R;sheet('Similar to '+n+' → '+sn,'<div id="res"></div>');R=mine;drawRes();
-    const j=await edhFetch(edhSlug([n]),'cards');if(R!==mine)return;const names=j?findSimilar(j):[];
-    if(!names.length){R.loading=false;R.err=j?'EDHREC lists no similar cards for '+n+'.':'Could not load this card from EDHREC.';drawRes();return}
-    try{const r=await byNames(names);if(R!==mine)return;const id=ident(d);const all=r.cards.filter(Boolean);R.cards=all.filter(x=>!d.cmd.length||x.ci.every(k=>id.includes(k)));
-      if(R.cards.length<all.length)R.note=(all.length-R.cards.length)+' similar card'+(all.length-R.cards.length===1?' is':'s are')+' outside this deck\'s colors and hidden.'}catch(err){if(R!==mine)return;R.err=err.message}
-    R.loading=false;drawRes()},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
   rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
