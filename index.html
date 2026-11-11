@@ -129,6 +129,25 @@ nav.tabs a.on{color:var(--accent)}
 .pan .delta{pointer-events:none;height:18px;font-weight:700}
 .pan .more{position:relative;z-index:1;margin-top:4px;background:#00000055;border-color:#ffffff66;font-size:12px;min-height:30px;padding:2px 10px}
 nav.tabs a b{font-size:13px}
+/* deck tester: one dark table look, everything done with taps */
+#test{position:fixed;inset:0;z-index:15;background:#0c1113;color:#fff;display:flex;flex-direction:column;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#test button{color:#fff;background:#1d262a;border-color:#33404a}
+#test button.go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.tbar{display:flex;align-items:center;gap:6px;padding:6px 8px;flex-wrap:wrap}
+.tzone{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:0 6px;min-height:0}
+.trow{background:#141b1e;border-radius:10px;padding:6px}
+.trow h3{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:#9fb0ab;margin:0 0 4px}
+.tcards{display:flex;gap:6px;overflow-x:auto;min-height:93px;align-items:center;touch-action:pan-x pan-y}
+.tc{flex:none;width:64px;height:89px;min-height:0;border-radius:5px;position:relative;font-size:10px;display:flex;align-items:flex-end;padding:3px;overflow:hidden;border:0;text-align:left}
+.tc.tap{transform:rotate(90deg) scale(.72);opacity:.8}
+.tc .badge{position:absolute;top:2px;right:2px;background:#000000cc;border-radius:6px;padding:0 5px;font-weight:700;font-size:11px}
+.tc .nm{background:#000000aa;border-radius:3px;padding:1px 3px;line-height:1.2}
+.thand{border-top:1px solid #2c373a;padding:6px 6px 4px}
+.thand .tcards{min-height:130px}
+.thand .tc{width:92px;height:128px}
+.tdim{color:#7d8e89}
+@media (prefers-reduced-motion:no-preference){.tc{transition:transform .12s}}
+
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
   padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
@@ -138,6 +157,7 @@ nav.tabs a b{font-size:13px}
 <div id="app"></div>
 <nav class="tabs" id="tabs"></nav>
 <div id="live" hidden></div>
+<div id="test" hidden></div>
 <div id="sheet" hidden></div>
 <div id="peek" hidden></div>
 <div id="toast" hidden role="status"></div>
@@ -146,8 +166,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.1';
+const VERSION='2.2';
 const NEWS=[
+ ['2.2','Nov 10, 2026',['Deck tester: tap Test deck on any deck to shuffle up and play it solo. Opening hand with Commander mulligans, a hand you swipe through, a battlefield you tap, commander tax, library tools, graveyard and exile.','Tokens: the tester loads the tokens your deck\'s cards make, plus Treasure, Food, Clue and custom tokens.']],
  ['2.1','Nov 10, 2026',['Card type view: switch a deck between Sections and Types to see it grouped as Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles and Lands.']],
  ['2.0','Nov 10, 2026',['New decks no longer start from one archetype. Every deck gets the same sections: Ramp, Interaction, Card Advantage and Lands, plus Game Plan, Pay Off and Finisher with looser targets.','Themes: pick as many as fit the deck, from EDHREC\'s tags for your commander, the commander\'s own text, or your own. Themes supply the suggestions for Game Plan, Pay Off and Finisher.','Auto-sort files cards that match any of your themes into Game Plan.','Older decks keep their sections. Menu has Convert to standard sections if you want to switch one over.','Default sections for new decks can be edited in Setup.']],
  ['1.17','Nov 10, 2026',['Two-sided cards with a land on the back now count as lands when sorting, and are still checked against your other sections.','Cards are shared across sections automatically: when you add a card anywhere, the app checks your other sections and marks it shared in any it fits. You can turn this off in Setup.']],
@@ -353,7 +374,7 @@ function vDeck(){
   page(`<button class="ghost" data-act="back" aria-label="Back to decks">‹ Decks</button><h1>${esc(d.name)}</h1>`,`<button data-act="deckMenu" aria-label="Deck menu">Menu</button>`,`
    <div class="cmd">${cmdHtml}</div>
    <div class="row wrapf"><span class="pips">${ident(d).map(c=>`<span class="pip ${c}">${c}</span>`).join('')}</span><span class="grow"></span>
-     <button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
+     <button class="sm pri" data-act="test">Test deck</button><button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
    <div class="chips">${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit themes':'Pick themes for this deck'}</button></div>
    <div class="stats">
      <div class="stat"><b class="num">${total(d)}/100</b><span>Cards</span></div>
@@ -468,7 +489,7 @@ async function runShare(){const items=[...SHAREQ];SHAREQ.clear();const byDeck={}
     if(n){save();if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender();toast(who.size===1?[...who][0]+' also counts toward another section':who.size+' cards also count toward other sections')}}}
 
 /* ================= sheets ================= */
-function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;el.hidden=false;
+function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;UI.tokOpen=false;el.hidden=false;
   el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet ${was?'still':''}" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;if(keep&&$('.body',el))$('.body',el).scrollTop=keep}
 function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null;UI.themeOpen=false;sheet.last=''}
 function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p><span style="color:#fff" class="small">Tap anywhere to close</span></div>`}
@@ -660,7 +681,7 @@ document.addEventListener('pointerdown',ev=>{const z=ev.target.closest('[data-li
   hold={pid,dir,fired:false};hold.t=setInterval(()=>{hold.fired=true;bump(pid,dir*10)},550)});
 function endHold(ev){if(!hold)return;clearInterval(hold.t);if(!hold.fired&&ev.type==='pointerup')bump(hold.pid,hold.dir);hold=null;drawLive()}
 document.addEventListener('pointerup',endHold);document.addEventListener('pointercancel',endHold);
-document.addEventListener('contextmenu',ev=>{if(ev.target.closest('#live'))ev.preventDefault()});
+document.addEventListener('contextmenu',ev=>{if(ev.target.closest('#live,#test'))ev.preventDefault()});
 function readPlayer(id){const p=S.players.find(p=>p.id===id);p.name=$('#plN').value.trim()||p.name;p.notes=$('#plNotes').value.trim();const d=$('#plD').value.trim();
   if(d&&!p.decks.some(x=>x.toLowerCase()===d.toLowerCase()))p.decks.push(d);return p}
 function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.filter(g=>g.players.some(x=>x.pid===id));const dk=pdecks(p);const dec=gs.filter(g=>g.winner);
@@ -885,6 +906,108 @@ Object.assign(A,{
      ${g.notes?`<div class="otext">${esc(g.notes)}</div>`:''}`,`<button class="danger" data-act="gameDel" data-id="${g.id}">Delete this game</button>`)},
   gameDel(e){S.games=S.games.filter(g=>g.id!==e.dataset.id);save();closeSheet();rerender();toast('Game deleted')}
 });
+/* ================= deck tester ================= */
+let T=null;const TOK={};
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+function testStart(d){let k=0;const mkc=n=>({id:'c'+(k++),n,tapped:false,ctr:0});const lib=[];main(d).forEach(c=>{for(let i=0;i<c.q;i++)lib.push(mkc(c.n))});
+  T={deck:d.id,k:0,lib:shuffle(lib),hand:[],bf:[],gy:[],ex:[],cmd:d.cmd.map(mkc),cmdNames:[...d.cmd],tax:{},turn:1,life:40,mull:0,phase:'open',bottom:0,mana:{},minus:false,look:0};
+  tDraw(7);drawTest();loadTokens(d)}
+function tDraw(n){for(let i=0;i<n&&T.lib.length;i++)T.hand.push(T.lib.shift())}
+function tFind(id){for(const z of['lib','hand','bf','gy','ex','cmd']){const i=T[z].findIndex(c=>c.id===id);if(i>=0)return{z,i,c:T[z][i]}}return null}
+/* moves a card between zones; tokens stop existing when they leave the battlefield */
+function tMove(id,to,bottom){const f=tFind(id);if(!f)return;T[f.z].splice(f.i,1);const c=f.c;if(f.z==='bf'){c.tapped=false;c.ctr=0}if(c.token&&to!=='bf')return;
+  if(to==='lib'){if(bottom)T.lib.push(c);else T.lib.unshift(c)}else T[to].push(c)}
+const tCard=c=>c.token?c.tk:card(c.n);
+const tType=c=>{const t=frontOf(tCard(c).t||'');return /Land/.test(t)?'land':/Creature/.test(t)?'creature':'other'};
+function tTile(c,tag,attrs){const k=tCard(c);const im=k.img?img(k,'small'):'';
+  return`<${tag} class="tc ${c.tapped?'tap':''}" ${attrs} title="${esc(k.n)}" style="background:#26323a ${im?`url('${esc(im)}')`:''} center/cover">${im?'':`<span class="nm">${esc(k.n)}${k.pt?' '+esc(k.pt):''}</span>`}${c.ctr?`<span class="badge">${c.ctr>0?'+':''}${c.ctr}</span>`:''}</${tag}>`}
+function drawTest(){const el=$('#test');if(!T){el.hidden=true;el.innerHTML='';return}
+  const sc={};el.querySelectorAll('[data-sc]').forEach(x=>sc[x.dataset.sc]=x.scrollLeft);const oz=$('.tzone',el);const zt=oz?oz.scrollTop:0;el.hidden=false;
+  const d=S.decks.find(x=>x.id===T.deck);const id=d?ident(d):[];const pool=[...['W','U','B','R','G'].filter(x=>id.includes(x)),'C'];
+  const rows=[['other','Artifacts, enchantments and others'],['creature','Creatures'],['land','Lands']];
+  el.innerHTML=`<div class="tbar"><button class="sm" data-act="tExit">‹ Exit</button><span class="grow" style="text-align:center">Turn <b class="num">${T.turn}</b></span>
+     <button class="sm" data-act="tLife" data-d="-1" aria-label="Lose 1 life">−</button><b class="num" style="min-width:30px;text-align:center" title="Life total">${T.life}</b><button class="sm" data-act="tLife" data-d="1" aria-label="Gain 1 life">+</button><button class="sm" data-act="tMenu">Menu</button></div>
+   <div class="tbar" style="padding-top:0"><button class="sm" data-act="tLib">Library ${T.lib.length}</button><button class="sm" data-act="tPile" data-z="gy">Graveyard ${T.gy.length}</button><button class="sm" data-act="tPile" data-z="ex">Exile ${T.ex.length}</button>
+     ${T.cmd.map(c=>`<button class="sm go" data-act="tCast" data-id="${c.id}">Cast ${esc(frontOf(c.n).split(',')[0])}${T.tax[c.n]?' (+'+T.tax[c.n]+')':''}</button>`).join('')}</div>
+   ${T.phase==='open'?`<div class="tbar" style="padding-top:0"><span class="grow">${T.mull?'Mulligan '+T.mull+(T.mull>1?': you will put '+(T.mull-1)+' on the bottom':': free'):'Opening hand'}</span><button class="sm" data-act="tMull">Mulligan</button><button class="sm go" data-act="tKeep">Keep</button></div>`
+     :T.bottom>0?`<div class="tbar" style="padding-top:0"><span>Put ${T.bottom} card${T.bottom===1?'':'s'} from your hand on the bottom of your library. Tap a card, then Bottom of library.</span></div>`:''}
+   <div class="tzone">${rows.map(([k,l])=>{const cs=T.bf.filter(c=>tType(c)===k);return`<div class="trow"><h3>${l} · ${cs.length}</h3><div class="tcards" data-sc="${k}">${cs.map(c=>tTile(c,'div',`data-bf="${c.id}" role="button" tabindex="0"`)).join('')||'<span class="small tdim">Empty</span>'}</div></div>`}).join('')}
+     <p class="small tdim" style="margin:0;text-align:center">Tap a card to tap or untap it. Press and hold for more.</p></div>
+   <div class="tbar" style="padding-bottom:0">${pool.map(x=>`<button class="sm" data-act="tMana" data-c="${x}" aria-label="${x} mana in pool"><span class="pip ${x==='C'?'':x}">${x}</span> <b class="num">${T.mana[x]||0}</b></button>`).join('')}<button class="sm" data-act="tManaMode" aria-pressed="${T.minus}">${T.minus?'Taps spend':'Taps add'}</button></div>
+   <div class="thand"><div class="tbar" style="padding:0 2px 6px"><b class="grow">Hand · ${T.hand.length}</b><button class="sm" data-act="tToken">Token</button><button class="sm" data-act="tUntap">Untap</button><button class="sm" data-act="tDraw1">Draw</button><button class="sm go" data-act="tNext">Next turn</button></div>
+     <div class="tcards" data-sc="hand">${T.hand.map(c=>tTile(c,'button',`data-act="tHand" data-id="${c.id}"`)).join('')||'<span class="small tdim">No cards in hand</span>'}</div></div>`;
+  el.querySelectorAll('[data-sc]').forEach(x=>{if(sc[x.dataset.sc])x.scrollLeft=sc[x.dataset.sc]});const nz=$('.tzone',el);if(nz)nz.scrollTop=zt}
+const tBtn=(label,id,to,extra='')=>`<button class="item" data-act="tGo" data-id="${id}" data-to="${to}" ${extra}>${label}</button>`;
+function tHandSheet(id){const f=tFind(id);if(!f)return;const k=tCard(f.c);const t=frontOf(k.t);const spell=/Instant|Sorcery/.test(t);
+  sheet(k.n,`${k.img?`<img class="cardimg" alt="${esc(k.n)}" src="${esc(k.img)}">`:''}<div class="row wrapf"><b class="grow">${esc(k.t)}</b>${pips(k.mc||'')}</div>
+   <div class="list">${tBtn(/Land/.test(t)?'Play land':spell?'Cast (goes to the graveyard)':'Play to the battlefield',id,spell?'gy':'bf')}${spell?tBtn('Put onto the battlefield',id,'bf'):''}${tBtn('Discard',id,'gy')}${tBtn('Exile',id,'ex')}${tBtn('Top of library',id,'lib')}${tBtn('Bottom of library',id,'lib','data-b="1"')}</div>`)}
+function tBfSheet(id){const f=tFind(id);if(!f||f.z!=='bf')return;const c=f.c;const k=tCard(c);
+  sheet(k.n+(k.pt?' '+k.pt:''),`<div class="row"><span class="grow">Counters</span><button class="sm" data-act="tCtr" data-id="${id}" data-d="-1" aria-label="Remove a counter">−</button><b class="num" style="min-width:26px;text-align:center">${c.ctr}</b><button class="sm" data-act="tCtr" data-id="${id}" data-d="1" aria-label="Add a counter">+</button></div>
+   <div class="list"><button class="item" data-act="tTapOne" data-id="${id}">${c.tapped?'Untap':'Tap'}</button>
+   ${c.token?`<button class="item" data-act="tTokCopy" data-id="${id}">Make another one</button>${tBtn('Remove token',id,'gy')}`
+     :`${tBtn('To the graveyard',id,'gy')}${tBtn('Exile',id,'ex')}${tBtn('Return to hand',id,'hand')}${T.cmdNames.includes(c.n)?tBtn('Return to the command zone',id,'cmd'):''}${tBtn('Top of library',id,'lib')}${tBtn('Bottom of library',id,'lib','data-b="1"')}<button class="item" data-act="peek" data-n="${esc(c.n)}">Read the card</button>`}</div>`)}
+function tPileSheet(z){const nm=z==='gy'?'Graveyard':'Exile';const cs=T[z];
+  sheet(nm+' · '+cs.length,cs.length?`<div class="list">${cs.map(c=>`<button class="item" data-act="tPileCard" data-id="${c.id}" data-z="${z}"><span class="name">${esc(c.n)}</span><span class="muted small">${esc(frontOf(card(c.n).t))}</span></button>`).join('')}</div>`:`<div class="empty">Nothing in ${nm.toLowerCase()}.</div>`)}
+function tLibSheet(){const top=T.lib.slice(0,T.look);const all=[...T.lib].sort((a,b)=>a.n.localeCompare(b.n));
+  sheet('Library · '+T.lib.length,`<div class="row wrapf"><button data-act="tDraw1" data-back="lib">Draw</button><button data-act="tShuffle">Shuffle</button></div>
+   <label for="tN">Look at, or mill, the top cards</label><div class="row"><input id="tN" type="number" inputmode="numeric" min="1" value="${T.look||1}" style="width:80px"><button data-act="tLook">Look</button><button data-act="tMill">Mill</button></div>
+   ${top.length?`<p class="muted small" style="margin:0">Top card first. Leave a card alone to keep it on top.</p><div class="list">${top.map(c=>`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div>${esc(c.n)}</div><div class="muted small">${esc(frontOf(card(c.n).t))}</div></button><button class="sm" data-act="tGo" data-id="${c.id}" data-to="hand" data-back="lib" data-lk="1">Hand</button><button class="sm" data-act="tGo" data-id="${c.id}" data-to="lib" data-b="1" data-back="lib" data-lk="1">Bottom</button><button class="sm" data-act="tGo" data-id="${c.id}" data-to="gy" data-back="lib" data-lk="1">Yard</button></div>`).join('')}</div>`:''}
+   <label for="tS">Search the library</label><input id="tS" type="search" placeholder="Card name or type" autocomplete="off">
+   <div class="list" id="tSL">${all.map(c=>`<button class="item" data-act="tPileCard" data-id="${c.id}" data-z="lib" data-f="${esc((c.n+' '+card(c.n).t).toLowerCase())}"><span class="name">${esc(c.n)}</span><span class="muted small">${esc(frontOf(card(c.n).t))}</span></button>`).join('')}</div>`)}
+async function loadTokens(d){const key=d.id;if(TOK[key])return;TOK[key]='loading';
+  try{const names=[...new Set([...d.cmd,...main(d).map(c=>c.n)])];const ids=new Set();
+    for(let i=0;i<names.length;i+=75){const j=await sf('/cards/collection',{identifiers:names.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(c=>(c.all_parts||[]).forEach(x=>{if(x.component==='token')ids.add(x.id)}))}
+    const list=[...ids],out=[],seen=new Set();
+    for(let i=0;i<list.length;i+=75){const j=await sf('/cards/collection',{identifiers:list.slice(i,i+75).map(id=>({id}))});(j.data||[]).forEach(c=>{const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};
+      const pt=c.power!=null?c.power+'/'+c.toughness:'';const k=c.name+'|'+c.type_line+'|'+pt;if(seen.has(k))return;seen.add(k);out.push({n:c.name,t:c.type_line||'Token',pt,img:iu.normal||''})})}
+    TOK[key]=out.sort((a,b)=>a.n.localeCompare(b.n))}catch(e){TOK[key]=[]}
+  if(T&&T.deck===key&&UI.tokOpen)A.tToken()}
+function tMakeToken(tk){T.bf.push({id:'t'+(T.k++),token:true,tk,tapped:false,ctr:0});drawTest();toast('Created '+tk.n+(tk.pt?' '+tk.pt:''))}
+/* battlefield cards: a quick tap taps or untaps, a held press opens the options */
+let th=null;
+document.addEventListener('pointerdown',ev=>{const e=ev.target.closest('[data-bf]');if(!e||!T)return;const id=e.dataset.bf;th={id,x:ev.clientX,y:ev.clientY,held:false};th.t=setTimeout(()=>{if(th){th.held=true;tBfSheet(id)}},450)});
+document.addEventListener('pointermove',ev=>{if(th&&(Math.abs(ev.clientX-th.x)>10||Math.abs(ev.clientY-th.y)>10)){clearTimeout(th.t);th=null}});
+document.addEventListener('pointerup',()=>{if(!th)return;clearTimeout(th.t);if(!th.held&&T){const f=tFind(th.id);if(f&&f.z==='bf'){f.c.tapped=!f.c.tapped;drawTest()}}th=null});
+document.addEventListener('pointercancel',()=>{if(th){clearTimeout(th.t);th=null}});
+document.addEventListener('keydown',ev=>{const e=ev.target.closest&&ev.target.closest('[data-bf]');if(e&&T&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();tBfSheet(e.dataset.bf)}});
+Object.assign(A,{
+  test(){const d=deck();if(!main(d).length){toast('Add some cards to the deck first');return}closeSheet();testStart(d)},
+  tExit(){T=null;drawTest()},
+  tMenu(){sheet('Tester menu',`<div class="list"><button class="item" data-act="tRestart">Start over with a new hand</button><button class="item" data-act="tLib">Library: look, mill, search, shuffle</button><button class="item danger" data-act="tQuit">Exit the tester</button></div>`)},
+  tRestart(){closeSheet();testStart(S.decks.find(x=>x.id===T.deck))},
+  tQuit(){closeSheet();T=null;drawTest()},
+  tLife(e){T.life+=+e.dataset.d;drawTest()},
+  tMull(){T.mull++;T.lib.push(...T.hand.splice(0));shuffle(T.lib);tDraw(7);drawTest()},
+  tKeep(){T.phase='play';T.bottom=Math.max(0,T.mull-1);drawTest()},
+  tDraw1(e){tDraw(1);drawTest();if(e.dataset.back)tLibSheet()},
+  tNext(){T.turn++;T.bf.forEach(c=>c.tapped=false);T.mana={};T.phase='play';tDraw(1);drawTest()},
+  tUntap(){T.bf.forEach(c=>c.tapped=false);drawTest()},
+  tMana(e){const c=e.dataset.c;T.mana[c]=Math.max(0,(T.mana[c]||0)+(T.minus?-1:1));drawTest()},
+  tManaMode(){T.minus=!T.minus;drawTest()},
+  tCast(e){const f=tFind(e.dataset.id);if(!f)return;tMove(f.c.id,'bf');T.tax[f.c.n]=(T.tax[f.c.n]||0)+2;drawTest()},
+  tHand(e){tHandSheet(e.dataset.id)},
+  tGo(e){const f=tFind(e.dataset.id);if(!f)return;const d=e.dataset;if(f.z==='hand'&&d.to==='lib'&&d.b&&T.bottom>0)T.bottom--;if(d.lk&&T.look>0)T.look--;
+    tMove(d.id,d.to,!!d.b);if(d.shuf){shuffle(T.lib);toast('Library shuffled')}drawTest();if(d.back==='lib')tLibSheet();else if(d.back)tPileSheet(d.back);else closeSheet()},
+  tCtr(e){const f=tFind(e.dataset.id);if(!f)return;f.c.ctr+=+e.dataset.d;drawTest();tBfSheet(f.c.id)},
+  tTapOne(e){const f=tFind(e.dataset.id);if(!f)return;f.c.tapped=!f.c.tapped;drawTest();closeSheet()},
+  tTokCopy(e){const f=tFind(e.dataset.id);if(f)tMakeToken(f.c.tk)},
+  tPile(e){tPileSheet(e.dataset.z)},
+  tPileCard(e){const id=e.dataset.id,z=e.dataset.z;const f=tFind(id);if(!f)return;const back=z==='lib'?'':`data-back="${z}"`;const sh=z==='lib'?'data-shuf="1"':'';
+    sheet(f.c.n,`${card(f.c.n).img?`<img class="cardimg" alt="${esc(f.c.n)}" src="${esc(card(f.c.n).img)}">`:''}${z==='lib'?'<p class="muted small" style="margin:0">Taking a card this way shuffles the library afterwards.</p>':''}
+     <div class="list">${tBtn('To hand',id,'hand',back+sh)}${tBtn('Onto the battlefield',id,'bf',back+sh)}${z==='lib'?'':tBtn('Top of library',id,'lib',back)}${z==='lib'?'':tBtn('Bottom of library',id,'lib','data-b="1" '+back)}${z==='gy'?'':tBtn('To the graveyard',id,'gy',back+sh)}${z==='ex'?'':tBtn('Exile',id,'ex',back+sh)}</div>`)},
+  tLib(){tLibSheet()},
+  tShuffle(){shuffle(T.lib);T.look=0;toast('Library shuffled');tLibSheet()},
+  tLook(){T.look=Math.max(1,Math.min(T.lib.length,parseInt($('#tN').value)||1));tLibSheet()},
+  tMill(){const n=Math.max(1,parseInt($('#tN').value)||1);for(let i=0;i<n&&T.lib.length;i++)T.gy.push(T.lib.shift());T.look=0;drawTest();tLibSheet();toast('Milled '+n)},
+  tToken(){const list=TOK[T.deck];const quick=[['Treasure','Token Artifact — Treasure'],['Food','Token Artifact — Food'],['Clue','Token Artifact — Clue']];
+    sheet('Create a token',`<p class="muted small" style="margin:0">Tap a token to put one onto the battlefield. Tap again for more.</p>
+     <label>Tokens this deck makes</label>${list==='loading'||!list?'<p class="muted small" style="margin:0">Loading this deck\'s tokens…</p>':list.length?`<div class="list">${list.map((t,i)=>`<button class="item" data-act="tTokDeck" data-i="${i}"><span class="name"><b>${esc(t.n)}${t.pt?' '+esc(t.pt):''}</b><br><span class="muted small">${esc(t.t)}</span></span><span class="muted">+</span></button>`).join('')}</div>`:'<p class="muted small" style="margin:0">None found for the cards in this deck.</p>'}
+     <label>Common tokens</label><div class="chips">${quick.map(([n,t])=>`<button class="chip" data-act="tTokQuick" data-n="${n}" data-t="${esc(t)}">${n}</button>`).join('')}</div>
+     <label for="tkN">Your own</label><div class="row"><input id="tkN" class="grow" placeholder="Name, e.g. Soldier" autocomplete="off"><input id="tkP" placeholder="P/T" style="width:76px" autocomplete="off"><button data-act="tTokNew">Create</button></div>`);UI.tokOpen=true},
+  tTokDeck(e){tMakeToken(TOK[T.deck][+e.dataset.i])},
+  tTokQuick(e){tMakeToken({n:e.dataset.n,t:e.dataset.t,pt:'',img:''})},
+  tTokNew(){const n=$('#tkN').value.trim();if(!n){toast('Give the token a name');return}const pt=$('#tkP').value.trim();tMakeToken({n,t:pt?'Token Creature — '+n:'Token — '+n,pt,img:''})}
+});
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='mv'){const c=deck().cards.find(c=>c.n===t.dataset.n);c.s=t.value;c.x=(c.x||[]).filter(i=>i!==c.s);save();cardSheet(c.n);toast('Moved')}
@@ -893,7 +1016,8 @@ document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='collLocSel'){UI.collLoc=t.value;rerender()}
   if(t.dataset.pull!==undefined){const d=deck();d.pulled=d.pulled||{};if(t.checked)d.pulled[t.dataset.pull]=1;else delete d.pulled[t.dataset.pull];save();$('#pullN').textContent=Object.keys(d.pulled).filter(n=>owned(n)).length}
   if(t.id==='pType'){$('#pS').hidden=t.value!=='scryfall';$('#pC').hidden=t.value!=='custom'}});
-document.addEventListener('input',ev=>{if(ev.target.classList.contains('gn')){const i=[...document.querySelectorAll('.gsrow')].indexOf(ev.target.closest('.gsrow'));const dl=$('#dl'+i);if(dl&&i>0)dl.innerHTML=deckOpts(i,ev.target.value.trim())}
+document.addEventListener('input',ev=>{if(ev.target.id==='tS'){const q=ev.target.value.trim().toLowerCase();document.querySelectorAll('#tSL .item').forEach(x=>x.hidden=!!q&&!x.dataset.f.includes(q))}
+  if(ev.target.classList.contains('gn')){const i=[...document.querySelectorAll('.gsrow')].indexOf(ev.target.closest('.gsrow'));const dl=$('#dl'+i);if(dl&&i>0)dl.innerHTML=deckOpts(i,ev.target.value.trim())}
   if(ev.target.id==='collQ'){UI.collQ=ev.target.value;const q=UI.collQ.toLowerCase();const l=$('#collList');if(l)l.innerHTML=collRows(collShown())}});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('#peek').hidden)A.unpeek();else if(!$('#sheet').hidden)A.close()}});
 window.addEventListener('hashchange',route);
