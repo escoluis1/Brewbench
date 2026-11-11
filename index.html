@@ -146,8 +146,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.0';
+const VERSION='2.1';
 const NEWS=[
+ ['2.1','Nov 10, 2026',['Card type view: switch a deck between Sections and Types to see it grouped as Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles and Lands.']],
  ['2.0','Nov 10, 2026',['New decks no longer start from one archetype. Every deck gets the same sections: Ramp, Interaction, Card Advantage and Lands, plus Game Plan, Pay Off and Finisher with looser targets.','Themes: pick as many as fit the deck, from EDHREC\'s tags for your commander, the commander\'s own text, or your own. Themes supply the suggestions for Game Plan, Pay Off and Finisher.','Auto-sort files cards that match any of your themes into Game Plan.','Older decks keep their sections. Menu has Convert to standard sections if you want to switch one over.','Default sections for new decks can be edited in Setup.']],
  ['1.17','Nov 10, 2026',['Two-sided cards with a land on the back now count as lands when sorting, and are still checked against your other sections.','Cards are shared across sections automatically: when you add a card anywhere, the app checks your other sections and marks it shared in any it fits. You can turn this off in Setup.']],
  ['1.16','Nov 10, 2026',['Auto-sort: imported cards are filed into your sections by checking each section\'s Scryfall search. Lands go to Lands. Cards that fit more than one section are shared.','An Auto-sort button on Unsorted does the same for anything sitting there.']],
@@ -364,9 +365,19 @@ function vDeck(){
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
-   <div class="row"><span class="grow"></span><button class="sm" data-act="editSecs">Edit sections</button></div>
-   ${secs.map(s=>secHtml(d,s)).join('')}`);
+   <div class="row"><div class="chips grow"><button class="chip ${UI.group==='type'?'':'on'}" data-act="group" data-g="sec">Sections</button><button class="chip ${UI.group==='type'?'on':''}" data-act="group" data-g="type">Types</button></div>${UI.group==='type'?'':'<button class="sm" data-act="editSecs">Edit sections</button>'}</div>
+   ${UI.group==='type'?typeHtml(d):secs.map(s=>secHtml(d,s)).join('')}`);
 }
+const TYPES=['Creature','Planeswalker','Battle','Instant','Sorcery','Artifact','Enchantment','Land'];
+/* one type per card, the way deck lists usually group them: a land is a land, a creature is a creature, then the rest */
+const typeOf=n=>{const t=frontOf(card(n).t);return /Land/.test(t)?'Land':/Creature/.test(t)?'Creature':TYPES.find(x=>t.includes(x))||'Other'};
+function typeHtml(d){const m=main(d);const secName=c=>c.s==='u'?'Unsorted':(secOf(d,c.s)||{}).name||'';
+  return[...TYPES,'Other'].map(t=>{const cs=m.filter(c=>typeOf(c.n)===t).sort((a,b)=>a.n.localeCompare(b.n));if(!cs.length)return'';const closed=UI.closed[d.id+'t'+t];
+    const rows=UI.view==='grid'
+     ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
+     :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}<br><span class="muted small">${esc(secName(c))}</span></span>${costOrMana(card(c.n))}</button>`).join('');
+    return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="t${t}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${t==='Sorcery'?'Sorceries':t==='Other'?'Other':t+'s'}</button><span class="pill num plain">${cnt(cs)}</span></header>${closed?'':rows}</section>`}).join('')
+    ||'<div class="empty">No cards yet. Switch back to Sections to start adding.</div>'}
 function secHtml(d,s){
   const cs=inSec(d,s.id).sort((a,b)=>a.n.localeCompare(b.n));const n=cnt(cs);const special=s.id==='u'||s.id==='m';
   if(s.id==='u'&&!n)return'';
@@ -703,6 +714,7 @@ const A={
   convertGo(){convertStd(deck());save();closeSheet();rerender();toast('Converted')},
   setCmd(){openSearch({k:'cmd'},'Pick your commander (up to two)')},
   view(e){UI.view=e.dataset.v;rerender()},
+  group(e){UI.group=e.dataset.g;rerender()},
   toggle(e){const k=deck().id+e.dataset.sid;UI.closed[k]=!UI.closed[k];rerender()},
   addSearch(e){const d=deck();const s=e.dataset.sid;const nm=s==='u'?'Unsorted':s==='m'?'Maybeboard':secOf(d,s).name;openSearch({k:'deck',sid:s},'Add to '+nm)},
   fill(e){openFill(e.dataset.sid)},
