@@ -166,8 +166,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.2';
+const VERSION='2.3';
 const NEWS=[
+ ['2.3','Nov 10, 2026',['Two-sided cards can be flipped. In the tester, play either side from your hand (a spell/land card can be played as its land) and flip a card on the battlefield.','Card screens have a Show other side button for two-sided cards.']],
  ['2.2','Nov 10, 2026',['Deck tester: tap Test deck on any deck to shuffle up and play it solo. Opening hand with Commander mulligans, a hand you swipe through, a battlefield you tap, commander tax, library tools, graveyard and exile.','Tokens: the tester loads the tokens your deck\'s cards make, plus Treasure, Food, Clue and custom tokens.']],
  ['2.1','Nov 10, 2026',['Card type view: switch a deck between Sections and Types to see it grouped as Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles and Lands.']],
  ['2.0','Nov 10, 2026',['New decks no longer start from one archetype. Every deck gets the same sections: Ramp, Interaction, Card Advantage and Lands, plus Game Plan, Pay Off and Finisher with looser targets.','Themes: pick as many as fit the deck, from EDHREC\'s tags for your commander, the commander\'s own text, or your own. Themes supply the suggestions for Game Plan, Pay Off and Finisher.','Auto-sort files cards that match any of your themes into Game Plan.','Older decks keep their sections. Menu has Convert to standard sections if you want to switch one over.','Default sections for new decks can be edited in Setup.']],
@@ -258,7 +259,7 @@ function slim(c){
   const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};
   return CARDS[c.name]={n:c.name,mc:c.mana_cost||f.mana_cost||'',cmc:c.cmc||0,t:c.type_line||'',
     o:c.oracle_text||(c.card_faces||[]).map(x=>x.name+'\n'+(x.oracle_text||'')).join('\n\n'),
-    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer,pm:c.produced_mana||[]};
+    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer,pm:c.produced_mana||[],img2:(c.card_faces&&c.card_faces[1]&&c.card_faces[1].image_uris&&c.card_faces[1].image_uris.normal)||''};
 }
 async function search(q){const j=await sf('/cards/search?order=edhrec&q='+encodeURIComponent(q));return j.data.map(slim)}
 function lowerIndex(){const m=new Map();for(const n in CARDS){m.set(n.toLowerCase(),CARDS[n]);const f=n.split(' // ')[0].toLowerCase();if(!m.has(f))m.set(f,CARDS[n])}return m}
@@ -360,7 +361,7 @@ function catSelect(d){const{sugg,rest}=themeSuggest(d);UI.cats=[...sugg,...rest]
   return`<select id="addCat" class="grow" aria-label="Add a section"><option value="">Add a section…</option>${sugg.length?`<optgroup label="Suggested for ${esc(d.cmd.join(' + '))}">${sugg.map(o).join('')}</optgroup>`:''}<optgroup label="All themes">${rest.map((c,i)=>o(c,i+sugg.length)).join('')}</optgroup><option value="custom">Custom section…</option></select>`}
 
 const PMTRIED=new Set();
-async function pmRefresh(d){const need=[...d.cmd,...d.cards.map(c=>c.n)].filter(n=>CARDS[n]&&CARDS[n].pm===undefined&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
+async function pmRefresh(d){const need=[...d.cmd,...d.cards.map(c=>c.n)].filter(n=>CARDS[n]&&(CARDS[n].pm===undefined||(n.includes(' // ')&&CARDS[n].img2===undefined))&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
   try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(slim)}save();
     if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender()}catch(e){}}
 function vDeck(){
@@ -572,6 +573,7 @@ function pick(n){const x=R.ctx;const d=deck();
 function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n===n);const custom=S.packages.filter(p=>p.type==='custom');
   const opts=[{id:'u',name:'Unsorted'},...d.sections,{id:'m',name:'Maybeboard'}];
   sheet(n,`${c.img?`<img class="cardimg" alt="${esc(n)}" src="${esc(c.img)}">`:''}
+   ${flipBtn(c)}
    <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${c.p?`<span class="muted num">${money(c.p)}</span>`:''}</div>
    ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
    <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
@@ -602,6 +604,8 @@ function pkgSheet(p){sheet(p.id?'Edit package':'New package',`
    <div id="pC" ${p.type==='custom'?'':'hidden'}><label for="pCards">Cards, one per line</label><textarea id="pCards">${esc(p.cards.join('\n'))}</textarea>${p.id?`<button data-act="pkgSearch" data-id="${p.id}">Search and add cards</button>`:'<p class="muted small">Save first, then you can also add cards by search.</p>'}</div>`,
    `<div class="row"><button class="pri grow" data-act="pkgSave" data-id="${p.id||''}">Save</button>${p.id?`<button class="danger" data-act="pkgDel" data-id="${p.id}">Delete</button>`:''}</div>`);}
 
+/* a button that swaps a card image between its two faces */
+const flipBtn=c=>c.img2?`<button data-act="flipImg" data-a="${esc(c.img)}" data-b="${esc(c.img2)}">Show other side</button>`:'';
 function confirmSheet(title,msg,act,label){sheet(title,`<p style="margin:0">${msg}</p>`,`<div class="row"><button class="grow" data-act="close">Cancel</button><button class="danger grow" data-act="${act}">${label}</button></div>`)}
 function download(name,text){try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}catch(e){}}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Copied')}catch(e){toast('Select the text and copy it')}}
@@ -717,6 +721,7 @@ function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);con
 /* ================= actions ================= */
 const A={
   back(){location.hash='decks'},
+  flipImg(e){const im=$('#sheet .cardimg');if(!im)return;const b=im.getAttribute('src')===e.dataset.a;im.setAttribute('src',b?e.dataset.b:e.dataset.a);e.textContent=b?'Show front side':'Show other side'},
   news(){S.seen=VERSION;save();sheet("What's new",`<p class="muted small" style="margin:0">You are on version ${VERSION}.</p>`+newsHtml(NEWS))},
   openDeck(e){UI.deck=e.dataset.id;location.hash='deck';route()},
   newDeck(){sheet('New deck',`<label for="dName">Deck name</label><input id="dName" placeholder="e.g. Neriv go-wide">
@@ -911,13 +916,14 @@ let T=null;const TOK={};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 function testStart(d){let k=0;const mkc=n=>({id:'c'+(k++),n,tapped:false,ctr:0});const lib=[];main(d).forEach(c=>{for(let i=0;i<c.q;i++)lib.push(mkc(c.n))});
   T={deck:d.id,k:0,lib:shuffle(lib),hand:[],bf:[],gy:[],ex:[],cmd:d.cmd.map(mkc),cmdNames:[...d.cmd],tax:{},turn:1,life:40,mull:0,phase:'open',bottom:0,mana:{},minus:false,look:0};
-  tDraw(7);drawTest();loadTokens(d)}
+  tDraw(7);drawTest();loadTokens(d);pmRefresh(d).then(()=>{if(T&&T.deck===d.id)drawTest()})}
 function tDraw(n){for(let i=0;i<n&&T.lib.length;i++)T.hand.push(T.lib.shift())}
 function tFind(id){for(const z of['lib','hand','bf','gy','ex','cmd']){const i=T[z].findIndex(c=>c.id===id);if(i>=0)return{z,i,c:T[z][i]}}return null}
 /* moves a card between zones; tokens stop existing when they leave the battlefield */
-function tMove(id,to,bottom){const f=tFind(id);if(!f)return;T[f.z].splice(f.i,1);const c=f.c;if(f.z==='bf'){c.tapped=false;c.ctr=0}if(c.token&&to!=='bf')return;
+function tMove(id,to,bottom){const f=tFind(id);if(!f)return;T[f.z].splice(f.i,1);const c=f.c;if(f.z==='bf'){c.tapped=false;c.ctr=0}if(to!=='bf')c.flip=false;if(c.token&&to!=='bf')return;
   if(to==='lib'){if(bottom)T.lib.push(c);else T.lib.unshift(c)}else T[to].push(c)}
-const tCard=c=>c.token?c.tk:card(c.n);
+const backOf=n=>{const k=card(n);return k.img2?{n:n.split(' // ')[1]||n,t:k.t.split(' // ')[1]||k.t,img:k.img2,mc:'',o:k.o,flipped:true}:null};
+const tCard=c=>c.token?c.tk:(c.flip&&backOf(c.n))||card(c.n);
 const tType=c=>{const t=frontOf(tCard(c).t||'');return /Land/.test(t)?'land':/Creature/.test(t)?'creature':'other'};
 function tTile(c,tag,attrs){const k=tCard(c);const im=k.img?img(k,'small'):'';
   return`<${tag} class="tc ${c.tapped?'tap':''}" ${attrs} title="${esc(k.n)}" style="background:#26323a ${im?`url('${esc(im)}')`:''} center/cover">${im?'':`<span class="nm">${esc(k.n)}${k.pt?' '+esc(k.pt):''}</span>`}${c.ctr?`<span class="badge">${c.ctr>0?'+':''}${c.ctr}</span>`:''}</${tag}>`}
@@ -938,12 +944,12 @@ function drawTest(){const el=$('#test');if(!T){el.hidden=true;el.innerHTML='';re
      <div class="tcards" data-sc="hand">${T.hand.map(c=>tTile(c,'button',`data-act="tHand" data-id="${c.id}"`)).join('')||'<span class="small tdim">No cards in hand</span>'}</div></div>`;
   el.querySelectorAll('[data-sc]').forEach(x=>{if(sc[x.dataset.sc])x.scrollLeft=sc[x.dataset.sc]});const nz=$('.tzone',el);if(nz)nz.scrollTop=zt}
 const tBtn=(label,id,to,extra='')=>`<button class="item" data-act="tGo" data-id="${id}" data-to="${to}" ${extra}>${label}</button>`;
-function tHandSheet(id){const f=tFind(id);if(!f)return;const k=tCard(f.c);const t=frontOf(k.t);const spell=/Instant|Sorcery/.test(t);
-  sheet(k.n,`${k.img?`<img class="cardimg" alt="${esc(k.n)}" src="${esc(k.img)}">`:''}<div class="row wrapf"><b class="grow">${esc(k.t)}</b>${pips(k.mc||'')}</div>
-   <div class="list">${tBtn(/Land/.test(t)?'Play land':spell?'Cast (goes to the graveyard)':'Play to the battlefield',id,spell?'gy':'bf')}${spell?tBtn('Put onto the battlefield',id,'bf'):''}${tBtn('Discard',id,'gy')}${tBtn('Exile',id,'ex')}${tBtn('Top of library',id,'lib')}${tBtn('Bottom of library',id,'lib','data-b="1"')}</div>`)}
+function tHandSheet(id){const f=tFind(id);if(!f)return;const k=tCard(f.c);const t=frontOf(k.t);const spell=/Instant|Sorcery/.test(t);const bk=backOf(f.c.n);
+  sheet(k.n,`${k.img?`<img class="cardimg" alt="${esc(k.n)}" src="${esc(k.img)}">`:''}${flipBtn(k)}<div class="row wrapf"><b class="grow">${esc(k.t)}</b>${pips(k.mc||'')}</div>
+   <div class="list">${tBtn(/Land/.test(t)?'Play land':spell?'Cast (goes to the graveyard)':'Play to the battlefield',id,spell?'gy':'bf')}${bk?tBtn((/Land/.test(bk.t)?'Play the other side as a land: ':'Play the other side: ')+esc(bk.n),id,'bf','data-flip="1"'):''}${spell?tBtn('Put onto the battlefield',id,'bf'):''}${tBtn('Discard',id,'gy')}${tBtn('Exile',id,'ex')}${tBtn('Top of library',id,'lib')}${tBtn('Bottom of library',id,'lib','data-b="1"')}</div>`)}
 function tBfSheet(id){const f=tFind(id);if(!f||f.z!=='bf')return;const c=f.c;const k=tCard(c);
   sheet(k.n+(k.pt?' '+k.pt:''),`<div class="row"><span class="grow">Counters</span><button class="sm" data-act="tCtr" data-id="${id}" data-d="-1" aria-label="Remove a counter">−</button><b class="num" style="min-width:26px;text-align:center">${c.ctr}</b><button class="sm" data-act="tCtr" data-id="${id}" data-d="1" aria-label="Add a counter">+</button></div>
-   <div class="list"><button class="item" data-act="tTapOne" data-id="${id}">${c.tapped?'Untap':'Tap'}</button>
+   <div class="list"><button class="item" data-act="tTapOne" data-id="${id}">${c.tapped?'Untap':'Tap'}</button>${!c.token&&backOf(c.n)?`<button class="item" data-act="tFlip" data-id="${id}">Flip to the other side</button>`:''}
    ${c.token?`<button class="item" data-act="tTokCopy" data-id="${id}">Make another one</button>${tBtn('Remove token',id,'gy')}`
      :`${tBtn('To the graveyard',id,'gy')}${tBtn('Exile',id,'ex')}${tBtn('Return to hand',id,'hand')}${T.cmdNames.includes(c.n)?tBtn('Return to the command zone',id,'cmd'):''}${tBtn('Top of library',id,'lib')}${tBtn('Bottom of library',id,'lib','data-b="1"')}<button class="item" data-act="peek" data-n="${esc(c.n)}">Read the card</button>`}</div>`)}
 function tPileSheet(z){const nm=z==='gy'?'Graveyard':'Exile';const cs=T[z];
@@ -987,8 +993,9 @@ Object.assign(A,{
   tCast(e){const f=tFind(e.dataset.id);if(!f)return;tMove(f.c.id,'bf');T.tax[f.c.n]=(T.tax[f.c.n]||0)+2;drawTest()},
   tHand(e){tHandSheet(e.dataset.id)},
   tGo(e){const f=tFind(e.dataset.id);if(!f)return;const d=e.dataset;if(f.z==='hand'&&d.to==='lib'&&d.b&&T.bottom>0)T.bottom--;if(d.lk&&T.look>0)T.look--;
-    tMove(d.id,d.to,!!d.b);if(d.shuf){shuffle(T.lib);toast('Library shuffled')}drawTest();if(d.back==='lib')tLibSheet();else if(d.back)tPileSheet(d.back);else closeSheet()},
+    tMove(d.id,d.to,!!d.b);if(d.flip)f.c.flip=true;if(d.shuf){shuffle(T.lib);toast('Library shuffled')}drawTest();if(d.back==='lib')tLibSheet();else if(d.back)tPileSheet(d.back);else closeSheet()},
   tCtr(e){const f=tFind(e.dataset.id);if(!f)return;f.c.ctr+=+e.dataset.d;drawTest();tBfSheet(f.c.id)},
+  tFlip(e){const f=tFind(e.dataset.id);if(!f)return;f.c.flip=!f.c.flip;drawTest();closeSheet()},
   tTapOne(e){const f=tFind(e.dataset.id);if(!f)return;f.c.tapped=!f.c.tapped;drawTest();closeSheet()},
   tTokCopy(e){const f=tFind(e.dataset.id);if(f)tMakeToken(f.c.tk)},
   tPile(e){tPileSheet(e.dataset.z)},
