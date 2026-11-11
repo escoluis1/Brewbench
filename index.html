@@ -166,8 +166,10 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.3';
+const VERSION='2.5';
 const NEWS=[
+ ['2.5','Nov 10, 2026',['Collection: choose the printing of a card you own, and mark it foil. The card\'s picture and your collection value use that printing.','Scanner CSV imports keep the set and collector number when the file has them.']],
+ ['2.4','Nov 10, 2026',['Fixed: flip buttons were missing on two-sided cards added before version 2.3, because their back side was never fetched.','A spell with a land on the back can always be played as its land in the tester, even before its back picture has loaded.']],
  ['2.3','Nov 10, 2026',['Two-sided cards can be flipped. In the tester, play either side from your hand (a spell/land card can be played as its land) and flip a card on the battlefield.','Card screens have a Show other side button for two-sided cards.']],
  ['2.2','Nov 10, 2026',['Deck tester: tap Test deck on any deck to shuffle up and play it solo. Opening hand with Commander mulligans, a hand you swipe through, a battlefield you tap, commander tax, library tools, graveyard and exile.','Tokens: the tester loads the tokens your deck\'s cards make, plus Treasure, Food, Clue and custom tokens.']],
  ['2.1','Nov 10, 2026',['Card type view: switch a deck between Sections and Types to see it grouped as Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles and Lands.']],
@@ -232,7 +234,7 @@ const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Interaction',10,'(otag:removal or
   {...SEC('Game Plan',20,''),flex:1,role:'plan'},{...SEC('Pay Off',8,''),flex:1,role:'payoff'},{...SEC('Finisher',3,'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")'),flex:1,role:'finisher'}];
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>d.themes=d.themes||[]);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
+function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>d.themes=d.themes||[]);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
 let saveT;
@@ -266,15 +268,16 @@ function lowerIndex(){const m=new Map();for(const n in CARDS){m.set(n.toLowerCas
 /* look up many names; returns {cards:[card|null aligned to names], missing:[names]} */
 async function byNames(names){
   let idx=lowerIndex();const need=[...new Set(names.filter(n=>!idx.has(n.toLowerCase())))];
-  for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(slim)}
+  for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name:name.split(' // ')[0]}))});(j.data||[]).forEach(slim)}
   idx=lowerIndex();const cards=names.map(n=>idx.get(n.toLowerCase())||null);
   return{cards,missing:names.filter((n,i)=>!cards[i])};
 }
 function csvRow(l){const out=[];let cur='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===','){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out.map(s=>s.trim())}
 /* accepts plain lists ("2 Sol Ring") and CSV exports from scanner apps (needs a Name column; Quantity is optional) */
 function parseList(text){const lines=text.split(/\r?\n/);const head=csvRow(lines[0]||'').map(h=>h.toLowerCase());const ni=head.findIndex(h=>h==='name'||h==='card name'||h==='card');
-  if(head.length>1&&ni>=0){const qi=head.findIndex(h=>/^(quantity|qty|count|amount)$/.test(h));const m=new Map();
-    lines.slice(1).forEach(l=>{if(!l.trim())return;const r=csvRow(l);const n=r[ni];if(!n)return;m.set(n,(m.get(n)||0)+(qi>=0?parseInt(r[qi])||1:1))});return[...m].map(([n,q])=>({n,q}))}
+  if(head.length>1&&ni>=0){const col=re=>head.findIndex(h=>re.test(h));const qi=col(/^(quantity|qty|count|amount)$/),si=col(/^(set code|set|edition code|edition)$/),ci=col(/^(collector number|collector's number|card number|number)$/),fi=col(/^(foil|finish|printing)$/);const m=new Map();
+    lines.slice(1).forEach(l=>{if(!l.trim())return;const r=csvRow(l);const n=r[ni];if(!n)return;const e=m.get(n)||{n,q:0};e.q+=qi>=0?parseInt(r[qi])||1:1;
+      if(!e.set&&si>=0&&ci>=0&&r[si]&&r[ci]){e.set=r[si].toLowerCase();e.cn=r[ci];e.foil=fi>=0&&/foil|etched|^(true|yes|1)$/i.test(r[fi])&&!/^(non-?foil|normal)$/i.test(r[fi])}m.set(n,e)});return[...m.values()]}
   const out=[];lines.forEach(l=>{l=l.trim();if(!l||/^(\/\/|#)/.test(l)||/^(deck|commander|sideboard|maybeboard|mainboard)\s*:?$/i.test(l))return;
   const m=l.match(/^(\d+)\s*x?\s+(.+)$/i);let q=1,n=l;if(m){q=+m[1];n=m[2]}
   n=n.replace(/\s+\([A-Za-z0-9]{2,6}\).*$/,'').replace(/\s+\*.*$/,'').trim();if(n)out.push({n,q})});return out}
@@ -285,6 +288,12 @@ const card=n=>CARDS[n]||{n,mc:'',cmc:0,t:'',o:'',ci:[],img:'',p:0};
 const ident=d=>[...new Set(d.cmd.flatMap(n=>card(n).ci))];
 const idf=d=>d.cmd.length?` id<=${ident(d).join('')||'c'} f:commander`:' f:commander';
 const owned=n=>S.coll[n]||0;
+/* the printing chosen for an owned card, and the price and picture that go with it */
+const prtOf=n=>(S.prt||{})[n]||null;
+const ownPrice=n=>{const x=prtOf(n);return x?(x.foil?(x.pf||x.p):(x.p||x.pf))||0:card(n).p};
+const ownImg=n=>{const x=prtOf(n);return(x&&x.img)||card(n).img};
+const prtLabel=x=>x?`${x.s.toUpperCase()} #${x.cn}${x.foil?' foil':''}`:'';
+const prtFrom=c=>{const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};return{s:c.set||'',sn:c.set_name||'',cn:c.collector_number||'',img:iu.normal||'',p:+(pr.usd||0),pf:+(pr.usd_foil||pr.usd_etched||0),yr:(c.released_at||'').slice(0,4)}};
 const isBasic=n=>/^Basic/.test(card(n).t);
 const secOf=(d,sid)=>d.sections.find(s=>s.id===sid);
 const inSec=(d,sid)=>d.cards.filter(c=>c.s===sid||(c.x||[]).includes(sid));
@@ -362,7 +371,7 @@ function catSelect(d){const{sugg,rest}=themeSuggest(d);UI.cats=[...sugg,...rest]
 
 const PMTRIED=new Set();
 async function pmRefresh(d){const need=[...d.cmd,...d.cards.map(c=>c.n)].filter(n=>CARDS[n]&&(CARDS[n].pm===undefined||(n.includes(' // ')&&CARDS[n].img2===undefined))&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
-  try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(slim)}save();
+  try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}save();
     if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender()}catch(e){}}
 function vDeck(){
   const d=deck();edhLoad(d);pmRefresh(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
@@ -427,7 +436,7 @@ const locData=()=>`<datalist id="locs">${locs().map(l=>`<option value="${esc(l)}
 const locField=(id,val)=>`<label for="${id}">Where are these stored? (optional)</label><input id="${id}" list="locs" value="${esc(val||'')}" placeholder="e.g. Red binder, Box 2" autocomplete="off">${locData()}`;
 function collShown(){const q=UI.collQ.toLowerCase();return Object.keys(S.coll).sort().filter(n=>(!q||n.toLowerCase().includes(q))&&(!UI.collColor||colorOf(n)===UI.collColor)&&(!UI.collLoc||(UI.collLoc==='-'?!S.loc[n]:S.loc[n]===UI.collLoc)))}
 function vColl(){
-  const names=Object.keys(S.coll);const tot=names.reduce((a,n)=>a+S.coll[n],0);const val=names.reduce((a,n)=>a+card(n).p*S.coll[n],0);
+  const names=Object.keys(S.coll);const tot=names.reduce((a,n)=>a+S.coll[n],0);const val=names.reduce((a,n)=>a+ownPrice(n)*S.coll[n],0);
   page('<h1>Collection</h1>','<button data-act="collPaste">Paste list</button><button class="pri" data-act="collAdd">Add cards</button>',`
    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${names.length}</b><span>Unique</span></div><div class="stat"><b class="num">${tot}</b><span>Cards</span></div><div class="stat"><b class="num">${money(val)}</b><span>Value</span></div></div>
    ${names.length?`<input id="collQ" type="search" placeholder="Find a card you own" value="${esc(UI.collQ)}" aria-label="Find a card you own">
@@ -435,7 +444,7 @@ function vColl(){
    <select id="collLocSel" aria-label="Filter by storage location"><option value="">Every location</option>${locs().map(l=>`<option ${UI.collLoc===l?'selected':''}>${esc(l)}</option>`).join('')}<option value="-" ${UI.collLoc==='-'?'selected':''}>No location set</option></select>
    <div class="list" id="collList">${collRows(collShown())}</div>`:`<div class="empty">Your collection is empty. Tap <b>Add cards</b> to search, or <b>Paste list</b> to add a scanned batch and say which binder or box it came from. Cards you own get a green dot in every deck, and each deck has a pull list that tells you where to find them.</div>`}`);
 }
-const collRows=show=>show.slice(0,300).map(n=>`<div class="item"><button class="name ghost" style="text-align:left;color:inherit;padding:0" data-act="collCard" data-n="${esc(n)}">${esc(n)}<br><span class="muted small">${esc(S.loc[n]||'No location')} · ${colorOf(n)}</span></button><button class="sm" data-act="collDec" data-n="${esc(n)}" aria-label="Remove one ${esc(n)}">−</button><b class="num" style="min-width:22px;text-align:center">${S.coll[n]}</b><button class="sm" data-act="collInc" data-n="${esc(n)}" aria-label="Add one ${esc(n)}">+</button></div>`).join('')+(show.length>300?`<div class="item muted small">Showing 300 of ${show.length}. Filter to narrow down.</div>`:'')||'<div class="item muted">No matches.</div>';
+const collRows=show=>show.slice(0,300).map(n=>`<div class="item"><button class="name ghost" style="text-align:left;color:inherit;padding:0" data-act="collCard" data-n="${esc(n)}">${esc(n)}<br><span class="muted small">${esc(S.loc[n]||'No location')} · ${colorOf(n)}${prtOf(n)?' · '+esc(prtLabel(prtOf(n))):''}</span></button><button class="sm" data-act="collDec" data-n="${esc(n)}" aria-label="Remove one ${esc(n)}">−</button><b class="num" style="min-width:22px;text-align:center">${S.coll[n]}</b><button class="sm" data-act="collInc" data-n="${esc(n)}" aria-label="Add one ${esc(n)}">+</button></div>`).join('')+(show.length>300?`<div class="item muted small">Showing 300 of ${show.length}. Filter to narrow down.</div>`:'')||'<div class="item muted">No matches.</div>';
 
 function vSetup(){
   page('<h1>Setup</h1>',`<span class="muted small num">Version ${VERSION}</span>`,`
@@ -612,7 +621,10 @@ async function copy(text){try{await navigator.clipboard.writeText(text);toast('C
 async function importList(text,to,loc){const items=parseList(text);if(!items.length){toast('Nothing to import');return}
   toast('Looking up '+items.length+' cards…');let r;try{r=await byNames(items.map(i=>i.n))}catch(e){toast(e.message);return}
   let ok=0;items.forEach((it,i)=>{const c=r.cards[i];if(!c)return;ok++;
-    if(to==='coll'){S.coll[c.n]=owned(c.n)+it.q;if(loc)S.loc[c.n]=loc}else{const d=deck();if(d.cmd.includes(c.n))return;const e=d.cards.find(k=>k.n===c.n);if(e){if(isBasic(c.n))e.q+=it.q}else d.cards.push({n:c.n,s:'u',q:isBasic(c.n)?it.q:1})}});
+    if(to==='coll'){S.coll[c.n]=owned(c.n)+it.q;if(loc)S.loc[c.n]=loc;if(it.set)it.name=c.n}else{const d=deck();if(d.cmd.includes(c.n))return;const e=d.cards.find(k=>k.n===c.n);if(e){if(isBasic(c.n))e.q+=it.q}else d.cards.push({n:c.n,s:'u',q:isBasic(c.n)?it.q:1})}});
+  const pr=to==='coll'?items.filter(i=>i.name&&i.set&&i.cn):[];
+  try{for(let i=0;i<pr.length;i+=75){const part=pr.slice(i,i+75);const j=await sf('/cards/collection',{identifiers:part.map(x=>({set:x.set,collector_number:String(x.cn)}))});
+    (j.data||[]).forEach(c=>{const it=part.find(x=>x.set===c.set&&String(x.cn)===String(c.collector_number));if(it)S.prt[it.name]={...prtFrom(c),foil:!!it.foil}})}}catch(e){}
   save();closeSheet();rerender();
   if(r.missing.length)sheet('Some cards were not found',`<p style="margin:0">Added ${ok}. Scryfall did not recognise these names:</p><div class="otext">${esc(r.missing.join('\n'))}</div>`,to==='deck'&&ok?'<button class="pri" data-act="autoSort">Sort the rest into sections</button>':'');
   else if(to==='deck'&&ok)autoSort(deck());else toast('Added '+ok+' cards');}
@@ -777,7 +789,7 @@ const A={
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
   rmCmd(e){const d=deck();d.cmd=d.cmd.filter(n=>n!==e.dataset.n);save();closeSheet();rerender()},
   ownInc(e){S.coll[e.dataset.n]=owned(e.dataset.n)+1;save();$('#ownN').textContent=owned(e.dataset.n)},
-  ownDec(e){const n=e.dataset.n;if(owned(n)>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n]}save();$('#ownN').textContent=owned(n)},
+  ownDec(e){const n=e.dataset.n;if(owned(n)>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n];delete S.prt[n]}save();$('#ownN').textContent=owned(n)},
   qInc(e){deck().cards.find(c=>c.n===e.dataset.n).q++;save();cardSheet(e.dataset.n)},
   qDec(e){const c=deck().cards.find(c=>c.n===e.dataset.n);if(c.q>1){c.q--;save();cardSheet(e.dataset.n)}},
   deckMenu(){const d=deck();sheet(d.name,`<div class="list">
@@ -824,11 +836,23 @@ const A={
   collPaste(){sheet('Paste a list',`<p class="muted small" style="margin:0">One card per line, like <b>2 Lightning Greaves</b>. You can also paste a CSV export from a card scanner app, as long as it has a Name column.</p>${locField('impLoc',UI.lastLoc)}<label for="imp">Card list</label><textarea id="imp"></textarea>`,`<button class="pri" data-act="collPasteGo">Add to collection</button>`)},
   collPasteGo(){const l=$('#impLoc').value.trim();UI.lastLoc=l;importList($('#imp').value,'coll',l)},
   collInc(e){S.coll[e.dataset.n]++;save();rerender()},
-  collDec(e){const n=e.dataset.n;if(S.coll[n]>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n]}save();rerender()},
+  collDec(e){const n=e.dataset.n;if(S.coll[n]>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n];delete S.prt[n]}save();rerender()},
   collColor(e){UI.collColor=e.dataset.c;rerender()},
-  collCard(e){const n=e.dataset.n;const c=card(n);sheet(n,`${c.img?`<img class="cardimg" alt="${esc(n)}" src="${esc(c.img)}">`:''}<div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}</div><div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
+  collCard(e){const n=e.dataset.n;const c=card(n);const x=prtOf(n);const im=ownImg(n);
+    sheet(n,`${im?`<img class="cardimg" alt="${esc(n)}" src="${esc(im)}">`:''}<div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${ownPrice(n)?`<span class="muted num">${money(ownPrice(n))}</span>`:''}</div>
+    <label>Printing</label><div class="row wrapf"><span class="grow">${x?esc(x.sn||x.s.toUpperCase())+' <span class="muted small">'+esc(prtLabel(x))+'</span>':'<span class="muted">Not chosen. Using a typical price and picture.</span>'}</span><button data-act="prtOpen" data-n="${esc(n)}">${x?'Change':'Choose printing'}</button></div>
+    ${x?`<div class="chips"><button class="chip ${x.foil?'':'on'}" data-act="prtFoil" data-n="${esc(n)}" data-f="">Regular</button><button class="chip ${x.foil?'on':''}" data-act="prtFoil" data-n="${esc(n)}" data-f="1">Foil</button></div>`:''}
     <label for="cLoc">Stored in</label><input id="cLoc" list="locs" value="${esc(S.loc[n]||'')}" placeholder="e.g. Red binder, Box 2" autocomplete="off">${locData()}`,`<button class="pri" data-act="collCardSave" data-n="${esc(n)}">Save</button>`)},
   collCardSave(e){const l=$('#cLoc').value.trim();if(l)S.loc[e.dataset.n]=l;else delete S.loc[e.dataset.n];save();closeSheet();rerender()},
+  async prtOpen(e){const n=e.dataset.n;const l=$('#cLoc');if(l){const v=l.value.trim();if(v)S.loc[n]=v;else delete S.loc[n];save()}
+    sheet('Printings of '+n,'<div class="empty">Loading printings from Scryfall…</div>');let list=[];
+    try{const j=await sf('/cards/search?unique=prints&order=released&q='+encodeURIComponent('!"'+n.split(' // ')[0]+'" game:paper'));list=(j.data||[]).map(prtFrom)}catch(err){sheet('Printings of '+n,`<div class="empty">${esc(err.message)}</div>`);return}
+    UI.prints=list;UI.printsFor=n;const cur=prtOf(n);
+    sheet('Printings of '+n,`<p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Prices are regular, then foil.</p>
+     <div class="list"><button class="item" data-act="prtPick" data-i="-1"><span class="name">Any printing</span><span class="muted small">typical price</span></button>
+     ${list.map((x,i)=>`<button class="item" data-act="prtPick" data-i="${i}"><span class="name" style="white-space:normal"><b>${esc(x.sn)}</b>${cur&&cur.s===x.s&&cur.cn===x.cn?' <span class="pill ok">Yours</span>':''}<br><span class="muted small">${esc(x.s.toUpperCase())} #${esc(x.cn)}${x.yr?' · '+x.yr:''}</span></span><span class="muted small num" style="text-align:right">${x.p?money(x.p):'–'}<br>${x.pf?money(x.pf):'–'}</span></button>`).join('')}</div>`)},
+  prtPick(e){const n=UI.printsFor;const i=+e.dataset.i;if(i<0)delete S.prt[n];else S.prt[n]={...UI.prints[i],foil:!!(prtOf(n)&&prtOf(n).foil)&&!!UI.prints[i].pf};save();A.collCard({dataset:{n}})},
+  prtFoil(e){const x=prtOf(e.dataset.n);if(x){x.foil=!!e.dataset.f;save();A.collCard(e)}},
   pull(){const d=deck();d.pulled=d.pulled||{};const all=[...d.cmd.map(n=>({n,q:1})),...main(d)];const have=all.filter(c=>owned(c.n));const need=all.filter(c=>!owned(c.n));
     const g={};have.forEach(c=>{const k=S.loc[c.n]||colorOf(c.n)+' cards (no location set)';(g[k]=g[k]||[]).push(c)});
     const ord=c=>COLORS.indexOf(colorOf(c.n));
@@ -922,7 +946,7 @@ function tFind(id){for(const z of['lib','hand','bf','gy','ex','cmd']){const i=T[
 /* moves a card between zones; tokens stop existing when they leave the battlefield */
 function tMove(id,to,bottom){const f=tFind(id);if(!f)return;T[f.z].splice(f.i,1);const c=f.c;if(f.z==='bf'){c.tapped=false;c.ctr=0}if(to!=='bf')c.flip=false;if(c.token&&to!=='bf')return;
   if(to==='lib'){if(bottom)T.lib.push(c);else T.lib.unshift(c)}else T[to].push(c)}
-const backOf=n=>{const k=card(n);return k.img2?{n:n.split(' // ')[1]||n,t:k.t.split(' // ')[1]||k.t,img:k.img2,mc:'',o:k.o,flipped:true}:null};
+const backOf=n=>{const k=card(n);const bt=k.t.split(' // ')[1]||'';return k.img2||(/Land/.test(bt)&&n.includes(' // '))?{n:n.split(' // ')[1]||n,t:k.t.split(' // ')[1]||k.t,img:k.img2,mc:'',o:k.o,flipped:true}:null};
 const tCard=c=>c.token?c.tk:(c.flip&&backOf(c.n))||card(c.n);
 const tType=c=>{const t=frontOf(tCard(c).t||'');return /Land/.test(t)?'land':/Creature/.test(t)?'creature':'other'};
 function tTile(c,tag,attrs){const k=tCard(c);const im=k.img?img(k,'small'):'';
@@ -962,7 +986,7 @@ function tLibSheet(){const top=T.lib.slice(0,T.look);const all=[...T.lib].sort((
    <div class="list" id="tSL">${all.map(c=>`<button class="item" data-act="tPileCard" data-id="${c.id}" data-z="lib" data-f="${esc((c.n+' '+card(c.n).t).toLowerCase())}"><span class="name">${esc(c.n)}</span><span class="muted small">${esc(frontOf(card(c.n).t))}</span></button>`).join('')}</div>`)}
 async function loadTokens(d){const key=d.id;if(TOK[key])return;TOK[key]='loading';
   try{const names=[...new Set([...d.cmd,...main(d).map(c=>c.n)])];const ids=new Set();
-    for(let i=0;i<names.length;i+=75){const j=await sf('/cards/collection',{identifiers:names.slice(i,i+75).map(name=>({name}))});(j.data||[]).forEach(c=>(c.all_parts||[]).forEach(x=>{if(x.component==='token')ids.add(x.id)}))}
+    for(let i=0;i<names.length;i+=75){const j=await sf('/cards/collection',{identifiers:names.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(c=>(c.all_parts||[]).forEach(x=>{if(x.component==='token')ids.add(x.id)}))}
     const list=[...ids],out=[],seen=new Set();
     for(let i=0;i<list.length;i+=75){const j=await sf('/cards/collection',{identifiers:list.slice(i,i+75).map(id=>({id}))});(j.data||[]).forEach(c=>{const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};
       const pt=c.power!=null?c.power+'/'+c.toughness:'';const k=c.name+'|'+c.type_line+'|'+pt;if(seen.has(k))return;seen.add(k);out.push({n:c.name,t:c.type_line||'Token',pt,img:iu.normal||''})})}
