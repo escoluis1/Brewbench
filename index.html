@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.9';
+const VERSION='2.10';
 const NEWS=[
+ ['2.10','Nov 12, 2026',['Adding a section in Edit sections now offers your deck\'s themes, EDHREC\'s tags for your commander and the full theme list, and fills in a matching search.','Sections named after a creature type, like Dragons, now find cards of that type.','Any section that is not Ramp, Interaction, Card Advantage or Lands can take suggestions from your themes in Fill.']],
  ['2.9','Nov 12, 2026',['Sections named Game Plan, Pay Off or Finisher work the same in every deck, including older ones: they take suggestions from the deck\'s themes and use loose targets.','Edit sections has quick buttons to add Game Plan, Pay Off and Finisher. Adding one to a deck with no themes opens the themes screen.']],
  ['2.8','Nov 11, 2026',['Proxies can print in black and white to save ink. The art box now reads PLAYTEST CARD.']],
  ['2.7','Nov 11, 2026',['Playtest proxies now print in a card-style layout: a frame colored by the card\'s colors, cost in colored circles, a blank art box, type bar, text box and power/toughness badge. The plain text style is still available.']],
@@ -403,6 +404,7 @@ async function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!=
 function autoQueries(name){const low=name.trim().toLowerCase();const slug=low.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');if(!slug)return[];const out=[];
   const lib=THEMES.find(t=>t[2]&&(t[0].toLowerCase()===low||(low.length>3&&(t[0].toLowerCase().includes(low)||low.includes(t[0].toLowerCase())))));
   if(lib)out.push({raw:lib[2],why:'the '+lib[0]+' theme search'});
+  if(/^[a-z]+$/.test(low)){const one=low.replace(/(ves)$/,'f').replace(/(ies)$/,'y').replace(/(ches|shes|xes)$/,m=>m.slice(0,-2)).replace(/([^s])s$/,'$1');out.push({raw:'t:'+one,why:'cards with the type "'+one+'"'})}
   out.push({raw:'otag:gives-'+slug,why:'the Scryfall tag "gives-'+slug+'"'},{raw:'otag:'+slug,why:'the Scryfall tag "'+slug+'"'},{raw:'o:"'+low.replace(/"/g,'')+'"',why:'card text containing "'+low+'"'});return out}
 function themeSuggest(d){const seen=new Set();const sugg=[];const push=(name,target,q,src)=>{const k=name.toLowerCase();if(seen.has(k))return;seen.add(k);sugg.push({name,target,q,src})};
   const cs=d.cmd.map(card);const text=cs.map(c=>c.o+' '+c.t).join(' ');const subs=[...new Set(cs.flatMap(c=>(c.t.split(' // ')[0].split('—')[1]||'').trim().split(/\s+/).filter(Boolean)))];const used=new Set();
@@ -589,9 +591,9 @@ function openSearch(ctx,title,extra=''){const d=deck();
 }
 function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
-   ${s.flex&&!d.themes.length?'<button data-act="themes">Pick themes for this deck to get suggestions here</button>':''}
+   ${(s.flex||!/ramp|interaction|removal|wipe|draw|advantage|land/i.test(s.name))&&!d.themes.length?'<button data-act="themes">Pick themes for this deck to get suggestions here</button>':''}
    ${(e=>!d.cmd.length?'':!e?'<p class="muted small" style="margin:0">Loading EDHREC recommendations…</p>':e.lists.length?'':'<p class="muted small" style="margin:0">EDHREC recommendations could not be loaded in this browser.</p>')(EDH[d.cmd.join('|')])}
-   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.flex?d.themes.map((t,i)=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="th:${i}"><span class="name"><b>Theme: ${esc(t.name)}</b><br><span class="muted small">Scryfall · ${t.q?esc(t.q):'finds a search from the theme name'}</span></span><span class="muted">›</span></button>`).join(''):''}${!s.flex||s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>`:''}
+   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.flex||!/ramp|interaction|removal|wipe|draw|advantage|land/i.test(s.name)?d.themes.map((t,i)=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="th:${i}"><span class="name"><b>Theme: ${esc(t.name)}</b><br><span class="muted small">Scryfall · ${t.q?esc(t.q):'finds a search from the theme name'}</span></span><span class="muted">›</span></button>`).join(''):''}${!s.flex||s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>`:''}
    ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>
    <button data-act="pasteOpen" data-sid="${sid}">Paste a list of cards</button>
    ${d.cmd.length?`<a class="btn" href="https://edhrec.com/commanders/${edhSlug(d.cmd)}" target="_blank" rel="noopener">Open ${esc(d.cmd.join(' + '))} on EDHREC ↗</a>`:''}`);
@@ -643,13 +645,19 @@ function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n
 
 /* section editor: used for archetypes and for one deck's sections */
 let ED=null;
-function secEditor(title,name,sections,onSave,onDelete){ED={rows:sections.map(s=>({...s})),onSave,onDelete,hasName:name!==null,name,title};drawEd()}
+function secEditor(title,name,sections,onSave,onDelete,did){ED={rows:sections.map(s=>({...s})),onSave,onDelete,hasName:name!==null,name,title,did};drawEd()}
+/* choices for a new section: the deck's themes, then commander suggestions, then every theme */
+function edChoices(){const d=ED.did&&S.decks.find(x=>x.id===ED.did);const have=new Set(ED.rows.map(r=>r.name.toLowerCase()));const out=[];const seen=new Set();
+  const add=(g,name,target,q)=>{const k=name.toLowerCase();if(have.has(k)||seen.has(k))return;seen.add(k);out.push({g,name,target,q})};
+  if(d){d.themes.forEach(t=>add('Your themes',t.name,6,t.q));const{sugg,rest}=themeSuggest(d);sugg.forEach(c=>add(c.src==='EDHREC'?'EDHREC tags for '+d.cmd.join(' + '):'From the commander\'s card',c.name,c.target,c.q));rest.forEach(c=>add('All themes',c.name,c.target,c.q))}
+  else THEMES.forEach(t=>add('All themes',t[0],t[1],t[2]));return out}
 function readEd(){if(!ED)return;if(ED.hasName)ED.name=$('#edName').value;document.querySelectorAll('.secbox').forEach((b,i)=>{const r=ED.rows[i];r.name=$('.n',b).value;r.target=Math.max(0,parseInt($('.t',b).value)||0);r.q=$('.q',b).value.trim()})}
 function drawEd(){const sum=ED.rows.reduce((a,r)=>a+(+r.target||0),0);
   sheet(ED.title,`${ED.hasName?`<label for="edName">Name</label><input id="edName" value="${esc(ED.name)}">`:''}
    <p class="muted small" style="margin:0">Each section has a name, a target count, and an optional Scryfall search used for suggestions. Targets add up to <b class="num">${sum}</b>; a deck has 99 cards plus one commander, or 98 plus two.</p>
    ${ED.rows.map((r,i)=>`<div class="secbox"><div class="secrow"><input class="n" value="${esc(r.name)}" aria-label="Section name"><input class="t" type="number" inputmode="numeric" min="0" value="${r.target}" aria-label="Target count"><button class="sm danger" data-act="edDel" data-i="${i}" aria-label="Delete section">✕</button><input class="q" value="${esc(r.q)}" placeholder="Scryfall search for suggestions (optional)" aria-label="Scryfall search"></div></div>`).join('')}
-   <div class="row wrapf"><button data-act="edAdd">Add a section</button>${[['Game Plan',20],['Pay Off',8],['Finisher',3]].filter(([n])=>!ED.rows.some(r=>roleOf(r.name)===roleOf(n))).map(([n,t])=>`<button data-act="edAddRole" data-n="${n}" data-t="${t}">+ ${n}</button>`).join('')}</div>
+   ${(ch=>{UI.edCh=ch;const gs=[...new Set(ch.map(c=>c.g))];return`<select id="edPick" aria-label="Add a section"><option value="">Add a section…</option>${gs.map(g=>`<optgroup label="${esc(g)}">${ch.map((c,i)=>c.g===g?`<option value="${i}">${esc(c.name)}</option>`:'').join('')}</optgroup>`).join('')}<option value="blank">Blank section (name it yourself)</option></select>`})(edChoices())}
+   <div class="row wrapf">${[['Game Plan',20],['Pay Off',8],['Finisher',3]].filter(([n])=>!ED.rows.some(r=>roleOf(r.name)===roleOf(n))).map(([n,t])=>`<button data-act="edAddRole" data-n="${n}" data-t="${t}">+ ${n}</button>`).join('')}</div>
    <p class="muted small" style="margin:0">Game Plan, Pay Off and Finisher take their suggestions from the deck's themes.</p>`,
    `<div class="row"><button class="pri grow" data-act="edSave">Save</button>${ED.onDelete?'<button class="danger" data-act="edRemove">Delete</button>':''}</div>`);}
 
@@ -854,7 +862,7 @@ const A={
   rename(){sheet('Rename deck',`<label for="rn">Deck name</label><input id="rn" value="${esc(deck().name)}">`,`<button class="pri" data-act="renameSave">Save</button>`)},
   renameSave(){deck().name=$('#rn').value.trim()||'Untitled deck';save();closeSheet();rerender()},
   editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const had=d.sections.filter(x=>x.role).length;const ids=rows.map(r=>r.id);d.cards.forEach(c=>{c.x=(c.x||[]).filter(i=>ids.includes(i));if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s=c.x.shift()||'u'});d.sections=rows;
-    if(!d.themes.length&&rows.filter(r=>r.role).length>had)return'themes'})},
+    if(!d.themes.length&&rows.filter(r=>r.role).length>had)return'themes'},null,d.id)},
   changeArch(){sheet('Switch archetype',`<p class="muted small" style="margin:0">Cards stay in sections that keep the same name. Everything else moves to Unsorted.</p><div class="list">${S.archetypes.map(a=>`<button class="item" data-act="applyArch" data-id="${a.id}">${esc(a.name)}</button>`).join('')}</div>`)},
   applyArch(e){const d=deck();const a=S.archetypes.find(a=>a.id===e.dataset.id);const old=Object.fromEntries(d.sections.map(s=>[s.id,s.name]));const ns=withLands(a.sections.map(s=>({...s,id:uid()})));
     d.cards.forEach(c=>{c.x=(c.x||[]).map(i=>(ns.find(s=>s.name===old[i])||{}).id).filter(Boolean);if(c.s==='u'||c.s==='m')return;const m=ns.find(s=>s.name===old[c.s]);c.s=m?m.id:'u'});d.sections=ns;d.arch=a.name;save();closeSheet();rerender()},
@@ -913,7 +921,6 @@ const A={
   /* archetypes */
   newArch(){const a={id:uid(),name:'New archetype',sections:[SEC('Theme',30),...core(),LANDS()]};secEditor('New archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||'New archetype';S.archetypes.push(a)})},
   editArch(e){const a=S.archetypes.find(a=>a.id===e.dataset.id);secEditor('Edit archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||a.name},()=>{S.archetypes=S.archetypes.filter(x=>x!==a)})},
-  edAdd(){readEd();ED.rows.push(SEC('New section',5));drawEd()},
   edAddRole(e){readEd();ED.rows.push(applyRole(SEC(e.dataset.n,+e.dataset.t,e.dataset.n==='Finisher'?'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")':'')));drawEd()},
   edDel(e){readEd();ED.rows.splice(+e.dataset.i,1);drawEd()},
   edSave(){readEd();ED.rows.forEach(applyRole);const r=ED.onSave(ED.rows,ED.name);ED=null;save();closeSheet();rerender();if(r==='themes')themeSheet()},
@@ -1132,6 +1139,7 @@ document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='toPkg'&&t.value){const p=S.packages.find(p=>p.id===t.value);if(!p.cards.includes(t.dataset.n))p.cards.push(t.dataset.n);save();toast('Added to '+p.name)}
   if(t.id==='addCat'&&t.value){const d=deck();if(t.value==='custom'){d.sections.unshift(SEC('New section',5));save();A.editSecs()}else{const c=UI.cats[+t.value];d.sections.unshift(SEC(c.name,c.target,c.q));save();rerender();toast('Added '+c.name+'. Change its target in Edit sections.')}}
   if(t.dataset&&t.dataset.popt){UI.pOpt[t.dataset.popt]=t.checked;printOpts()}
+  if(t.id==='edPick'&&t.value){readEd();const c=t.value==='blank'?{name:'New section',target:5,q:''}:UI.edCh[+t.value];ED.rows.push(applyRole(SEC(c.name,c.target,c.q||'')));drawEd();const b=$('#sheet .body');if(b)b.scrollTop=b.scrollHeight;if(t.value==='blank'){const ns=document.querySelectorAll('.secbox input.n');const l=ns[ns.length-1];if(l){l.focus();l.select()}}}
   if(t.id==='collLocSel'){UI.collLoc=t.value;rerender()}
   if(t.dataset.pull!==undefined){const d=deck();d.pulled=d.pulled||{};if(t.checked)d.pulled[t.dataset.pull]=1;else delete d.pulled[t.dataset.pull];save();$('#pullN').textContent=Object.keys(d.pulled).filter(n=>owned(n)).length}
   if(t.id==='pType'){$('#pS').hidden=t.value!=='scryfall';$('#pC').hidden=t.value!=='custom'}});
