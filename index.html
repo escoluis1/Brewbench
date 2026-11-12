@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.10';
+const VERSION='2.11';
 const NEWS=[
+ ['2.11','Nov 12, 2026',['Add cards from the Types view: each type has Search and Fill. Fill offers EDHREC\'s list for that type, EDHREC\'s top and high-synergy cards of that type, the most played cards of that type in your colors, and your themes.','Cards added from Types are filed into your sections automatically. Anything that matches no section waits in Unsorted.']],
  ['2.10','Nov 12, 2026',['Adding a section in Edit sections now offers your deck\'s themes, EDHREC\'s tags for your commander and the full theme list, and fills in a matching search.','Sections named after a creature type, like Dragons, now find cards of that type.','Any section that is not Ramp, Interaction, Card Advantage or Lands can take suggestions from your themes in Fill.']],
  ['2.9','Nov 12, 2026',['Sections named Game Plan, Pay Off or Finisher work the same in every deck, including older ones: they take suggestions from the deck\'s themes and use loose targets.','Edit sections has quick buttons to add Game Plan, Pay Off and Finisher. Adding one to a deck with no themes opens the themes screen.']],
  ['2.8','Nov 11, 2026',['Proxies can print in black and white to save ink. The art box now reads PLAYTEST CARD.']],
@@ -399,7 +400,7 @@ async function edhLoad(d){const key=d.cmd.join('|');if(!d.cmd.length||EDH[key]!=
   if(j){const tl=j.panels&&j.panels.taglinks;if(Array.isArray(tl))out.tags=tl.filter(t=>t&&t.value).slice(0,12).map(t=>({v:String(t.value),slug:String(t.slug||t.value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}));
     const cl=j.container&&j.container.json_dict&&j.container.json_dict.cardlists;
     if(Array.isArray(cl))out.lists=cl.map(l=>({header:String(l.header||l.tag||'Cards'),cards:(l.cardviews||[]).filter(c=>c&&c.name).map(c=>({name:String(c.name),syn:typeof c.synergy==='number'?c.synergy:null,pct:c.potential_decks?(c.num_decks||c.inclusion||0)/c.potential_decks:null}))})).filter(l=>l.cards.length)}
-  EDH[key]=out;const cur=deck();if(location.hash==='#deck'&&cur&&cur.cmd.join('|')===key){if(UI.themeOpen)themeSheet();else if($('#sheet').hidden)rerender()}}
+  EDH[key]=out;const cur=deck();if(location.hash==='#deck'&&cur&&cur.cmd.join('|')===key){if(UI.themeOpen)themeSheet();else if(UI.tyOpen&&!$('#sheet').hidden&&!R)tyFillSheet(UI.tyOpen);else if($('#sheet').hidden)rerender()}}
 /* searches to try for a section the user named, best guess first */
 function autoQueries(name){const low=name.trim().toLowerCase();const slug=low.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');if(!slug)return[];const out=[];
   const lib=THEMES.find(t=>t[2]&&(t[0].toLowerCase()===low||(low.length>3&&(t[0].toLowerCase().includes(low)||low.includes(t[0].toLowerCase())))));
@@ -450,13 +451,13 @@ function vDeck(){
 const TYPES=['Creature','Planeswalker','Battle','Instant','Sorcery','Artifact','Enchantment','Land'];
 /* one type per card, the way deck lists usually group them: a land is a land, a creature is a creature, then the rest */
 const typeOf=n=>{const t=frontOf(card(n).t);return /Land/.test(t)?'Land':/Creature/.test(t)?'Creature':TYPES.find(x=>t.includes(x))||'Other'};
-function typeHtml(d){const m=main(d);const secName=c=>c.s==='u'?'Unsorted':(secOf(d,c.s)||{}).name||'';
+function typeHtml(d){const m=main(d);if(!m.length)return`<div class="empty">No cards yet. Pick a type below to add some.</div><div class="row wrapf">${TYPES.map(t=>`<button class="sm" data-act="tyFill" data-t="${t}">+ ${t==='Sorcery'?'Sorceries':t+'s'}</button>`).join('')}</div>`;const secName=c=>c.s==='u'?'Unsorted':(secOf(d,c.s)||{}).name||'';
   return[...TYPES,'Other'].map(t=>{const cs=m.filter(c=>typeOf(c.n)===t).sort((a,b)=>a.n.localeCompare(b.n));if(!cs.length)return'';const closed=UI.closed[d.id+'t'+t];
     const rows=UI.view==='grid'
      ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
      :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}<br><span class="muted small">${esc(secName(c))}</span></span>${costOrMana(card(c.n))}</button>`).join('');
-    return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="t${t}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${t==='Sorcery'?'Sorceries':t==='Other'?'Other':t+'s'}</button><span class="pill num plain">${cnt(cs)}</span></header>${closed?'':rows}</section>`}).join('')
-    ||'<div class="empty">No cards yet. Switch back to Sections to start adding.</div>'}
+    return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="t${t}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${t==='Sorcery'?'Sorceries':t==='Other'?'Other':t+'s'}</button><span class="pill num plain">${cnt(cs)}</span>${t==='Other'?'':`<button class="sm" data-act="tySearch" data-t="${t}">Search</button><button class="sm pri" data-act="tyFill" data-t="${t}">Fill</button>`}</header>${closed?'':rows}</section>`}).join('')+`
+    <div class="row wrapf">${[...TYPES].filter(t=>!m.some(c=>typeOf(c.n)===t)).map(t=>`<button class="sm" data-act="tyFill" data-t="${t}">+ ${t==='Sorcery'?'Sorceries':t+'s'}</button>`).join('')}</div>`}
 function secHtml(d,s){
   const cs=inSec(d,s.id).sort((a,b)=>a.n.localeCompare(b.n));const n=cnt(cs);const special=s.id==='u'||s.id==='m';
   if(s.id==='u'&&!n)return'';
@@ -535,6 +536,16 @@ async function autoSort(d){const todo=d.cards.filter(c=>c.s==='u');if(!todo.leng
     ${shared?`<p class="muted small" style="margin:0">${shared} time${shared===1?'':'s'} a card also fit another section and was marked shared there.</p>`:''}
     ${left?`<p class="muted small" style="margin:0">${left} card${left===1?'':'s'} did not match any section's search and stayed in Unsorted. Tap a card to file it by hand.</p>`:''}
     <p class="muted small" style="margin:0">Each card went to the first section it matched, top to bottom. Tap any card to move it.</p>`)}
+/* Cards added from the Types view land in Unsorted; this files each into the first section it matches and shares it into the rest. */
+const PLACEQ=new Set();let placeT=null;
+function queuePlace(d,n){PLACEQ.add(d.id+'|'+n);clearTimeout(placeT);placeT=setTimeout(runPlace,1200)}
+async function runPlace(){const items=[...PLACEQ];PLACEQ.clear();const by={};items.forEach(k=>{const i=k.indexOf('|');(by[k.slice(0,i)]=by[k.slice(0,i)]||[]).push(k.slice(i+1))});
+  for(const id in by){const d=S.decks.find(x=>x.id===id);if(!d)continue;const cards=d.cards.filter(c=>by[id].includes(c.n)&&c.s==='u');if(!cards.length)continue;
+    const landSec=d.sections.find(s=>/land/i.test(s.name));let filed=0;if(landSec)cards.forEach(c=>{if(anyLand(c.n)){c.s=landSec.id;filed++}});
+    let res=[];try{res=await matchSections(d,cards)}catch(e){}
+    res.forEach(({s,names})=>cards.forEach(c=>{if(!names.has(c.n)||!d.cards.includes(c))return;if(c.s==='u'){c.s=s.id;filed++}else shareInto(c,s.id)}));
+    save();if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender();const left=cards.filter(c=>c.s==='u').length;
+    toast(filed?'Filed '+filed+' card'+(filed===1?'':'s')+' into sections'+(left?', '+left+' in Unsorted':''):left+' card'+(left===1?'':'s')+' in Unsorted')}}
 /* After cards are added to a section, quietly check the other sections and share each card into any it also fits. */
 const SHAREQ=new Set();let shareT=null;
 function queueShare(d,n){if(S.autoShare===false)return;SHAREQ.add(d.id+'|'+n);clearTimeout(shareT);shareT=setTimeout(runShare,1300)}
@@ -547,7 +558,7 @@ async function runShare(){const items=[...SHAREQ];SHAREQ.clear();const byDeck={}
     if(n){save();if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender();toast(who.size===1?[...who][0]+' also counts toward another section':who.size+' cards also count toward other sections')}}}
 
 /* ================= sheets ================= */
-function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;UI.tokOpen=false;el.hidden=false;
+function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;UI.tokOpen=false;UI.tyOpen=sheet.nextTy||'';sheet.nextTy='';el.hidden=false;
   el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet ${was?'still':''}" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;if(keep&&$('.body',el))$('.body',el).scrollTop=keep}
 function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null;UI.themeOpen=false;sheet.last=''}
 function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p><span style="color:#fff" class="small">Tap anywhere to close</span></div>`}
@@ -567,7 +578,8 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
   const cs=shown();const d=deck();let head=R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'';
   if(R.added&&R.added.length)head+=`<p class="small" style="margin:0 0 8px"><b>Added ${R.added.length}:</b> <span class="muted">${esc(R.added.join(', '))}</span></p>`;
-  if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
+  if(R.ctx.k==='deck'&&R.fill&&R.ctx.ty){head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button></div><p class="muted small" style="margin:0">Cards you add are filed into your sections automatically.</p>`}
+  else if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
     head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
   box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}${makesInline(c)}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
@@ -587,7 +599,7 @@ function openSearch(ctx,title,extra=''){const d=deck();
   sheet(title,`${extra}<input id="q" type="search" placeholder="Card name or Scryfall search" autocomplete="off" aria-label="Search cards">${ctx.k==='deck'?`<button class="sm" data-act="pasteOpen" data-sid="${ctx.sid}">Paste several cards instead</button>`:''}<div id="res"></div>`);
   drawRes();const inp=$('#q');inp.focus();let t;
   inp.addEventListener('input',()=>{clearTimeout(t);const v=inp.value.trim();if(v.length<2)return;t=setTimeout(()=>{
-    runQuery(v+(ctx.k==='deck'?idf(d):(ctx.k==='cmd'||ctx.k==='opp')?' is:commander':ctx.k==='pkg'?' f:commander':''))},350)});
+    runQuery(v+(ctx.ty?' t:'+ctx.ty.toLowerCase():'')+(ctx.k==='deck'?idf(d):(ctx.k==='cmd'||ctx.k==='opp')?' is:commander':ctx.k==='pkg'?' f:commander':''))},350)});
 }
 function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
@@ -598,6 +610,28 @@ function openFill(sid){const d=deck();const s=secOf(d,sid);
    <button data-act="pasteOpen" data-sid="${sid}">Paste a list of cards</button>
    ${d.cmd.length?`<a class="btn" href="https://edhrec.com/commanders/${edhSlug(d.cmd)}" target="_blank" rel="noopener">Open ${esc(d.cmd.join(' + '))} on EDHREC ↗</a>`:''}`);
 }
+const TYLIST={Creature:/creature/i,Instant:/instant/i,Sorcery:/sorcer/i,Artifact:/artifact/i,Enchantment:/enchantment/i,Planeswalker:/planeswalker/i,Battle:/battle/i,Land:/land/i};
+function tyFillSheet(t){sheet.nextTy=t;R=null;const d=deck();const e=EDH[d.cmd.join('|')];const ls=(e&&e.lists)||[];const pl=t==='Sorcery'?'Sorceries':t+'s';
+  const own=ls.map((l,i)=>({l,i})).filter(x=>TYLIST[t].test(x.l.header));const gen=ls.length?1:0;
+  const it=(src,title,sub)=>`<button class="item" data-act="tySrc" data-t="${t}" data-src="${src}"><span class="name"><b>${title}</b><br><span class="muted small">${sub}</span></span><span class="muted">›</span></button>`;
+  sheet('Add '+pl.toLowerCase(),`<p class="muted small" style="margin:0">Limited to this deck's colors. Cards you add are filed into your sections.</p>
+   ${d.cmd.length&&!e?'<p class="muted small" style="margin:0">Loading EDHREC recommendations…</p>':''}
+   <div class="list">${own.map(x=>it('edh:'+x.i,'EDHREC: '+esc(x.l.header),x.l.cards.length+' cards for '+esc(d.cmd.join(' + ')))).join('')}
+   ${gen?it('edhtop',`EDHREC top and high-synergy ${pl.toLowerCase()}`,'From the commander\'s top lists, '+pl.toLowerCase()+' only'):''}
+   ${it('top','Most played '+pl.toLowerCase()+' in your colors','Scryfall, ordered by how many decks play them')}
+   ${d.themes.map((th,i)=>it('th:'+i,'Theme: '+esc(th.name),'Scryfall · '+pl.toLowerCase()+' that fit this theme')).join('')}</div>
+   ${!d.themes.length?'<button data-act="themes">Pick themes for this deck to get theme suggestions here</button>':''}`)}
+async function tySrc(t,src){const d=deck();const pl=t==='Sorcery'?'Sorceries':t+'s';const tf=' t:'+t.toLowerCase();const prev=R&&R.fill?R:null;
+  R={ctx:{k:'deck',sid:'u',ty:t},cards:[],fill:true,ownedFirst:prev?prev.ownedFirst:true,ownedOnly:prev?prev.ownedOnly:false,loading:true,started:true,meta:{}};const mine=R;
+  const e=EDH[d.cmd.join('|')]||{};let title=pl;
+  if(src.startsWith('edh')){const ls=src==='edhtop'?(e.lists||[]).filter(l=>/top|synergy|new|signature/i.test(l.header)):[(e.lists||[])[+src.slice(4)]];title=src==='edhtop'?'EDHREC top '+pl.toLowerCase():ls[0].header;
+    sheet(title,'<div id="res"></div>');R=mine;drawRes();const seen=new Set();const rows=ls.flatMap(l=>l.cards).filter(c=>!seen.has(c.name)&&seen.add(c.name));
+    try{const r=await byNames(rows.map(c=>c.name));if(R!==mine)return;r.cards.forEach((c,i)=>{if(!c)return;const x=rows[i];R.meta[c.n]=[x.pct!=null?'in '+Math.round(x.pct*100)+'% of decks':'',x.syn!=null?'synergy '+(x.syn>0?'+':'')+Math.round(x.syn*100)+'%':''].filter(Boolean).join(' · ')});
+      R.cards=r.cards.filter(c=>c&&(src!=='edhtop'||typeOf(c.n)===t));if(!R.cards.length)R.note='EDHREC\'s top lists have no '+pl.toLowerCase()+' for this commander.';save()}catch(err){if(R!==mine)return;R.err=err.message}R.loading=false;drawRes();return}
+  if(src==='top'){sheet('Most played '+pl.toLowerCase(),'<div id="res"></div>');R=mine;drawRes();await runQuery('('+tf.trim()+')'+idf(d));return}
+  const th=d.themes[+src.slice(3)];sheet(th.name+' · '+pl.toLowerCase(),'<div id="res"></div>');R=mine;drawRes();
+  const cands=th.q?[{raw:th.q}]:autoQueries(th.name);const list=cands.map(c=>({q:'('+c.raw+')'+tf+idf(d),raw:c.raw,note:th.q?'':'Suggestions use '+(c.why||'this theme')+'.'}));
+  await runQuery(list[0].q,list.slice(1),list[0])}
 async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S.packages.find(p=>p.id===src);const th=/^th:/.test(src)?d.themes[+src.slice(3)]:null;const prev=R&&R.fill?R:null;
   const scry=!p||p.type==='scryfall';const q=scry?(th?th.q:p?p.q:s.q):'';const land=/land/i.test(s.name+' '+(p?p.name:''))||/t:land/.test(q);const multi=ident(d).length>1;
   if(mk===undefined)mk=/land|ramp|rock|mana/i.test(s.name+' '+(p?p.name:''))?(land&&multi?'2':'1'):'';
@@ -617,7 +651,7 @@ async function fillSrc(sid,src,mk){const d=deck();const s=secOf(d,sid);const p=S
 function pick(n){const x=R.ctx;const d=deck();
   if(x.k==='opp'){const p=S.players.find(p=>p.id===x.pid);if(!p.decks.includes(n))p.decks.push(n);save();openPlayer(p.id);return}
   if(x.k==='deck'){const e=d.cards.find(c=>c.n===n);if(d.cmd.includes(n))return;const sp=x.sid==='u'||x.sid==='m';
-    if(!e||isBasic(n)){addCard(d,n,x.sid);
+    if(!e||isBasic(n)){addCard(d,n,x.sid);if(x.ty&&!e)queuePlace(d,n);
       if(R.search){if(!R.added.includes(n))R.added.push(n);const inp=$('#q');if(inp&&!/[:<>=]/.test(inp.value)){inp.value='';R.cards=[];R.started=false;inp.focus()}}}
     else if(sp)removeCard(d,n);
     else{e.x=e.x||[];if(e.s===x.sid){if(e.x.length)e.s=e.x.shift();else removeCard(d,n)}else if(e.x.includes(x.sid))e.x=e.x.filter(i=>i!==x.sid);else if(e.s==='u'||e.s==='m')e.s=x.sid;else e.x.push(x.sid);save()}}
@@ -812,6 +846,9 @@ const A={
   addSearch(e){const d=deck();const s=e.dataset.sid;const nm=s==='u'?'Unsorted':s==='m'?'Maybeboard':secOf(d,s).name;openSearch({k:'deck',sid:s},'Add to '+nm)},
   fill(e){openFill(e.dataset.sid)},
   fillSrc(e){fillSrc(e.dataset.sid,e.dataset.src)},
+  tyFill(e){tyFillSheet(e.dataset.t)},
+  tySrc(e){tySrc(e.dataset.t,e.dataset.src)},
+  tySearch(e){const t=e.dataset.t;openSearch({k:'deck',sid:'u',ty:t},'Add '+(t==='Sorcery'?'sorceries':t.toLowerCase()+'s'))},
   pasteOpen(e){const d=deck();const sid=e.dataset.sid;const nm=sid==='u'?'Unsorted':sid==='m'?'Maybeboard':secOf(d,sid).name;
     sheet('Paste cards → '+nm,`<p class="muted small" style="margin:0">One card per line. You can paste text copied straight from a web page such as EDHREC. Lines that are not card names are ignored.</p>
      <button data-act="pasteClip">Paste from clipboard</button><textarea id="pasteT" aria-label="Cards to add" placeholder="Fervor&#10;Ogre Battledriver&#10;Hammer of Purphoros"></textarea>`,`<button class="pri" data-act="pasteGo" data-sid="${sid}">Add to ${esc(nm)}</button>`)},
