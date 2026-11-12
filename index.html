@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.8';
+const VERSION='2.9';
 const NEWS=[
+ ['2.9','Nov 12, 2026',['Sections named Game Plan, Pay Off or Finisher work the same in every deck, including older ones: they take suggestions from the deck\'s themes and use loose targets.','Edit sections has quick buttons to add Game Plan, Pay Off and Finisher. Adding one to a deck with no themes opens the themes screen.']],
  ['2.8','Nov 11, 2026',['Proxies can print in black and white to save ink. The art box now reads PLAYTEST CARD.']],
  ['2.7','Nov 11, 2026',['Playtest proxies now print in a card-style layout: a frame colored by the card\'s colors, cost in colored circles, a blank art box, type bar, text box and power/toughness badge. The plain text style is still available.']],
  ['2.6','Nov 11, 2026',['Print playtest proxies: Menu → Print playtest proxies makes card-sized text proxies, nine to a letter page. You can skip basics and cards you already own.']],
@@ -270,11 +271,15 @@ function seedPkgs(){return [
  {id:uid(),name:'My staples (edit me)',type:'custom',q:'',cards:['Sol Ring','Arcane Signet','Command Tower','Swiftfoot Boots','Lightning Greaves']}
 ];}
 /* sections every new deck starts with: four fixed ones, then three with loose targets that are fed by the deck's themes */
+const ROLES=[[/game ?plan/i,'plan'],[/pay ?offs?/i,'payoff'],[/finishers?/i,'finisher']];
+const roleOf=n=>(ROLES.find(([re])=>re.test(n||''))||[])[1]||'';
+/* a section named Game Plan, Pay Off or Finisher is fed by the deck's themes and has a loose target */
+function applyRole(x){const r=roleOf(x.name);if(r){x.role=r;x.flex=1}else{delete x.role;delete x.flex}return x}
 const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Interaction',10,'(otag:removal or otag:board-wipe or (t:instant o:"counter target"))'),SEC('Card Advantage',10,'otag:draw'),LANDS(),
   {...SEC('Game Plan',20,''),flex:1,role:'plan'},{...SEC('Pay Off',8,''),flex:1,role:'payoff'},{...SEC('Finisher',3,'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")'),flex:1,role:'finisher'}];
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>d.themes=d.themes||[]);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
+function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
 let saveT;
@@ -644,7 +649,8 @@ function drawEd(){const sum=ED.rows.reduce((a,r)=>a+(+r.target||0),0);
   sheet(ED.title,`${ED.hasName?`<label for="edName">Name</label><input id="edName" value="${esc(ED.name)}">`:''}
    <p class="muted small" style="margin:0">Each section has a name, a target count, and an optional Scryfall search used for suggestions. Targets add up to <b class="num">${sum}</b>; a deck has 99 cards plus one commander, or 98 plus two.</p>
    ${ED.rows.map((r,i)=>`<div class="secbox"><div class="secrow"><input class="n" value="${esc(r.name)}" aria-label="Section name"><input class="t" type="number" inputmode="numeric" min="0" value="${r.target}" aria-label="Target count"><button class="sm danger" data-act="edDel" data-i="${i}" aria-label="Delete section">✕</button><input class="q" value="${esc(r.q)}" placeholder="Scryfall search for suggestions (optional)" aria-label="Scryfall search"></div></div>`).join('')}
-   <button data-act="edAdd">Add a section</button>`,
+   <div class="row wrapf"><button data-act="edAdd">Add a section</button>${[['Game Plan',20],['Pay Off',8],['Finisher',3]].filter(([n])=>!ED.rows.some(r=>roleOf(r.name)===roleOf(n))).map(([n,t])=>`<button data-act="edAddRole" data-n="${n}" data-t="${t}">+ ${n}</button>`).join('')}</div>
+   <p class="muted small" style="margin:0">Game Plan, Pay Off and Finisher take their suggestions from the deck's themes.</p>`,
    `<div class="row"><button class="pri grow" data-act="edSave">Save</button>${ED.onDelete?'<button class="danger" data-act="edRemove">Delete</button>':''}</div>`);}
 
 function pkgSheet(p){sheet(p.id?'Edit package':'New package',`
@@ -847,7 +853,8 @@ const A={
     <button class="item danger" data-act="delDeckAsk">Delete deck</button></div>`)},
   rename(){sheet('Rename deck',`<label for="rn">Deck name</label><input id="rn" value="${esc(deck().name)}">`,`<button class="pri" data-act="renameSave">Save</button>`)},
   renameSave(){deck().name=$('#rn').value.trim()||'Untitled deck';save();closeSheet();rerender()},
-  editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const ids=rows.map(r=>r.id);d.cards.forEach(c=>{c.x=(c.x||[]).filter(i=>ids.includes(i));if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s=c.x.shift()||'u'});d.sections=rows})},
+  editSecs(){const d=deck();secEditor('Sections for '+d.name,null,d.sections,rows=>{const had=d.sections.filter(x=>x.role).length;const ids=rows.map(r=>r.id);d.cards.forEach(c=>{c.x=(c.x||[]).filter(i=>ids.includes(i));if(c.s!=='u'&&c.s!=='m'&&!ids.includes(c.s))c.s=c.x.shift()||'u'});d.sections=rows;
+    if(!d.themes.length&&rows.filter(r=>r.role).length>had)return'themes'})},
   changeArch(){sheet('Switch archetype',`<p class="muted small" style="margin:0">Cards stay in sections that keep the same name. Everything else moves to Unsorted.</p><div class="list">${S.archetypes.map(a=>`<button class="item" data-act="applyArch" data-id="${a.id}">${esc(a.name)}</button>`).join('')}</div>`)},
   applyArch(e){const d=deck();const a=S.archetypes.find(a=>a.id===e.dataset.id);const old=Object.fromEntries(d.sections.map(s=>[s.id,s.name]));const ns=withLands(a.sections.map(s=>({...s,id:uid()})));
     d.cards.forEach(c=>{c.x=(c.x||[]).map(i=>(ns.find(s=>s.name===old[i])||{}).id).filter(Boolean);if(c.s==='u'||c.s==='m')return;const m=ns.find(s=>s.name===old[c.s]);c.s=m?m.id:'u'});d.sections=ns;d.arch=a.name;save();closeSheet();rerender()},
@@ -907,8 +914,9 @@ const A={
   newArch(){const a={id:uid(),name:'New archetype',sections:[SEC('Theme',30),...core(),LANDS()]};secEditor('New archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||'New archetype';S.archetypes.push(a)})},
   editArch(e){const a=S.archetypes.find(a=>a.id===e.dataset.id);secEditor('Edit archetype',a.name,a.sections,(rows,name)=>{a.sections=rows;a.name=name||a.name},()=>{S.archetypes=S.archetypes.filter(x=>x!==a)})},
   edAdd(){readEd();ED.rows.push(SEC('New section',5));drawEd()},
+  edAddRole(e){readEd();ED.rows.push(applyRole(SEC(e.dataset.n,+e.dataset.t,e.dataset.n==='Finisher'?'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")':'')));drawEd()},
   edDel(e){readEd();ED.rows.splice(+e.dataset.i,1);drawEd()},
-  edSave(){readEd();ED.onSave(ED.rows,ED.name);ED=null;save();closeSheet();rerender()},
+  edSave(){readEd();ED.rows.forEach(applyRole);const r=ED.onSave(ED.rows,ED.name);ED=null;save();closeSheet();rerender();if(r==='themes')themeSheet()},
   edRemove(){if(S.archetypes.length<2){toast('Keep at least one archetype');return}ED.onDelete();ED=null;save();closeSheet();rerender()},
   /* backup */
   export(){save();setTimeout(()=>{const txt=JSON.stringify(S);download('brew-bench-backup.json',txt);sheet('Export backup',`<p class="muted small" style="margin:0">A backup file should have downloaded. If not, copy the text below and save it somewhere.</p><textarea readonly id="exp">${esc(txt)}</textarea>`,`<button class="pri" data-act="copyExp">Copy</button>`)},300)},
