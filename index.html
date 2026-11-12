@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.11';
+const VERSION='2.12';
 const NEWS=[
+ ['2.12','Nov 12, 2026',['Ask Claude: Menu → Ask Claude for recommendations writes a request with your commander, themes, sections and card list. Copy it into the Claude app, then paste the answer back to add the suggested cards to your Maybeboard or straight into the deck.']],
  ['2.11','Nov 12, 2026',['Add cards from the Types view: each type has Search and Fill. Fill offers EDHREC\'s list for that type, EDHREC\'s top and high-synergy cards of that type, the most played cards of that type in your colors, and your themes.','Cards added from Types are filed into your sections automatically. Anything that matches no section waits in Unsorted.']],
  ['2.10','Nov 12, 2026',['Adding a section in Edit sections now offers your deck\'s themes, EDHREC\'s tags for your commander and the full theme list, and fills in a matching search.','Sections named after a creature type, like Dragons, now find cards of that type.','Any section that is not Ramp, Interaction, Card Advantage or Lands can take suggestions from your themes in Fill.']],
  ['2.9','Nov 12, 2026',['Sections named Game Plan, Pay Off or Finisher work the same in every deck, including older ones: they take suggestions from the deck\'s themes and use loose targets.','Edit sections has quick buttons to add Game Plan, Pay Off and Finisher. Adding one to a deck with no themes opens the themes screen.']],
@@ -851,14 +852,15 @@ const A={
   tySearch(e){const t=e.dataset.t;openSearch({k:'deck',sid:'u',ty:t},'Add '+(t==='Sorcery'?'sorceries':t.toLowerCase()+'s'))},
   pasteOpen(e){const d=deck();const sid=e.dataset.sid;const nm=sid==='u'?'Unsorted':sid==='m'?'Maybeboard':secOf(d,sid).name;
     sheet('Paste cards → '+nm,`<p class="muted small" style="margin:0">One card per line. You can paste text copied straight from a web page such as EDHREC. Lines that are not card names are ignored.</p>
-     <button data-act="pasteClip">Paste from clipboard</button><textarea id="pasteT" aria-label="Cards to add" placeholder="Fervor&#10;Ogre Battledriver&#10;Hammer of Purphoros"></textarea>`,`<button class="pri" data-act="pasteGo" data-sid="${sid}">Add to ${esc(nm)}</button>`)},
+     <button data-act="pasteClip">Paste from clipboard</button><textarea id="pasteT" aria-label="Cards to add" placeholder="Fervor&#10;Ogre Battledriver&#10;Hammer of Purphoros"></textarea>`,`<button class="pri" data-act="pasteGo" data-sid="${sid}" ${e.dataset.sort?'data-sort="1"':''}>Add to ${esc(nm)}${e.dataset.sort?' and sort':''}</button>`)},
   async pasteClip(){try{const t=await navigator.clipboard.readText();if(t){$('#pasteT').value=t;return}}catch(e){}toast('Tap inside the box and choose Paste')},
   async pasteGo(e){const d=deck();const sid=e.dataset.sid;const nm=sid==='u'?'Unsorted':sid==='m'?'Maybeboard':secOf(d,sid).name;
-    const names=[...new Set(parseList($('#pasteT').value).map(i=>i.n).filter(n=>n.length<=60&&/[a-z]/i.test(n)&&!/[%$]/.test(n)))].slice(0,300);
+    let raw=$('#pasteT').value;const ai=raw.search(/cards to add/i);if(ai>=0){raw=raw.slice(ai).replace(/^[^\n]*\n?/,'');const ci=raw.search(/cards to cut/i);if(ci>=0)raw=raw.slice(0,ci)}
+    const names=[...new Set(parseList(raw).map(i=>i.n.replace(/^[-*•\s]+/,'').replace(/[*_`]/g,'').trim()).filter(n=>n.length<=60&&/[a-z]/i.test(n)&&!/[%$]/.test(n)))].slice(0,300);
     if(!names.length){toast('Nothing to add');return}toast('Looking up '+names.length+' lines…');let r;try{r=await byNames(names)}catch(err){toast(err.message);return}
     const id=ident(d);const added=[],had=[],off=[];[...new Set(r.cards.filter(Boolean).map(c=>c.n))].forEach(n=>{const c=card(n);
       if(d.cmd.length&&!c.ci.every(k=>id.includes(k)))off.push(n);else if(inDeck(d,n)&&!isBasic(n))had.push(n);else{addCard(d,n,sid);added.push(n)}});
-    save();rerender();const line=(t,a)=>a.length?`<div><h3>${t} · ${a.length}</h3><p class="muted small" style="margin:4px 0 0">${esc(a.join(', '))}</p></div>`:'';
+    save();rerender();if(e.dataset.sort&&added.length){autoSort(d);return}const line=(t,a)=>a.length?`<div><h3>${t} · ${a.length}</h3><p class="muted small" style="margin:4px 0 0">${esc(a.join(', '))}</p></div>`:'';
     sheet('Added '+added.length+' to '+nm,(line('Added',added)||'<p style="margin:0">No new cards were added.</p>')+line('Already in this deck',had)+line('Outside this deck\'s colors, skipped',off)+(r.missing.length?`<p class="muted small" style="margin:0">${r.missing.length} line${r.missing.length===1?' was':'s were'} not a card name and ignored.</p>`:''))},
   fillEdh(e){const d=deck();const ls=EDH[d.cmd.join('|')].lists;sheet('EDHREC picks',`<p class="muted small" style="margin:0">Pick a list. Cards go into ${esc(secOf(d,e.dataset.sid).name)}.</p><div class="list">${ls.map((l,i)=>`<button class="item" data-act="fillEdhList" data-sid="${e.dataset.sid}" data-i="${i}"><span class="name">${esc(l.header)}</span><span class="muted num">${l.cards.length}</span></button>`).join('')}</div>`)},
   async fillEdhList(e){const d=deck();const sid=e.dataset.sid;const l=EDH[d.cmd.join('|')].lists[+e.dataset.i];
@@ -892,6 +894,7 @@ const A={
     ${d.sections.some(x=>x.role==='plan')?'':'<button class="item" data-act="convertAsk">Convert to standard sections</button>'}
     <button class="item" data-act="basics">Add basic lands</button>
     <button class="item" data-act="importDeck">Import a card list</button>
+    <button class="item" data-act="askOpen">Ask Claude for recommendations</button>
     <button class="item" data-act="printOpen">Print playtest proxies</button>
     <button class="item" data-act="exportDeck">Export card list</button>
     <button class="item" data-act="ownAll">Mark every card in this deck as owned</button>
@@ -1169,6 +1172,42 @@ Object.assign(A,{
     if(need.length){toast('Getting rules text for '+need.length+' cards…');try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}save()}catch(e){toast(e.message);return}}
     const pages=[];for(let i=0;i<list.length;i+=9)pages.push(`<div class="ppage">${list.slice(i,i+9).map(proxyHtml).join('')}</div>`);$('#print').innerHTML=pages.join('');$('#print').classList.toggle('bw',!!UI.pOpt.bw&&UI.pOpt.style!=='text');
     closeSheet();setTimeout(()=>{try{window.print()}catch(e){toast('Printing is not available here. Open the app in Safari and use Share → Print.')}},150)}
+});
+/* ================= ask Claude ================= */
+const GOALS=[['improve','Improve the deck'],['cuts','Cut down to 99'],['budget','Cheaper swaps'],['owned','Use cards I own'],['section','Fill one section']];
+function askPrompt(d,o){const id=ident(d);const m=main(d);const secName=sid=>sid==='u'?'Unsorted':sid==='m'?'Maybeboard':(secOf(d,sid)||{}).name;
+  const lines=[`I'm building a Magic: The Gathering Commander deck and would like your recommendations.`,'',
+    `Commander: ${d.cmd.join(' + ')||'not chosen yet'}`,`Color identity: ${id.join('')||'colorless'}`,`Themes: ${d.themes.map(t=>t.name).join(', ')||'none picked yet'}`,`Card count: ${total(d)} of 100`,'',
+    'Sections (current / target):',...d.sections.map(s=>`- ${s.name}: ${cnt(inSec(d,s.id))} / ${s.flex?'about ':''}${s.target}`),'',
+    'Current list by section:'];
+  [...d.sections.map(s=>s.id),'u'].forEach(sid=>{const cs=m.filter(c=>c.s===sid);if(cs.length)lines.push(`${secName(sid)}: ${cs.map(c=>(c.q>1?c.q+' ':'')+c.n).join('; ')}`)});
+  const mb=d.cards.filter(c=>c.s==='m');if(mb.length)lines.push(`Maybeboard (already considering): ${mb.map(c=>c.n).join('; ')}`);
+  if(o.goal==='owned'){const mine=Object.keys(S.coll).filter(n=>!inDeck(d,n)&&(!d.cmd.length||!CARDS[n]||CARDS[n].ci.every(k=>id.includes(k)))).sort().slice(0,400);
+    lines.push('',`Cards I own that fit these colors and are not in the deck (${mine.length}): ${mine.join('; ')||'none recorded'}`)}
+  const n=o.n||10;const g={improve:`Suggest ${n} cards that would make this deck stronger and more focused on its themes, and say which current cards are the weakest.`,
+    cuts:`The deck is over 99 cards. Suggest which cards to cut to reach exactly 99 plus the commander, weakest first.`,
+    budget:`Suggest ${n} swaps that keep the deck's plan but replace expensive cards with cheaper ones. Name the card each one replaces.`,
+    owned:`Suggest up to ${n} cards from the list of cards I own that would improve the deck, and which current cards they should replace.`,
+    section:`Suggest ${n} cards for the "${(secOf(d,o.sec)||{}).name||'chosen'}" section.`}[o.goal];
+  lines.push('','Goal: '+g);if(o.note)lines.push('Also: '+o.note);
+  lines.push('','Only suggest cards that are legal in Commander and fit the color identity. Give each suggestion a one-line reason.',
+    'At the end, write the heading CARDS TO ADD and list only the card names to add, one per line, like "1 Card Name". If you suggest cuts, list them after a heading CARDS TO CUT.');
+  return lines.join('\n')}
+function askSheet(){const d=deck();const o=UI.ask||(UI.ask={goal:'improve',n:10,note:'',sec:(d.sections[0]||{}).id});if(!secOf(d,o.sec))o.sec=(d.sections[0]||{}).id;
+  sheet('Ask Claude',`<p class="muted small" style="margin:0">This writes a request with your commander, themes, sections and card list. Copy it, send it to Claude, then paste the answer back here.</p>
+   <label>What do you want help with?</label><div class="chips">${GOALS.map(([k,l])=>`<button class="chip ${o.goal===k?'on':''}" data-act="askGoal" data-k="${k}">${l}</button>`).join('')}</div>
+   ${o.goal==='section'?`<label for="askSec">Section</label><select id="askSec">${d.sections.map(s=>`<option value="${s.id}" ${o.sec===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`:''}
+   ${o.goal==='cuts'?'':`<label for="askN">How many suggestions</label><input id="askN" type="number" inputmode="numeric" min="1" max="40" value="${o.n}" style="width:90px">`}
+   <label for="askNote">Anything else Claude should know (optional)</label><textarea id="askNote" style="min-height:64px" placeholder="e.g. No infinite combos. Budget under $5 a card. Playgroup is casual.">${esc(o.note)}</textarea>
+   <label for="askP">Request</label><textarea id="askP" readonly style="min-height:150px;font-size:13px">${esc(askPrompt(d,o))}</textarea>
+   <div class="row wrapf"><button class="pri grow" data-act="askCopy">Copy request</button><a class="btn grow" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude ↗</a></div>
+   <label>When Claude answers</label><div class="row wrapf"><button class="grow" data-act="pasteOpen" data-sid="m">Paste into Maybeboard</button><button class="grow" data-act="pasteOpen" data-sid="u" data-sort="1">Paste into deck and sort</button></div>
+   <p class="muted small" style="margin:0">Paste Claude's whole answer. Only the cards under CARDS TO ADD are added.</p>`)}
+function askRead(){const o=UI.ask;if($('#askN'))o.n=Math.max(1,Math.min(40,parseInt($('#askN').value)||10));if($('#askNote'))o.note=$('#askNote').value.trim();if($('#askSec'))o.sec=$('#askSec').value}
+Object.assign(A,{
+  askOpen(){askSheet()},
+  askGoal(e){askRead();UI.ask.goal=e.dataset.k;askSheet()},
+  async askCopy(){askRead();const t=askPrompt(deck(),UI.ask);$('#askP').value=t;try{await navigator.clipboard.writeText(t);toast('Copied. Paste it into Claude.')}catch(err){const a=$('#askP');a.focus();a.select();toast('Select the text and copy it')}}
 });
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
