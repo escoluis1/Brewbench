@@ -148,6 +148,25 @@ nav.tabs a b{font-size:13px}
 .tdim{color:#7d8e89}
 @media (prefers-reduced-motion:no-preference){.tc{transition:transform .12s}}
 
+
+/* printable playtest proxies: hidden on screen, the only thing printed */
+#print{display:none}
+@media print{
+  @page{size:letter;margin:6mm 8mm}
+  body{background:#fff!important;color:#000!important;padding:0!important}
+  body>*:not(#print){display:none!important}
+  #print{display:block}
+  .ppage{display:grid;grid-template-columns:repeat(3,63mm);grid-auto-rows:88mm;justify-content:center;break-after:page}
+  .ppage:last-child{break-after:auto}
+  .px{border:.3mm dashed #888;padding:3mm;display:flex;flex-direction:column;gap:1.2mm;overflow:hidden;font:7.4pt/1.25 Inter,Arial,sans-serif;color:#000}
+  .px .hd{display:flex;justify-content:space-between;gap:2mm;font-weight:700;font-size:8.6pt;border-bottom:.3mm solid #000;padding-bottom:1mm}
+  .px .ty{font-style:italic;border-bottom:.2mm solid #999;padding-bottom:1mm}
+  .px .tx{white-space:pre-wrap;flex:1;overflow:hidden}
+  .px .ft{display:flex;justify-content:space-between;font-weight:700;font-size:8pt}
+  .px .bk{border-top:.4mm double #000;padding-top:1mm}
+  .px.sm{font-size:6.3pt}.px.xs{font-size:5.4pt}
+  .pm{display:inline-block;min-width:3.3mm;height:3.3mm;line-height:3.3mm;border:.25mm solid #000;border-radius:50%;text-align:center;font-size:6pt;margin-left:.3mm}
+}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
   padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
@@ -161,13 +180,15 @@ nav.tabs a b{font-size:13px}
 <div id="sheet" hidden></div>
 <div id="peek" hidden></div>
 <div id="toast" hidden role="status"></div>
+<div id="print" aria-hidden="true"></div>
 <script>
 'use strict';
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.5';
+const VERSION='2.6';
 const NEWS=[
+ ['2.6','Nov 11, 2026',['Print playtest proxies: Menu → Print playtest proxies makes card-sized text proxies, nine to a letter page. You can skip basics and cards you already own.']],
  ['2.5','Nov 10, 2026',['Collection: choose the printing of a card you own, and mark it foil. The card\'s picture and your collection value use that printing.','Scanner CSV imports keep the set and collector number when the file has them.']],
  ['2.4','Nov 10, 2026',['Fixed: flip buttons were missing on two-sided cards added before version 2.3, because their back side was never fetched.','A spell with a land on the back can always be played as its land in the tester, even before its back picture has loaded.']],
  ['2.3','Nov 10, 2026',['Two-sided cards can be flipped. In the tester, play either side from your hand (a spell/land card can be played as its land) and flip a card on the battlefield.','Card screens have a Show other side button for two-sided cards.']],
@@ -261,7 +282,8 @@ function slim(c){
   const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};
   return CARDS[c.name]={n:c.name,mc:c.mana_cost||f.mana_cost||'',cmc:c.cmc||0,t:c.type_line||'',
     o:c.oracle_text||(c.card_faces||[]).map(x=>x.name+'\n'+(x.oracle_text||'')).join('\n\n'),
-    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer,pm:c.produced_mana||[],img2:(c.card_faces&&c.card_faces[1]&&c.card_faces[1].image_uris&&c.card_faces[1].image_uris.normal)||''};
+    ci:c.color_identity||[],img:iu.normal||'',p:+(pr.usd||pr.usd_foil||0),gc:!!c.game_changer,pm:c.produced_mana||[],img2:(c.card_faces&&c.card_faces[1]&&c.card_faces[1].image_uris&&c.card_faces[1].image_uris.normal)||'',
+    fx:(c.card_faces&&c.card_faces.length>1?c.card_faces:[c]).map(x=>({n:x.name||c.name,mc:x.mana_cost||'',t:x.type_line||'',o:x.oracle_text||'',pt:x.power!=null?x.power+'/'+x.toughness:x.loyalty!=null?'Loyalty '+x.loyalty:x.defense!=null?'Defense '+x.defense:''}))};
 }
 async function search(q){const j=await sf('/cards/search?order=edhrec&q='+encodeURIComponent(q));return j.data.map(slim)}
 function lowerIndex(){const m=new Map();for(const n in CARDS){m.set(n.toLowerCase(),CARDS[n]);const f=n.split(' // ')[0].toLowerCase();if(!m.has(f))m.set(f,CARDS[n])}return m}
@@ -800,6 +822,7 @@ const A={
     ${d.sections.some(x=>x.role==='plan')?'':'<button class="item" data-act="convertAsk">Convert to standard sections</button>'}
     <button class="item" data-act="basics">Add basic lands</button>
     <button class="item" data-act="importDeck">Import a card list</button>
+    <button class="item" data-act="printOpen">Print playtest proxies</button>
     <button class="item" data-act="exportDeck">Export card list</button>
     <button class="item" data-act="ownAll">Mark every card in this deck as owned</button>
     <button class="item danger" data-act="delDeckAsk">Delete deck</button></div>`)},
@@ -1039,11 +1062,32 @@ Object.assign(A,{
   tTokQuick(e){tMakeToken({n:e.dataset.n,t:e.dataset.t,pt:'',img:''})},
   tTokNew(){const n=$('#tkN').value.trim();if(!n){toast('Give the token a name');return}const pt=$('#tkP').value.trim();tMakeToken({n,t:pt?'Token Creature — '+n:'Token — '+n,pt,img:''})}
 });
+/* ================= playtest proxies ================= */
+const pmTxt=mc=>(mc.match(/\{[^}]+\}/g)||[]).map(x=>`<span class="pm">${esc(x.slice(1,-1).replace('/',''))}</span>`).join('');
+function proxyList(d,o){const out=[];const add=(n,q)=>{if(o.basics&&isBasic(n))return;let k=q;if(o.owned)k=Math.max(0,q-owned(n));for(let i=0;i<k;i++)out.push(n)};
+  if(o.cmd)d.cmd.forEach(n=>add(n,1));main(d).forEach(c=>add(c.n,c.q));return out.sort((a,b)=>a.localeCompare(b))}
+function proxyHtml(n){const k=card(n);const fx=k.fx&&k.fx.length?k.fx:[{n,mc:k.mc,t:k.t,o:k.o,pt:''}];const len=fx.reduce((a,f)=>a+f.o.length,0)+(fx.length-1)*80;
+  return`<div class="px ${len>520?'xs':len>320?'sm':''}">${fx.map((f,i)=>`<div class="${i?'bk':''}" style="display:flex;flex-direction:column;gap:1.2mm;${i?'':'flex:1'}"><div class="hd"><span>${esc(f.n)}</span><span>${pmTxt(f.mc)}</span></div><div class="ty">${esc(f.t)}</div><div class="tx">${esc(f.o)}</div>${f.pt?`<div class="ft"><span></span><span>${esc(f.pt)}</span></div>`:''}</div>`).join('')}</div>`}
+function printOpts(){const o=UI.pOpt||(UI.pOpt={basics:true,owned:false,cmd:true});const d=deck();const list=proxyList(d,o);
+  const box=(k,l)=>`<label class="item" style="margin:0"><input type="checkbox" data-popt="${k}" ${o[k]?'checked':''}><span class="name">${l}</span></label>`;
+  sheet('Print playtest proxies',`<p class="muted small" style="margin:0">Text-only proxies the size of a real card, nine to a letter page, with dashed lines to cut along. Sleeve them in front of a real card to shuffle and play.</p>
+   <div class="list">${box('basics','Skip basic lands')}${box('owned','Skip copies I already own')}${box('cmd','Include the commander')}</div>
+   <p style="margin:0"><b class="num">${list.length}</b> card${list.length===1?'':'s'} on <b class="num">${Math.ceil(list.length/9)}</b> page${Math.ceil(list.length/9)===1?'':'s'}.</p>
+   <p class="muted small" style="margin:0">In the print settings, set the scale to 100% (or Actual size) so the cards come out the right size. If nothing happens when you tap Print, open the app in Safari and use Share → Print.</p>`,
+   `<button class="pri" data-act="printGo" ${list.length?'':'disabled'}>Print ${list.length} card${list.length===1?'':'s'}</button>`)}
+Object.assign(A,{
+  printOpen(){printOpts()},
+  async printGo(){const d=deck();const list=proxyList(d,UI.pOpt);const need=[...new Set(list)].filter(n=>!card(n).fx);
+    if(need.length){toast('Getting rules text for '+need.length+' cards…');try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}save()}catch(e){toast(e.message);return}}
+    const pages=[];for(let i=0;i<list.length;i+=9)pages.push(`<div class="ppage">${list.slice(i,i+9).map(proxyHtml).join('')}</div>`);$('#print').innerHTML=pages.join('');
+    closeSheet();setTimeout(()=>{try{window.print()}catch(e){toast('Printing is not available here. Open the app in Safari and use Share → Print.')}},150)}
+});
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='mv'){const c=deck().cards.find(c=>c.n===t.dataset.n);c.s=t.value;c.x=(c.x||[]).filter(i=>i!==c.s);save();cardSheet(c.n);toast('Moved')}
   if(t.id==='toPkg'&&t.value){const p=S.packages.find(p=>p.id===t.value);if(!p.cards.includes(t.dataset.n))p.cards.push(t.dataset.n);save();toast('Added to '+p.name)}
   if(t.id==='addCat'&&t.value){const d=deck();if(t.value==='custom'){d.sections.unshift(SEC('New section',5));save();A.editSecs()}else{const c=UI.cats[+t.value];d.sections.unshift(SEC(c.name,c.target,c.q));save();rerender();toast('Added '+c.name+'. Change its target in Edit sections.')}}
+  if(t.dataset&&t.dataset.popt){UI.pOpt[t.dataset.popt]=t.checked;printOpts()}
   if(t.id==='collLocSel'){UI.collLoc=t.value;rerender()}
   if(t.dataset.pull!==undefined){const d=deck();d.pulled=d.pulled||{};if(t.checked)d.pulled[t.dataset.pull]=1;else delete d.pulled[t.dataset.pull];save();$('#pullN').textContent=Object.keys(d.pulled).filter(n=>owned(n)).length}
   if(t.id==='pType'){$('#pS').hidden=t.value!=='scryfall';$('#pC').hidden=t.value!=='custom'}});
