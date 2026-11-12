@@ -166,7 +166,23 @@ nav.tabs a b{font-size:13px}
   .px .bk{border-top:.4mm double #000;padding-top:1mm}
   .px.sm{font-size:6.3pt}.px.xs{font-size:5.4pt}
   .pm{display:inline-block;min-width:3.3mm;height:3.3mm;line-height:3.3mm;border:.25mm solid #000;border-radius:50%;text-align:center;font-size:6pt;margin-left:.3mm}
+
+  /* card-style proxy: an original frame, tinted by the card's colors */
+  .cx{--f:#b9b3a6;--l:#f1eee7;border:.3mm dashed #888;padding:1.6mm;display:flex;color:#000;font:6.6pt/1.22 Inter,Arial,sans-serif}
+  .cx .fr{flex:1;border-radius:3mm;background:var(--f);padding:1.4mm;display:flex;flex-direction:column;gap:1mm;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cx .cbar,.cx .ft{flex:none}
+  .cx .cbar{background:var(--l);border-radius:1.6mm;padding:.8mm 1.6mm;display:flex;justify-content:space-between;align-items:center;gap:1mm;font-weight:700;font-size:7.6pt;border:.25mm solid #0006}
+  .cx .art{height:27mm;flex:none;background:var(--l);opacity:.75;border:.25mm solid #0006;border-radius:.8mm;display:flex;align-items:center;justify-content:center;font:700 7pt Inter,Arial,sans-serif;letter-spacing:.3em;color:#0005}
+  .cx .ty{font-weight:600;font-size:6.8pt}
+  .cx .tb{flex:1;background:#fbfaf7;border-radius:.8mm;padding:1.2mm 1.4mm;white-space:pre-wrap;overflow:hidden;border:.25mm solid #0004}
+  .cx .tb .bk{display:block;border-top:.3mm solid #0006;margin-top:1mm;padding-top:.8mm;font-weight:600}
+  .cx .ft{display:flex;justify-content:space-between;align-items:center;font-size:5pt;color:#000a;min-height:4.4mm}
+  .cx .pt{background:var(--l);border:.25mm solid #0006;border-radius:1.4mm;padding:.3mm 2mm;font-weight:700;font-size:8pt;color:#000}
+  .cx.sm{font-size:5.7pt}.cx.xs{font-size:4.9pt}.cx.xxs{font-size:4.2pt}.cx.sm .art,.cx.xs .art{height:20mm}.cx.xxs .art{height:12mm}
+  .cp{display:inline-flex;align-items:center;justify-content:center;width:3.4mm;height:3.4mm;border-radius:50%;font-size:5.6pt;font-weight:700;margin-left:.3mm;background:#cfcac0;border:.2mm solid #0007;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cp.W{background:#f6f0cf}.cp.U{background:#9fc9ea}.cp.B{background:#a99ea3}.cp.R{background:#ef9c84}.cp.G{background:#93c9a2}
 }
+
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
   padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
@@ -186,8 +202,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.6';
+const VERSION='2.7';
 const NEWS=[
+ ['2.7','Nov 11, 2026',['Playtest proxies now print in a card-style layout: a frame colored by the card\'s colors, cost in colored circles, a blank art box, type bar, text box and power/toughness badge. The plain text style is still available.']],
  ['2.6','Nov 11, 2026',['Print playtest proxies: Menu → Print playtest proxies makes card-sized text proxies, nine to a letter page. You can skip basics and cards you already own.']],
  ['2.5','Nov 10, 2026',['Collection: choose the printing of a card you own, and mark it foil. The card\'s picture and your collection value use that printing.','Scanner CSV imports keep the set and collector number when the file has them.']],
  ['2.4','Nov 10, 2026',['Fixed: flip buttons were missing on two-sided cards added before version 2.3, because their back side was never fetched.','A spell with a land on the back can always be played as its land in the tester, even before its back picture has loaded.']],
@@ -1066,17 +1083,32 @@ Object.assign(A,{
 const pmTxt=mc=>(mc.match(/\{[^}]+\}/g)||[]).map(x=>`<span class="pm">${esc(x.slice(1,-1).replace('/',''))}</span>`).join('');
 function proxyList(d,o){const out=[];const add=(n,q)=>{if(o.basics&&isBasic(n))return;let k=q;if(o.owned)k=Math.max(0,q-owned(n));for(let i=0;i<k;i++)out.push(n)};
   if(o.cmd)d.cmd.forEach(n=>add(n,1));main(d).forEach(c=>add(c.n,c.q));return out.sort((a,b)=>a.localeCompare(b))}
-function proxyHtml(n){const k=card(n);const fx=k.fx&&k.fx.length?k.fx:[{n,mc:k.mc,t:k.t,o:k.o,pt:''}];const len=fx.reduce((a,f)=>a+f.o.length,0)+(fx.length-1)*80;
+const FRAME={W:['#e9dfb4','#fbf6e2'],U:['#7fb1dc','#dcebf8'],B:['#8f8789','#e3dfe0'],R:['#e08b72','#fbe0d7'],G:['#7fb48c','#dcf0e1'],M:['#d4b45c','#f6ecc8'],A:['#b8bcc2','#eceef1'],L:['#b59a7a','#efe6da'],C:['#c9c4bb','#f1eee8']};
+function frameOf(f,k){const cs=[...new Set((f.mc.match(/[WUBRG]/g)||[]))];if(cs.length>1)return FRAME.M;if(cs.length)return FRAME[cs[0]];
+  if(/Land/.test(f.t)){const bs=[['Plains','W'],['Island','U'],['Swamp','B'],['Mountain','R'],['Forest','G']].filter(([t])=>f.t.includes(t)).map(x=>x[1]);if(bs.length)return bs.length>1?FRAME.M:FRAME[bs[0]];const ci=k.ci||[];return ci.length===1?FRAME[ci[0]]:ci.length>1?FRAME.M:FRAME.L}return /Artifact/.test(f.t)?FRAME.A:FRAME.C}
+const cpTxt=mc=>(mc.match(/\{[^}]+\}/g)||[]).map(x=>{const v=x.slice(1,-1);const c=v.length===1&&/[WUBRG]/.test(v)?v:'';return`<span class="cp ${c}">${esc(v.replace('/',''))}</span>`}).join('');
+function cardProxy(n){const k=card(n);const fx=k.fx&&k.fx.length?k.fx:[{n,mc:k.mc,t:k.t,o:k.o,pt:''}];const f=fx[0];const[fr,li]=frameOf(f,k);
+  const back=fx.slice(1).map(b=>`<span class="bk">${esc(b.n)} ${b.mc?'· '+esc(b.mc.replace(/[{}]/g,''))+' ':''}· ${esc(b.t)}${b.pt?' · '+esc(b.pt):''}</span>${esc(b.o)}`).join('');
+  const len=fx.reduce((a,x)=>a+x.o.length,0)+(fx.length-1)*90;
+  return`<div class="cx ${len>620?'xxs':len>420?'xs':len>230?'sm':''}" style="--f:${fr};--l:${li}"><div class="fr">
+    <div class="cbar"><span>${esc(f.n)}</span><span style="white-space:nowrap">${cpTxt(f.mc)}</span></div>
+    <div class="art">PLAYTEST</div>
+    <div class="cbar ty">${esc(f.t)}</div>
+    <div class="tb">${esc(f.o)}${back}</div>
+    <div class="ft"><span>Playtest card · not for play in sanctioned events</span>${f.pt?`<span class="pt">${esc(f.pt)}</span>`:''}</div></div></div>`}
+function proxyHtml(n){if((UI.pOpt||{}).style!=='text')return cardProxy(n);const k=card(n);const fx=k.fx&&k.fx.length?k.fx:[{n,mc:k.mc,t:k.t,o:k.o,pt:''}];const len=fx.reduce((a,f)=>a+f.o.length,0)+(fx.length-1)*80;
   return`<div class="px ${len>520?'xs':len>320?'sm':''}">${fx.map((f,i)=>`<div class="${i?'bk':''}" style="display:flex;flex-direction:column;gap:1.2mm;${i?'':'flex:1'}"><div class="hd"><span>${esc(f.n)}</span><span>${pmTxt(f.mc)}</span></div><div class="ty">${esc(f.t)}</div><div class="tx">${esc(f.o)}</div>${f.pt?`<div class="ft"><span></span><span>${esc(f.pt)}</span></div>`:''}</div>`).join('')}</div>`}
-function printOpts(){const o=UI.pOpt||(UI.pOpt={basics:true,owned:false,cmd:true});const d=deck();const list=proxyList(d,o);
+function printOpts(){const o=UI.pOpt||(UI.pOpt={basics:true,owned:false,cmd:true,style:'card'});const d=deck();const list=proxyList(d,o);
   const box=(k,l)=>`<label class="item" style="margin:0"><input type="checkbox" data-popt="${k}" ${o[k]?'checked':''}><span class="name">${l}</span></label>`;
-  sheet('Print playtest proxies',`<p class="muted small" style="margin:0">Text-only proxies the size of a real card, nine to a letter page, with dashed lines to cut along. Sleeve them in front of a real card to shuffle and play.</p>
+  sheet('Print playtest proxies',`<p class="muted small" style="margin:0">Proxies the size of a real card, nine to a letter page, with dashed lines to cut along. Sleeve them in front of a real card to shuffle and play.</p>
+   <div class="chips"><button class="chip ${o.style!=='text'?'on':''}" data-act="pStyle" data-s="card">Card style</button><button class="chip ${o.style==='text'?'on':''}" data-act="pStyle" data-s="text">Plain text (fits more text)</button></div>
    <div class="list">${box('basics','Skip basic lands')}${box('owned','Skip copies I already own')}${box('cmd','Include the commander')}</div>
    <p style="margin:0"><b class="num">${list.length}</b> card${list.length===1?'':'s'} on <b class="num">${Math.ceil(list.length/9)}</b> page${Math.ceil(list.length/9)===1?'':'s'}.</p>
    <p class="muted small" style="margin:0">In the print settings, set the scale to 100% (or Actual size) so the cards come out the right size. If nothing happens when you tap Print, open the app in Safari and use Share → Print.</p>`,
    `<button class="pri" data-act="printGo" ${list.length?'':'disabled'}>Print ${list.length} card${list.length===1?'':'s'}</button>`)}
 Object.assign(A,{
   printOpen(){printOpts()},
+  pStyle(e){UI.pOpt.style=e.dataset.s;printOpts()},
   async printGo(){const d=deck();const list=proxyList(d,UI.pOpt);const need=[...new Set(list)].filter(n=>!card(n).fx);
     if(need.length){toast('Getting rules text for '+need.length+' cards…');try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}save()}catch(e){toast(e.message);return}}
     const pages=[];for(let i=0;i<list.length;i+=9)pages.push(`<div class="ppage">${list.slice(i,i+9).map(proxyHtml).join('')}</div>`);$('#print').innerHTML=pages.join('');
