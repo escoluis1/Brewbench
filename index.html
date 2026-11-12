@@ -172,7 +172,7 @@ nav.tabs a b{font-size:13px}
   .cx .fr{flex:1;border-radius:3mm;background:var(--f);padding:1.4mm;display:flex;flex-direction:column;gap:1mm;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cx .cbar,.cx .ft{flex:none}
   .cx .cbar{background:var(--l);border-radius:1.6mm;padding:.8mm 1.6mm;display:flex;justify-content:space-between;align-items:center;gap:1mm;font-weight:700;font-size:7.6pt;border:.25mm solid #0006}
-  .cx .art{height:27mm;flex:none;background:var(--l);opacity:.75;border:.25mm solid #0006;border-radius:.8mm;display:flex;align-items:center;justify-content:center;font:700 7pt Inter,Arial,sans-serif;letter-spacing:.3em;color:#0005}
+  .cx .art{height:27mm;flex:none;background:var(--l);opacity:.75;text-align:center;border:.25mm solid #0006;border-radius:.8mm;display:flex;align-items:center;justify-content:center;font:700 7pt Inter,Arial,sans-serif;letter-spacing:.3em;color:#0005}
   .cx .ty{font-weight:600;font-size:6.8pt}
   .cx .tb{flex:1;background:#fbfaf7;border-radius:.8mm;padding:1.2mm 1.4mm;white-space:pre-wrap;overflow:hidden;border:.25mm solid #0004}
   .cx .tb .bk{display:block;border-top:.3mm solid #0006;margin-top:1mm;padding-top:.8mm;font-weight:600}
@@ -180,6 +180,7 @@ nav.tabs a b{font-size:13px}
   .cx .pt{background:var(--l);border:.25mm solid #0006;border-radius:1.4mm;padding:.3mm 2mm;font-weight:700;font-size:8pt;color:#000}
   .cx.sm{font-size:5.7pt}.cx.xs{font-size:4.9pt}.cx.xxs{font-size:4.2pt}.cx.sm .art,.cx.xs .art{height:20mm}.cx.xxs .art{height:12mm}
   .cp{display:inline-flex;align-items:center;justify-content:center;width:3.4mm;height:3.4mm;border-radius:50%;font-size:5.6pt;font-weight:700;margin-left:.3mm;background:#cfcac0;border:.2mm solid #0007;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bw .cx{--f:#d9d9d9!important;--l:#fff!important}.bw .cp{background:#fff!important}.bw .cx .art{color:#0007}
   .cp.W{background:#f6f0cf}.cp.U{background:#9fc9ea}.cp.B{background:#a99ea3}.cp.R{background:#ef9c84}.cp.G{background:#93c9a2}
 }
 
@@ -202,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.7';
+const VERSION='2.8';
 const NEWS=[
+ ['2.8','Nov 11, 2026',['Proxies can print in black and white to save ink. The art box now reads PLAYTEST CARD.']],
  ['2.7','Nov 11, 2026',['Playtest proxies now print in a card-style layout: a frame colored by the card\'s colors, cost in colored circles, a blank art box, type bar, text box and power/toughness badge. The plain text style is still available.']],
  ['2.6','Nov 11, 2026',['Print playtest proxies: Menu → Print playtest proxies makes card-sized text proxies, nine to a letter page. You can skip basics and cards you already own.']],
  ['2.5','Nov 10, 2026',['Collection: choose the printing of a card you own, and mark it foil. The card\'s picture and your collection value use that printing.','Scanner CSV imports keep the set and collector number when the file has them.']],
@@ -1092,7 +1094,7 @@ function cardProxy(n){const k=card(n);const fx=k.fx&&k.fx.length?k.fx:[{n,mc:k.m
   const len=fx.reduce((a,x)=>a+x.o.length,0)+(fx.length-1)*90;
   return`<div class="cx ${len>620?'xxs':len>420?'xs':len>230?'sm':''}" style="--f:${fr};--l:${li}"><div class="fr">
     <div class="cbar"><span>${esc(f.n)}</span><span style="white-space:nowrap">${cpTxt(f.mc)}</span></div>
-    <div class="art">PLAYTEST</div>
+    <div class="art">PLAYTEST CARD</div>
     <div class="cbar ty">${esc(f.t)}</div>
     <div class="tb">${esc(f.o)}${back}</div>
     <div class="ft"><span>Playtest card · not for play in sanctioned events</span>${f.pt?`<span class="pt">${esc(f.pt)}</span>`:''}</div></div></div>`}
@@ -1102,6 +1104,7 @@ function printOpts(){const o=UI.pOpt||(UI.pOpt={basics:true,owned:false,cmd:true
   const box=(k,l)=>`<label class="item" style="margin:0"><input type="checkbox" data-popt="${k}" ${o[k]?'checked':''}><span class="name">${l}</span></label>`;
   sheet('Print playtest proxies',`<p class="muted small" style="margin:0">Proxies the size of a real card, nine to a letter page, with dashed lines to cut along. Sleeve them in front of a real card to shuffle and play.</p>
    <div class="chips"><button class="chip ${o.style!=='text'?'on':''}" data-act="pStyle" data-s="card">Card style</button><button class="chip ${o.style==='text'?'on':''}" data-act="pStyle" data-s="text">Plain text (fits more text)</button></div>
+   ${o.style!=='text'?`<div class="chips"><button class="chip ${o.bw?'':'on'}" data-act="pBw" data-v="">Color</button><button class="chip ${o.bw?'on':''}" data-act="pBw" data-v="1">Black and white</button></div>`:''}
    <div class="list">${box('basics','Skip basic lands')}${box('owned','Skip copies I already own')}${box('cmd','Include the commander')}</div>
    <p style="margin:0"><b class="num">${list.length}</b> card${list.length===1?'':'s'} on <b class="num">${Math.ceil(list.length/9)}</b> page${Math.ceil(list.length/9)===1?'':'s'}.</p>
    <p class="muted small" style="margin:0">In the print settings, set the scale to 100% (or Actual size) so the cards come out the right size. If nothing happens when you tap Print, open the app in Safari and use Share → Print.</p>`,
@@ -1109,9 +1112,10 @@ function printOpts(){const o=UI.pOpt||(UI.pOpt={basics:true,owned:false,cmd:true
 Object.assign(A,{
   printOpen(){printOpts()},
   pStyle(e){UI.pOpt.style=e.dataset.s;printOpts()},
+  pBw(e){UI.pOpt.bw=!!e.dataset.v;printOpts()},
   async printGo(){const d=deck();const list=proxyList(d,UI.pOpt);const need=[...new Set(list)].filter(n=>!card(n).fx);
     if(need.length){toast('Getting rules text for '+need.length+' cards…');try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}save()}catch(e){toast(e.message);return}}
-    const pages=[];for(let i=0;i<list.length;i+=9)pages.push(`<div class="ppage">${list.slice(i,i+9).map(proxyHtml).join('')}</div>`);$('#print').innerHTML=pages.join('');
+    const pages=[];for(let i=0;i<list.length;i+=9)pages.push(`<div class="ppage">${list.slice(i,i+9).map(proxyHtml).join('')}</div>`);$('#print').innerHTML=pages.join('');$('#print').classList.toggle('bw',!!UI.pOpt.bw&&UI.pOpt.style!=='text');
     closeSheet();setTimeout(()=>{try{window.print()}catch(e){toast('Printing is not available here. Open the app in Safari and use Share → Print.')}},150)}
 });
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
