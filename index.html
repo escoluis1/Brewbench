@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.14';
+const VERSION='2.15';
 const NEWS=[
+ ['2.15','Nov 13, 2026',['Your data now lives in the browser\'s larger storage, so a big collection no longer risks filling it up. Everything carried over automatically.','Backup reminder: the Decks tab tells you when you have changes that are not backed up, and Setup shows when you last exported.','Export now opens the iPhone share sheet so you can save the backup to Files or iCloud Drive.','The app asks the browser not to clear its data automatically, and re-fetches any card details that go missing.']],
  ['2.14','Nov 12, 2026',['Tapping a card to see its picture now shows its price, how many you own, and its EDHREC numbers when it came from an EDHREC list.']],
  ['2.13','Nov 12, 2026',['Ask Claude requests now say they come from Brew Bench and that the answer will be pasted back into it.']],
  ['2.12','Nov 12, 2026',['Ask Claude: Menu → Ask Claude for recommendations writes a request with your commander, themes, sections and card list. Copy it into the Claude app, then paste the answer back to add the suggested cards to your Maybeboard or straight into the deck.']],
@@ -286,15 +287,34 @@ const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packa
 let S; let CARDS={};
 function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
-function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.v){S=j}else S=blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};}
+/* storage: the browser's large store (IndexedDB), falling back to the small one (localStorage) when it is unavailable */
+let DB=null;let STORE='';
+const idbOpen=()=>new Promise(res=>{try{const r=indexedDB.open('brewbench',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=r.onblocked=()=>res(null)}catch(e){res(null)}});
+const idbGet=k=>new Promise(res=>{if(!DB)return res(undefined);try{const q=DB.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>res(undefined)}catch(e){res(undefined)}});
+const idbSet=(k,v)=>new Promise(res=>{if(!DB)return res(false);try{const tx=DB.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>res(true);tx.onerror=tx.onabort=()=>res(false)}catch(e){res(false)}});
+async function load(){DB=await idbOpen();let raw=await idbGet('state');let moved=false;if(!raw){try{raw=localStorage.getItem(KEY)}catch(e){}moved=!!raw}
+  try{const j=raw&&JSON.parse(raw);S=j&&j.v?j:blank()}catch(e){S=blank()}norm();CARDS=S.cards||{};
+  if(moved&&DB)await idbSet('state',raw);STORE=DB?'large':'small'}
 let saveT;
-function save(){clearTimeout(saveT);saveT=setTimeout(()=>{
+function writeNow(){clearTimeout(saveT);saveT=null;if(!S)return;
   const keep={};const add=n=>{if(CARDS[n])keep[n]=CARDS[n]};
   S.decks.forEach(d=>{d.cmd.forEach(add);d.cards.forEach(c=>add(c.n))});Object.keys(S.coll).forEach(add);
   S.packages.forEach(p=>p.cards.forEach(add));(S.players||[]).forEach(p=>(p.decks||[]).forEach(add));
-  S.cards=keep;
-  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Storage is full. Export a backup in Setup.')}
-},250);}
+  S.cards=keep;const str=JSON.stringify(S);
+  idbSet('state',str).then(ok=>{if(ok)return;try{localStorage.setItem(KEY,str)}catch(e){toast('Could not save. Export a backup in Setup now.')}})}
+/* save(false) stores without counting as a change that needs backing up */
+function save(changed){if(changed!==false&&S)S.changed=Date.now();clearTimeout(saveT);saveT=setTimeout(writeNow,250)}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&saveT)writeNow()});
+const hasData=()=>S.decks.length||Object.keys(S.coll).length||(S.games||[]).length;
+const dirty=()=>!S.lastBackup||(S.changed||0)>S.lastBackup;
+const ago=t=>{if(!t)return'never';const d=Math.floor((Date.now()-t)/864e5);return d<1?'today':d===1?'yesterday':d+' days ago'};
+/* card details can always be fetched again: fill in any that are referenced but missing */
+async function hydrate(){const want=new Set();S.decks.forEach(d=>{d.cmd.forEach(n=>want.add(n));d.cards.forEach(c=>want.add(c.n))});Object.keys(S.coll).forEach(n=>want.add(n));S.packages.forEach(p=>p.cards.forEach(n=>want.add(n)));
+  const need=[...want].filter(n=>!CARDS[n]);if(!need.length)return;if(need.length>20)toast('Loading details for '+need.length+' cards…');
+  try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}
+    /* names that came back under a fuller name (two-sided cards) keep working under the name already in use */
+    const idx=lowerIndex();need.forEach(n=>{if(!CARDS[n]){const c=idx.get(n.toLowerCase())||idx.get(n.split(' // ')[0].toLowerCase());if(c)CARDS[n]={...c,n}}});save(false);if($('#sheet').hidden)rerender()}catch(e){}}
+async function storageInfo(){const o={kept:null,used:null};try{if(navigator.storage&&navigator.storage.persisted)o.kept=await navigator.storage.persisted();if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();o.used=e.usage}}catch(e){}return o}
 let UI={deck:null,view:'list',closed:{},collQ:'',collColor:'',collLoc:''};
 function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
 
@@ -367,7 +387,7 @@ const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
 /* ================= views ================= */
-function route(){const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','play','setup'].includes(h)?h:'decks';
+function route(){if(!S)return;const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','play','setup'].includes(h)?h:'decks';
   if(v==='deck'&&!deck()){location.hash='decks';return}
   $('#tabs').innerHTML=[['decks','Decks'],['packages','Packages'],['collection','Collection'],['play','Play'],['setup','Setup']].map(([k,l])=>`<a href="#${k}" class="${(v===k||(v==='deck'&&k==='decks'))?'on':''}"><b>${l}</b></a>`).join('');
   ({decks:vDecks,deck:vDeck,packages:vPkgs,collection:vColl,play:vPlay,setup:vSetup})[v]();}
@@ -376,6 +396,7 @@ const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div cla
 
 function vDecks(){
   page('<h1>Decks</h1>','<button class="pri" data-act="newDeck">New deck</button>',
+  (hasData()&&dirty()&&Date.now()-(S.lastBackup||0)>7*864e5&&Date.now()-(S.snooze||0)>3*864e5?`<div class="secbox" style="padding:12px;display:flex;flex-direction:column;gap:8px"><span><b>You have changes that are not backed up.</b> Last backup: ${ago(S.lastBackup)}.</span><div class="row"><button class="pri grow" data-act="export">Back up now</button><button data-act="snooze">Later</button></div></div>`:'')+
   (S.seen!==VERSION?`<button class="empty" style="width:100%;color:var(--ink);border-style:solid;border-color:var(--accent)" data-act="news">Brew Bench updated to version ${VERSION}. <b style="color:var(--accent)">See what's new</b></button>`:'')+(
   S.decks.length?`<div class="list">${S.decks.map(d=>`<button class="item" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')}${d.themes.length?' · '+esc(d.themes.map(t=>t.name).join(', ')):''}</span></span><span class="num muted">${total(d)}/100</span></button>`).join('')}</div>`
   :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick your commander, then choose the themes it is built around.</div>`));
@@ -498,7 +519,8 @@ function vColl(){
 }
 const collRows=show=>show.slice(0,300).map(n=>`<div class="item"><button class="name ghost" style="text-align:left;color:inherit;padding:0" data-act="collCard" data-n="${esc(n)}">${esc(n)}<br><span class="muted small">${esc(S.loc[n]||'No location')} · ${colorOf(n)}${prtOf(n)?' · '+esc(prtLabel(prtOf(n))):''}</span></button><button class="sm" data-act="collDec" data-n="${esc(n)}" aria-label="Remove one ${esc(n)}">−</button><b class="num" style="min-width:22px;text-align:center">${S.coll[n]}</b><button class="sm" data-act="collInc" data-n="${esc(n)}" aria-label="Add one ${esc(n)}">+</button></div>`).join('')+(show.length>300?`<div class="item muted small">Showing 300 of ${show.length}. Filter to narrow down.</div>`:'')||'<div class="item muted">No matches.</div>';
 
-function vSetup(){
+function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const mb=o.used!=null?' Using '+(o.used/1048576).toFixed(1)+' MB.':'';e.textContent=`Saved in the browser's ${STORE==='large'?'large':'small'} storage.${mb}${o.kept===true?' Protected from automatic clearing.':o.kept===false?' The browser may clear it if the device runs low on space, so keep backups.':''}`});
+  
   page('<h1>Setup</h1>',`<span class="muted small num">Version ${VERSION}</span>`,`
    <div class="row"><h2 class="grow">What's new</h2><button class="sm" data-act="news">All versions</button></div>
    <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
@@ -508,6 +530,7 @@ function vSetup(){
    <div class="row"><span class="grow">Share cards across sections automatically<br><span class="muted small">When you add a card, it is also counted in any other section whose search it matches.</span></span><button data-act="shareTog" aria-pressed="${S.autoShare!==false}">${S.autoShare!==false?'On':'Off'}</button></div>
    <h2>Backup and moving devices</h2>
    <p class="muted small" style="margin:0">Everything is saved on this device only. To move it to another device, export here and import there.</p>
+   <div class="secbox" style="padding:12px"><b>Last backup: ${ago(S.lastBackup)}</b><br><span class="muted small">${!hasData()?'Nothing to back up yet.':dirty()?'You have changes since then.':'Everything is backed up.'}</span><br><span class="muted small" id="stInfo">Saved in the browser's ${STORE==='large'?'large':'small'} storage.</span></div>
    <div class="row wrapf"><button data-act="export">Export backup</button><button data-act="importOpen">Import backup</button><button class="danger" data-act="resetAsk">Erase everything</button></div>`);
 }
 
@@ -970,10 +993,16 @@ const A={
   edSave(){readEd();ED.rows.forEach(applyRole);const r=ED.onSave(ED.rows,ED.name);ED=null;save();closeSheet();rerender();if(r==='themes')themeSheet()},
   edRemove(){if(S.archetypes.length<2){toast('Keep at least one archetype');return}ED.onDelete();ED=null;save();closeSheet();rerender()},
   /* backup */
-  export(){save();setTimeout(()=>{const txt=JSON.stringify(S);download('brew-bench-backup.json',txt);sheet('Export backup',`<p class="muted small" style="margin:0">A backup file should have downloaded. If not, copy the text below and save it somewhere.</p><textarea readonly id="exp">${esc(txt)}</textarea>`,`<button class="pri" data-act="copyExp">Copy</button>`)},300)},
+  async export(){writeNow();const txt=JSON.stringify(S);const name='brew-bench-backup-'+today()+'.json';let how='';
+    try{const f=new File([txt],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Brew Bench backup'});how='shared'}}catch(e){if(e&&e.name==='AbortError'){toast('Backup cancelled');return}}
+    if(!how){download(name,txt);how='file'}
+    S.lastBackup=Date.now();save(false);rerender();
+    sheet('Backup made',`<p style="margin:0">${how==='shared'?'Your backup was handed to the share sheet. If you chose Save to Files, it is in the folder you picked.':'A backup file called <b>'+esc(name)+'</b> should have downloaded.'}</p>
+     <p class="muted small" style="margin:0">Keep it somewhere off this device, like iCloud Drive. If nothing was saved, copy the text below and paste it into a note.</p><textarea readonly id="exp" style="min-height:90px">${esc(txt)}</textarea>`,`<button data-act="copyExp">Copy backup text</button>`)},
+  snooze(){S.snooze=Date.now();save(false);rerender()},
   importOpen(){sheet('Import backup',`<p class="muted small" style="margin:0">This replaces everything on this device with the backup.</p><label for="impF">Backup file</label><input id="impF" type="file" accept=".json,application/json"><label for="imp">Or paste the backup text</label><textarea id="imp"></textarea>`,`<button class="pri" data-act="importGo">Replace my data with this backup</button>`)},
   async importGo(){let txt=$('#imp').value.trim();const f=$('#impF').files[0];if(f)txt=await f.text();
-    try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;norm();CARDS=S.cards||{};save();closeSheet();rerender();toast('Backup imported')}catch(e){toast('That is not a Brew Bench backup')}},
+    try{const j=JSON.parse(txt);if(!j.v||!Array.isArray(j.decks))throw 0;S=j;norm();CARDS=S.cards||{};S.lastBackup=Date.now();save(false);closeSheet();rerender();toast('Backup imported');hydrate()}catch(e){toast('That is not a Brew Bench backup')}},
   resetAsk(){confirmSheet('Erase everything','This deletes all decks, packages, archetypes and your collection from this device. Export a backup first if you might want them back.','reset','Erase everything')},
   reset(){S=blank();norm();CARDS={};save();closeSheet();rerender()},
   close(){const pickThemes=R&&R.ctx&&R.ctx.k==='cmd'&&deck()&&deck().cmd.length&&!deck().themes.length;closeSheet();rerender();if(pickThemes)themeSheet()},
@@ -1228,7 +1257,7 @@ document.addEventListener('input',ev=>{if(ev.target.id==='tS'){const q=ev.target
   if(ev.target.id==='collQ'){UI.collQ=ev.target.value;const q=UI.collQ.toLowerCase();const l=$('#collList');if(l)l.innerHTML=collRows(collShown())}});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('#peek').hidden)A.unpeek();else if(!$('#sheet').hidden)A.close()}});
 window.addEventListener('hashchange',route);
-load();route();
+load().then(()=>{route();hydrate();try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
 </script>
 </body>
 </html>
