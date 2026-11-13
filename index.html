@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.13';
+const VERSION='2.14';
 const NEWS=[
+ ['2.14','Nov 12, 2026',['Tapping a card to see its picture now shows its price, how many you own, and its EDHREC numbers when it came from an EDHREC list.']],
  ['2.13','Nov 12, 2026',['Ask Claude requests now say they come from Brew Bench and that the answer will be pasted back into it.']],
  ['2.12','Nov 12, 2026',['Ask Claude: Menu → Ask Claude for recommendations writes a request with your commander, themes, sections and card list. Copy it into the Claude app, then paste the answer back to add the suggested cards to your Maybeboard or straight into the deck.']],
  ['2.11','Nov 12, 2026',['Add cards from the Types view: each type has Search and Fill. Fill offers EDHREC\'s list for that type, EDHREC\'s top and high-synergy cards of that type, the most played cards of that type in your colors, and your themes.','Cards added from Types are filed into your sections automatically. Anything that matches no section waits in Unsorted.']],
@@ -563,7 +564,9 @@ async function runShare(){const items=[...SHAREQ];SHAREQ.clear();const byDeck={}
 function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;UI.tokOpen=false;UI.tyOpen=sheet.nextTy||'';sheet.nextTy='';el.hidden=false;
   el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet ${was?'still':''}" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;if(keep&&$('.body',el))$('.body',el).scrollTop=keep}
 function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null;UI.themeOpen=false;sheet.last=''}
-function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p><span style="color:#fff" class="small">Tap anywhere to close</span></div>`}
+function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p><span style="color:#fff" class="small">Tap anywhere to close</span></div>`;
+  const info=[c.p?money(c.p):'No price listed',owned(n)?'You own '+owned(n):'Not owned',R&&R.meta&&R.meta[n]].filter(Boolean);const b=document.createElement('b');b.className='num';b.style.cssText='color:#fff;font-size:16px;text-align:center';b.textContent=info.join(' · ');
+  const im=$('.peek img',el)||$('.peek h2',el);im.after(b)}
 
 /* results list shared by search, fill, commander pick, collection add, package add */
 let R=null;
