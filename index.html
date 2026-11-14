@@ -215,8 +215,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.18';
+const VERSION='2.19';
 const NEWS=[
+ ['2.19','Nov 14, 2026',['Interaction now includes protection and redirection instants, such as Heroic Intervention and Deflecting Swat, along with removal, board wipes and counterspells. Existing decks were updated.']],
  ['2.18','Nov 14, 2026',['Color balance on each deck: for every color, the share of colored mana symbols in your costs next to the share of your mana sources that make it, with a flag when a color is short.','Tap a color to see which cards make it and which cards need it most.']],
  ['2.17','Nov 14, 2026',['Deck options on the Decks tab: tap the ⋯ button on a deck to test, rename, duplicate, share, export, print, move to the top or delete it without opening it.','Share a deck as a card list, or as a deck file that another Brew Bench can import with its sections and themes.','Import on the Decks tab makes a new deck from a pasted card list or a deck file.']],
  ['2.16','Nov 14, 2026',['The themes screen is now called Game Plan themes, and the deck page labels your picks as the Game Plan.','Fixed: a Background commander no longer suggests a "Background Kindred" theme.']],
@@ -296,11 +297,14 @@ const ROLES=[[/game ?plan/i,'plan'],[/pay ?offs?/i,'payoff'],[/finishers?/i,'fin
 const roleOf=n=>(ROLES.find(([re])=>re.test(n||''))||[])[1]||'';
 /* a section named Game Plan, Pay Off or Finisher is fed by the deck's themes and has a loose target */
 function applyRole(x){const r=roleOf(x.name);if(r){x.role=r;x.flex=1}else{delete x.role;delete x.flex}return x}
-const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Interaction',10,'(otag:removal or otag:board-wipe or (t:instant o:"counter target"))'),SEC('Card Advantage',10,'otag:draw'),LANDS(),
+const INTERACT_OLD='(otag:removal or otag:board-wipe or (t:instant o:"counter target"))';
+const INTERACT='(otag:removal or otag:board-wipe or (t:instant (o:"counter target" or o:hexproof or o:indestructible or o:"phase out" or o:"new targets" or o:"change the target")))';
+const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Interaction',10,INTERACT),SEC('Card Advantage',10,'otag:draw'),LANDS(),
   {...SEC('Game Plan',20,''),flex:1,role:'plan'},{...SEC('Pay Off',8,''),flex:1,role:'payoff'},{...SEC('Finisher',3,'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")'),flex:1,role:'finisher'}];
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
+function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
+  if(!S.mInt){S.mInt=1;[S.template,...(S.decks||[]).map(d=>d.sections)].forEach(l=>l.forEach(x=>{if(x.q===INTERACT_OLD)x.q=INTERACT}))}S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
 /* storage: the browser's large store (IndexedDB), falling back to the small one (localStorage) when it is unavailable */
 let DB=null;let STORE='';
@@ -557,7 +561,7 @@ const pureLand=n=>/Land/.test(frontOf(card(n).t));    /* a land on the front: no
    section's search. Returns [{s, names:Set}] in deck order. */
 async function matchSections(d,cards,step){const landSec=d.sections.find(s=>/land/i.test(s.name));
   const pool=cards.filter(c=>!pureLand(c.n)&&c.n.indexOf('"')<0);const chunks=[];let cur=[],len=0;
-  pool.forEach(c=>{const t=frontOf(c.n).length+7;if(len+t>720&&cur.length){chunks.push(cur);cur=[];len=0}cur.push(c);len+=t});if(cur.length)chunks.push(cur);
+  pool.forEach(c=>{const t=frontOf(c.n).length+7;if(len+t>600&&cur.length){chunks.push(cur);cur=[];len=0}cur.push(c);len+=t});if(cur.length)chunks.push(cur);
   const tq=t=>t.q||(autoQueries(t.name)[0]||{}).raw||'';
   const qs=d.sections.filter(s=>s!==landSec).map(s=>({s,list:(s.role==='plan'?[s.q,...d.themes.map(tq)]:[s.q||(s.flex?'':tq(s))]).filter(Boolean)})).filter(x=>x.list.length);const out=[];
   for(let i=0;i<qs.length&&chunks.length;i++){const{s,list}=qs[i];if(step)step(s,i,qs.length);const names=new Set();
