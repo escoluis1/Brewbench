@@ -12,12 +12,12 @@
 /* Layout: one column, phone first. Sticky top bar, fixed bottom tabs, bottom sheets for every action. Wider screens get a centred 760px column. */
 :root{
   --bg:#f3f4f1;--surface:#ffffff;--sunk:#e9ece8;--ink:#1b2422;--muted:#62706c;--line:#d5dbd7;
-  --accent:#0f6b5c;--accent-ink:#ffffff;--warn:#a65f08;--ok:#2a7a4b;--over:#544fc0;--danger:#b3372f;
+  --s1:#2a78d6;--s2:#eb6834;--accent:#0f6b5c;--accent-ink:#ffffff;--warn:#a65f08;--ok:#2a7a4b;--over:#544fc0;--danger:#b3372f;
   --display:"Space Grotesk","Avenir Next","Segoe UI",sans-serif;--body:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#12181a;--surface:#1b2326;--sunk:#161d20;--ink:#e7ecea;--muted:#93a19d;--line:#2c373a;
-  --accent:#4cc2ab;--accent-ink:#06211c;--warn:#e0a044;--ok:#62c08a;--over:#9d98f0;--danger:#ef7d74;color-scheme:dark}}
+  --s1:#3987e5;--s2:#d95926;--accent:#4cc2ab;--accent-ink:#06211c;--warn:#e0a044;--ok:#62c08a;--over:#9d98f0;--danger:#ef7d74;color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);-webkit-text-size-adjust:100%;
@@ -129,6 +129,18 @@ nav.tabs a.on{color:var(--accent)}
 .pan .delta{pointer-events:none;height:18px;font-weight:700}
 .pan .more{position:relative;z-index:1;margin-top:4px;background:#00000055;border-color:#ffffff66;font-size:12px;min-height:30px;padding:2px 10px}
 nav.tabs a b{font-size:13px}
+/* color balance: two thin bars per color on one 0-100% scale, values labeled in text ink */
+.cbl{display:flex;gap:14px;flex-wrap:wrap;padding:0 12px 6px;font-size:12px;color:var(--muted)}
+.cbl i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cb{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;width:100%;padding:8px 12px;border:0;border-top:1px solid var(--line);border-radius:0;background:none;text-align:left;min-height:52px}
+.cb:hover{background:var(--sunk)}
+.cbars{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cbr{display:flex;align-items:center;gap:6px;font-size:12px}
+.cbr i{display:block;height:8px;border-radius:0 4px 4px 0;min-width:2px}
+.cbr b{font-weight:600;font-variant-numeric:tabular-nums}
+.cbv{font-size:12px;font-weight:600;white-space:nowrap;text-align:right}
+.cbv small{display:block;font-weight:400;color:var(--muted)}
+
 /* deck tester: one dark table look, everything done with taps */
 #test{position:fixed;inset:0;z-index:15;background:#0c1113;color:#fff;display:flex;flex-direction:column;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #test button{color:#fff;background:#1d262a;border-color:#33404a}
@@ -203,8 +215,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.17';
+const VERSION='2.18';
 const NEWS=[
+ ['2.18','Nov 14, 2026',['Color balance on each deck: for every color, the share of colored mana symbols in your costs next to the share of your mana sources that make it, with a flag when a color is short.','Tap a color to see which cards make it and which cards need it most.']],
  ['2.17','Nov 14, 2026',['Deck options on the Decks tab: tap the ⋯ button on a deck to test, rename, duplicate, share, export, print, move to the top or delete it without opening it.','Share a deck as a card list, or as a deck file that another Brew Bench can import with its sections and themes.','Import on the Decks tab makes a new deck from a pasted card list or a deck file.']],
  ['2.16','Nov 14, 2026',['The themes screen is now called Game Plan themes, and the deck page labels your picks as the Game Plan.','Fixed: a Background commander no longer suggests a "Background Kindred" theme.']],
  ['2.15','Nov 13, 2026',['Your data now lives in the browser\'s larger storage, so a big collection no longer risks filling it up. Everything carried over automatically.','Backup reminder: the Decks tab tells you when you have changes that are not backed up, and Setup shows when you last exported.','Export now opens the iPhone share sheet so you can save the backup to Files or iCloud Drive.','The app asks the browser not to clear its data automatically, and re-fetches any card details that go missing.']],
@@ -469,6 +482,7 @@ function vDeck(){
    </div>
    <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small">avg ${avg}</span></header>
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
+   ${manaHtml(d)}
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
    <div class="row"><div class="chips grow"><button class="chip ${UI.group==='type'?'':'on'}" data-act="group" data-g="sec">Sections</button><button class="chip ${UI.group==='type'?'on':''}" data-act="group" data-g="type">Types</button></div>${UI.group==='type'?'':'<button class="sm" data-act="editSecs">Edit sections</button>'}</div>
@@ -1283,6 +1297,35 @@ Object.assign(A,{
     if(txt[0]==='{'){try{const j=JSON.parse(txt);if(j.brewbench!=='deck')throw 0;const d=addDeckFromFile(j);closeSheet();UI.deck=d.id;location.hash='deck';route();toast('Imported '+d.name);hydrate()}catch(e){toast(/"decks"/.test(txt)?'That is a full backup. Use Setup → Import backup for it.':'That is not a Brew Bench deck file')}return}
     const d={id:uid(),name:$('#diName').value.trim()||'Imported deck',cmd:[],arch:'',themes:[],sections:withLands(S.template.map(x=>({...x,id:uid()}))),cards:[]};
     S.decks.unshift(d);save();UI.deck=d.id;closeSheet();location.hash='deck';route();importList(txt,'deck')}
+});
+/* ================= color balance ================= */
+const CNAME={W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'};
+/* need = colored symbols in costs (a two-color hybrid symbol counts half for each); have = cards that can make that color */
+function manaStats(d){const id=['W','U','B','R','G'].filter(c=>ident(d).includes(c));const need={},lands={},other={},who={},cost={};id.forEach(c=>{need[c]=0;lands[c]=0;other[c]=0;who[c]=[];cost[c]=[]});let cOnly=0;
+  [...d.cmd.map(n=>({n,q:1})),...main(d)].forEach(c=>{const per={};((card(c.n).mc||'').match(/\{[^}]+\}/g)||[]).forEach(x=>{const cs=[...new Set(x.match(/[WUBRG]/g)||[])];cs.forEach(k=>{if(k in need)per[k]=(per[k]||0)+1/cs.length})});
+    for(const k in per){need[k]+=per[k]*c.q;cost[k].push({n:c.n,v:per[k]})}});
+  main(d).forEach(c=>{const pm=card(c.n).pm||[];if(!pm.length)return;const cols=pm.filter(x=>x in need);if(!cols.length){cOnly+=c.q;return}const land=anyLand(c.n);cols.forEach(k=>{(land?lands:other)[k]+=c.q;who[k].push({n:c.n,q:c.q,land})})});
+  const nT=id.reduce((a,c)=>a+need[c],0),sT=id.reduce((a,c)=>a+lands[c]+other[c],0);
+  return{id,cOnly,nT,sT,rows:id.map(c=>{const np=nT?need[c]/nT*100:0,sp=sT?(lands[c]+other[c])/sT*100:0;return{c,need:need[c],np,lands:lands[c],other:other[c],sp,gap:np-sp,who:who[c],cost:cost[c]}})}}
+const manaVerdict=r=>!r.need?['','No costs']:r.lands+r.other===0?['▲','No sources']:r.gap>5?['▲','Short']:r.gap<-12?['','Plenty']:['✓','On track'];
+function manaHtml(d){if(!d.cmd.length||!main(d).length)return'';const m=manaStats(d);if(!m.id.length)return'';
+  if(!m.nT)return`<div class="sec"><header><span class="ttl">Color balance</span></header><p class="muted small" style="margin:0;padding:0 12px 10px">No colored mana costs in the deck yet.</p></div>`;
+  return`<div class="sec"><header><span class="ttl">Color balance</span><span class="muted small">tap a color</span></header>
+    <div class="cbl"><span><i style="background:var(--s1)"></i>Share of colored symbols in your costs</span><span><i style="background:var(--s2)"></i>Share of your color sources</span></div>
+    ${m.rows.map(r=>{const[ic,tx]=manaVerdict(r);return`<button class="cb" data-act="manaColor" data-c="${r.c}" title="${CNAME[r.c]}: ${Math.round(r.np)}% of colored symbols, ${Math.round(r.sp)}% of color sources">
+      <span class="pip ${r.c}">${r.c}</span>
+      <span class="cbars"><span class="cbr"><i style="width:${r.np*.78}%;background:var(--s1)"></i><b>${Math.round(r.np)}%</b></span><span class="cbr"><i style="width:${r.sp*.78}%;background:var(--s2)"></i><b>${Math.round(r.sp)}%</b></span></span>
+      <span class="cbv"><span style="color:${ic==='▲'?'var(--warn)':ic==='✓'?'var(--ok)':'var(--muted)'}">${ic}</span> ${tx}<small>${r.lands+r.other} source${r.lands+r.other===1?'':'s'}</small></span></button>`}).join('')}
+    <p class="muted small" style="margin:0;padding:8px 12px 10px;border-top:1px solid var(--line)">${Math.round(m.nT)} colored symbols in costs. A card that makes two colors counts as a source of both.${m.cOnly?' '+m.cOnly+' card'+(m.cOnly===1?' makes':'s make')+' only colorless mana.':''}</p></div>`}
+Object.assign(A,{
+  manaColor(e){const d=deck();const m=manaStats(d);const r=m.rows.find(x=>x.c===e.dataset.c);if(!r)return;const[ic,tx]=manaVerdict(r);
+    const names=l=>l.sort((a,b)=>a.n.localeCompare(b.n)).map(x=>`<button class="item" data-act="peek" data-n="${esc(x.n)}"><span class="name">${x.q>1?x.q+'× ':''}${esc(x.n)}</span>${costOrMana(card(x.n))}</button>`).join('');
+    const lands=r.who.filter(x=>x.land),other=r.who.filter(x=>!x.land);const top=[...r.cost].sort((a,b)=>b.v-a.v||a.n.localeCompare(b.n)).slice(0,8);
+    sheet(CNAME[r.c]+' mana',`<p style="margin:0"><b>${ic} ${tx}.</b> ${CNAME[r.c]} is ${Math.round(r.np)}% of the colored symbols in your costs and ${Math.round(r.sp)}% of your color sources.</p>
+     <p class="muted small" style="margin:0">${r.gap>5?'Your costs lean on '+CNAME[r.c].toLowerCase()+' more than your mana does. Add '+CNAME[r.c].toLowerCase()+' sources or trim heavy '+CNAME[r.c].toLowerCase()+' costs.':r.gap<-12?'You have more '+CNAME[r.c].toLowerCase()+' sources than your costs call for. Some could become another color.':'Your sources match what your costs ask for.'} This compares shares, so it shows balance between colors, not whether you have enough mana overall.</p>
+     <label>Lands that make ${CNAME[r.c].toLowerCase()} · ${r.lands}</label>${lands.length?`<div class="list">${names(lands)}</div>`:'<p class="muted small" style="margin:0">None yet.</p>'}
+     <label>Other cards that make ${CNAME[r.c].toLowerCase()} · ${r.other}</label>${other.length?`<div class="list">${names(other)}</div>`:'<p class="muted small" style="margin:0">None yet.</p>'}
+     <label>Cards that need ${CNAME[r.c].toLowerCase()} most</label>${top.length?`<div class="list">${top.map(x=>`<button class="item" data-act="peek" data-n="${esc(x.n)}"><span class="name">${esc(x.n)}</span>${pips(card(x.n).mc)}</button>`).join('')}</div>`:'<p class="muted small" style="margin:0">None.</p>'}`)}
 });
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
