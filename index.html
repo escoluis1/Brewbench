@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.16';
+const VERSION='2.17';
 const NEWS=[
+ ['2.17','Nov 14, 2026',['Deck options on the Decks tab: tap the ⋯ button on a deck to test, rename, duplicate, share, export, print, move to the top or delete it without opening it.','Share a deck as a card list, or as a deck file that another Brew Bench can import with its sections and themes.','Import on the Decks tab makes a new deck from a pasted card list or a deck file.']],
  ['2.16','Nov 14, 2026',['The themes screen is now called Game Plan themes, and the deck page labels your picks as the Game Plan.','Fixed: a Background commander no longer suggests a "Background Kindred" theme.']],
  ['2.15','Nov 13, 2026',['Your data now lives in the browser\'s larger storage, so a big collection no longer risks filling it up. Everything carried over automatically.','Backup reminder: the Decks tab tells you when you have changes that are not backed up, and Setup shows when you last exported.','Export now opens the iPhone share sheet so you can save the backup to Files or iCloud Drive.','The app asks the browser not to clear its data automatically, and re-fetches any card details that go missing.']],
  ['2.14','Nov 12, 2026',['Tapping a card to see its picture now shows its price, how many you own, and its EDHREC numbers when it came from an EDHREC list.']],
@@ -396,10 +397,10 @@ const rerender=()=>route();
 const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div class="wrap">${title}${actions||''}</div></div><main class="wrap">${body}</main>`};
 
 function vDecks(){
-  page('<h1>Decks</h1>','<button class="pri" data-act="newDeck">New deck</button>',
+  page('<h1>Decks</h1>','<button data-act="deckImport">Import</button><button class="pri" data-act="newDeck">New deck</button>',
   (hasData()&&dirty()&&Date.now()-(S.lastBackup||0)>7*864e5&&Date.now()-(S.snooze||0)>3*864e5?`<div class="secbox" style="padding:12px;display:flex;flex-direction:column;gap:8px"><span><b>You have changes that are not backed up.</b> Last backup: ${ago(S.lastBackup)}.</span><div class="row"><button class="pri grow" data-act="export">Back up now</button><button data-act="snooze">Later</button></div></div>`:'')+
   (S.seen!==VERSION?`<button class="empty" style="width:100%;color:var(--ink);border-style:solid;border-color:var(--accent)" data-act="news">Brew Bench updated to version ${VERSION}. <b style="color:var(--accent)">See what's new</b></button>`:'')+(
-  S.decks.length?`<div class="list">${S.decks.map(d=>`<button class="item" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')}${d.themes.length?' · '+esc(d.themes.map(t=>t.name).join(', ')):''}</span></span><span class="num muted">${total(d)}/100</span></button>`).join('')}</div>`
+  S.decks.length?`<div class="list">${S.decks.map(d=>`<div class="item" style="padding:0 6px 0 0"><button class="item grow" style="border:0;min-width:0" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')}${d.themes.length?' · '+esc(d.themes.map(t=>t.name).join(', ')):''}</span></span><span class="num muted">${total(d)}/100</span></button><button data-act="deckActs" data-id="${d.id}" aria-label="Options for ${esc(d.name)}" style="font-weight:700;letter-spacing:.1em">⋯</button></div>`).join('')}</div>`
   :`<div class="empty">No decks yet. Tap <b>New deck</b>, pick your commander, then choose the themes it is built around.</div>`));
 }
 
@@ -1242,6 +1243,46 @@ Object.assign(A,{
   askOpen(){askSheet()},
   askGoal(e){askRead();UI.ask.goal=e.dataset.k;askSheet()},
   async askCopy(){askRead();const t=askPrompt(deck(),UI.ask);$('#askP').value=t;try{await navigator.clipboard.writeText(t);toast('Copied. Paste it into Claude.')}catch(err){const a=$('#askP');a.focus();a.select();toast('Select the text and copy it')}}
+});
+/* ================= deck options on the Decks tab ================= */
+const deckText=d=>[...d.cmd.map(n=>'1 '+n),...main(d).map(c=>c.q+' '+c.n)].join('\n');
+function deckFile(d){const cards={};[...d.cmd,...d.cards.map(c=>c.n)].forEach(n=>{if(CARDS[n])cards[n]=CARDS[n]});return JSON.stringify({brewbench:'deck',v:1,deck:d,cards})}
+function addDeckFromFile(j){const d=j.deck;if(!d||!Array.isArray(d.cards)||!Array.isArray(d.sections))throw 0;Object.entries(j.cards||{}).forEach(([n,c])=>{if(!CARDS[n])CARDS[n]=c});
+  const nd={...d,id:uid(),themes:d.themes||[],cmd:d.cmd||[],pulled:{}};nd.sections.forEach(applyRole);if(S.decks.some(x=>x.name===nd.name))nd.name+=' (imported)';S.decks.unshift(nd);save();return nd}
+Object.assign(A,{
+  deckActs(e){UI.deck=e.dataset.id;const d=deck();const top=S.decks[0]===d;
+    sheet(d.name,`<p class="muted small" style="margin:0">${esc(d.cmd.join(' + ')||'No commander yet')} · ${total(d)}/100 cards</p><div class="list">
+     <button class="item" data-act="openDeck" data-id="${d.id}">Open</button>
+     <button class="item" data-act="test">Test deck</button>
+     <button class="item" data-act="rename">Rename</button>
+     <button class="item" data-act="deckDup">Duplicate</button>
+     <button class="item" data-act="deckShare">Share card list</button>
+     <button class="item" data-act="deckFileOut">Share as a Brew Bench deck file</button>
+     <button class="item" data-act="exportDeck">Show card list to copy</button>
+     <button class="item" data-act="printOpen">Print playtest proxies</button>
+     <button class="item" data-act="askOpen">Ask Claude for recommendations</button>
+     ${top?'':'<button class="item" data-act="deckTop">Move to the top of the list</button>'}
+     <button class="item danger" data-act="delDeckAsk">Delete</button></div>`)},
+  deckDup(){const d=deck();const c=JSON.parse(JSON.stringify(d));c.id=uid();c.pulled={};const base=d.name.replace(/ copy( \d+)?$/,'');let n=base+' copy',i=2;while(S.decks.some(x=>x.name===n))n=base+' copy '+(i++);c.name=n;
+    S.decks.splice(S.decks.indexOf(d)+1,0,c);save();closeSheet();rerender();toast('Made '+n)},
+  deckTop(){const d=deck();S.decks=[d,...S.decks.filter(x=>x!==d)];save();closeSheet();rerender()},
+  async deckShare(){const d=deck();const txt=d.name+'\n'+(d.cmd.length?'Commander: '+d.cmd.join(' + ')+'\n':'')+'\n'+deckText(d);
+    try{if(navigator.share){await navigator.share({title:d.name,text:txt});closeSheet();return}}catch(e){if(e&&e.name==='AbortError')return}
+    try{await navigator.clipboard.writeText(txt);closeSheet();toast('Card list copied')}catch(e){A.exportDeck()}},
+  async deckFileOut(){const d=deck();const txt=deckFile(d);const name=d.name.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase()+'.brewbench.json';
+    try{const f=new File([txt],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:d.name});closeSheet();return}}catch(e){if(e&&e.name==='AbortError')return}
+    download(name,txt);closeSheet();toast('Deck file downloaded')},
+  deckImport(){sheet('Import a deck',`<label for="diName">Deck name</label><input id="diName" placeholder="Used when you paste a card list" autocomplete="off">
+     <label for="diText">Paste a card list</label><textarea id="diText" placeholder="1 Sol Ring&#10;1 Arcane Signet"></textarea>
+     <p class="muted small" style="margin:0">One card per line. Cards are filed into sections automatically. You pick the commander afterwards.</p>
+     <label for="diFile">Or choose a Brew Bench deck file</label><input id="diFile" type="file" accept=".json,application/json">
+     <p class="muted small" style="margin:0">A deck file from someone else's Brew Bench keeps its sections and themes.</p>`,`<button class="pri" data-act="deckImportGo">Import</button>`)},
+  async deckImportGo(){const f=$('#diFile').files[0];let txt=$('#diText').value.trim();
+    if(f){try{txt=await f.text()}catch(e){toast('Could not read that file');return}}
+    if(!txt){toast('Paste a card list or choose a file');return}
+    if(txt[0]==='{'){try{const j=JSON.parse(txt);if(j.brewbench!=='deck')throw 0;const d=addDeckFromFile(j);closeSheet();UI.deck=d.id;location.hash='deck';route();toast('Imported '+d.name);hydrate()}catch(e){toast(/"decks"/.test(txt)?'That is a full backup. Use Setup → Import backup for it.':'That is not a Brew Bench deck file')}return}
+    const d={id:uid(),name:$('#diName').value.trim()||'Imported deck',cmd:[],arch:'',themes:[],sections:withLands(S.template.map(x=>({...x,id:uid()}))),cards:[]};
+    S.decks.unshift(d);save();UI.deck=d.id;closeSheet();location.hash='deck';route();importList(txt,'deck')}
 });
 document.addEventListener('click',ev=>{const e=ev.target.closest('[data-act]');if(!e)return;const f=A[e.dataset.act];if(f)f(e,ev)});
 document.addEventListener('change',ev=>{const t=ev.target;
