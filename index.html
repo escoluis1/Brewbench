@@ -203,8 +203,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.15';
+const VERSION='2.16';
 const NEWS=[
+ ['2.16','Nov 14, 2026',['The themes screen is now called Game Plan themes, and the deck page labels your picks as the Game Plan.','Fixed: a Background commander no longer suggests a "Background Kindred" theme.']],
  ['2.15','Nov 13, 2026',['Your data now lives in the browser\'s larger storage, so a big collection no longer risks filling it up. Everything carried over automatically.','Backup reminder: the Decks tab tells you when you have changes that are not backed up, and Setup shows when you last exported.','Export now opens the iPhone share sheet so you can save the backup to Files or iCloud Drive.','The app asks the browser not to clear its data automatically, and re-fetches any card details that go missing.']],
  ['2.14','Nov 12, 2026',['Tapping a card to see its picture now shows its price, how many you own, and its EDHREC numbers when it came from an EDHREC list.']],
  ['2.13','Nov 12, 2026',['Ask Claude requests now say they come from Brew Bench and that the answer will be pasted back into it.']],
@@ -432,7 +433,7 @@ function autoQueries(name){const low=name.trim().toLowerCase();const slug=low.re
   if(/^[a-z]+$/.test(low)){const one=low.replace(/(ves)$/,'f').replace(/(ies)$/,'y').replace(/(ches|shes|xes)$/,m=>m.slice(0,-2)).replace(/([^s])s$/,'$1');out.push({raw:'t:'+one,why:'cards with the type "'+one+'"'})}
   out.push({raw:'otag:gives-'+slug,why:'the Scryfall tag "gives-'+slug+'"'},{raw:'otag:'+slug,why:'the Scryfall tag "'+slug+'"'},{raw:'o:"'+low.replace(/"/g,'')+'"',why:'card text containing "'+low+'"'});return out}
 function themeSuggest(d){const seen=new Set();const sugg=[];const push=(name,target,q,src)=>{const k=name.toLowerCase();if(seen.has(k))return;seen.add(k);sugg.push({name,target,q,src})};
-  const cs=d.cmd.map(card);const text=cs.map(c=>c.o+' '+c.t).join(' ');const subs=[...new Set(cs.flatMap(c=>(c.t.split(' // ')[0].split('—')[1]||'').trim().split(/\s+/).filter(Boolean)))];const used=new Set();
+  const cs=d.cmd.map(card);const text=cs.map(c=>c.o+' '+c.t).join(' ');const subs=[...new Set(cs.filter(c=>/Creature/.test(c.t.split(' // ')[0])).flatMap(c=>(c.t.split(' // ')[0].split('—')[1]||'').trim().split(/\s+/).filter(Boolean)))];const used=new Set();
   ((EDH[d.cmd.join('|')]||{}).tags||[]).forEach(({v:t,slug})=>{const lib=THEMES.find(x=>x[0].toLowerCase()===t.toLowerCase());const sub=subs.find(s=>t.toLowerCase().startsWith(s.toLowerCase().slice(0,Math.max(2,s.length-1))));if(sub)used.add(sub);
     /* an EDHREC tag becomes a section; its suggestions come from the Scryfall tag of the same name */
     push(t,lib?lib[1]:sub?15:10,lib?lib[2]:sub?'t:'+sub.toLowerCase():'otag:'+slug,'EDHREC')});
@@ -458,7 +459,7 @@ function vDeck(){
    <div class="cmd">${cmdHtml}</div>
    <div class="row wrapf"><span class="pips">${ident(d).map(c=>`<span class="pip ${c}">${c}</span>`).join('')}</span><span class="grow"></span>
      <button class="sm pri" data-act="test">Test deck</button><button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
-   <div class="chips">${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit themes':'Pick themes for this deck'}</button></div>
+   <div class="chips" style="align-items:center"><span class="grp" style="margin:0">Game Plan</span>${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit':'Pick this deck\'s game plan themes'}</button></div>
    <div class="stats">
      <div class="stat"><b class="num">${total(d)}/100</b><span>Cards</span></div>
      <div class="stat"><b class="num">${own}</b><span>Owned</span></div>
@@ -831,7 +832,7 @@ function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.fi
 function themeSheet(){const d=deck();const e=EDH[d.cmd.join('|')];const{sugg,rest}=themeSuggest(d);const all=[...sugg,...rest];UI.cats=all;
   const has=n=>d.themes.some(t=>t.name.toLowerCase()===n.toLowerCase());const chip=c=>`<button class="chip ${has(c.name)?'on':''}" data-act="thTog" data-i="${all.indexOf(c)}">${esc(c.name)}</button>`;
   const edh=sugg.filter(c=>c.src==='EDHREC'),own=sugg.filter(c=>c.src!=='EDHREC');const mine=d.themes.filter(t=>!all.some(c=>c.name.toLowerCase()===t.name.toLowerCase()));
-  sheet('Themes for '+d.name,`<p class="muted small" style="margin:0">Pick every theme this deck is built around. Themes supply the suggestions for Game Plan, Pay Off and Finisher, and Auto-sort files matching cards into Game Plan.</p>
+  sheet('Game Plan themes for '+d.name,`<p class="muted small" style="margin:0">Pick the themes that make up this deck's game plan. They supply the suggestions for the Game Plan section, and Auto-sort files matching cards there. Pay Off and Finisher can draw on them too.</p>
    ${d.cmd.length?`<label>EDHREC themes for ${esc(d.cmd.join(' + '))}</label>${edh.length?`<div class="chips">${edh.map(chip).join('')}</div>`:`<p class="muted small" style="margin:0">${e?'EDHREC has no themes available for this commander here.':'Loading from EDHREC…'}</p>`}`:'<p class="muted small" style="margin:0">Set a commander to get suggestions for it.</p>'}
    ${own.length?`<label>From the commander's card</label><div class="chips">${own.map(chip).join('')}</div>`:''}
    <label>All themes</label><div class="chips">${rest.map(chip).join('')}</div>
@@ -861,7 +862,7 @@ const A={
   thTog(e){const d=deck();const c=UI.cats[+e.dataset.i];const k=c.name.toLowerCase();if(d.themes.some(t=>t.name.toLowerCase()===k))d.themes=d.themes.filter(t=>t.name.toLowerCase()!==k);else d.themes.push({name:c.name,q:c.q||''});save();themeSheet()},
   thAdd(){const d=deck();const n=$('#thNew').value.trim();if(!n){toast('Type a theme name');return}if(!d.themes.some(t=>t.name.toLowerCase()===n.toLowerCase()))d.themes.push({name:n,q:''});save();themeSheet()},
   thDel(e){const d=deck();d.themes=d.themes.filter(t=>t.name!==e.dataset.n);save();themeSheet()},
-  thEdit(e){const t=deck().themes[+e.dataset.i];sheet('Theme: '+t.name,`<label for="thQ">Scryfall search for this theme</label><input id="thQ" value="${esc(t.q)}" placeholder="Left blank, the app finds one from the name" autocomplete="off">
+  thEdit(e){const t=deck().themes[+e.dataset.i];sheet('Game Plan theme: '+t.name,`<label for="thQ">Scryfall search for this theme</label><input id="thQ" value="${esc(t.q)}" placeholder="Left blank, the app finds one from the name" autocomplete="off">
     <p class="muted small" style="margin:0">Used for suggestions in Game Plan, Pay Off and Finisher, and by Auto-sort.</p>`,`<div class="row"><button class="pri grow" data-act="thSave" data-i="${e.dataset.i}">Save</button><button class="danger" data-act="thRemove" data-i="${e.dataset.i}">Remove theme</button></div>`)},
   thSave(e){deck().themes[+e.dataset.i].q=$('#thQ').value.trim();save();closeSheet();rerender()},
   thRemove(e){deck().themes.splice(+e.dataset.i,1);save();closeSheet();rerender()},
@@ -917,7 +918,7 @@ const A={
     <button class="item" data-act="pull">Pull list: find these cards in my collection</button>
     <button class="item" data-act="rename">Rename deck</button>
     <button class="item" data-act="editSecs">Edit sections and targets</button>
-    <button class="item" data-act="themes">Edit themes</button>
+    <button class="item" data-act="themes">Edit Game Plan themes</button>
     ${d.sections.some(x=>x.role==='plan')?'':'<button class="item" data-act="convertAsk">Convert to standard sections</button>'}
     <button class="item" data-act="basics">Add basic lands</button>
     <button class="item" data-act="importDeck">Import a card list</button>
