@@ -69,7 +69,7 @@ nav.tabs a.on{color:var(--accent)}
 /* sections */
 .sec{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .sec>header{display:flex;align-items:center;gap:8px;padding:10px 12px}
-.sec>header .ttl{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;min-height:0;font:700 15px var(--display)}
+.sec>header .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:none;border:0;padding:0;text-align:left;min-height:0;font:700 15px var(--display)}
 .pill{font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;border:1px solid currentColor;white-space:nowrap}
 .pill.under{color:var(--warn)}.pill.ok{color:var(--ok)}.pill.over{color:var(--over)}.pill.plain{color:var(--muted)}
 .bar{height:3px;background:var(--sunk)}.bar i{display:block;height:100%;background:var(--accent)}
@@ -215,8 +215,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.19';
+const VERSION='2.20';
 const NEWS=[
+ ['2.20','Nov 18, 2026',['Unsorted is always at the top of a deck, so you can add cards without choosing a section. Search, Paste and Auto-sort are right there.','The new Add cards button above the sections adds straight to Unsorted.']],
  ['2.19','Nov 14, 2026',['Interaction now includes protection and redirection instants, such as Heroic Intervention and Deflecting Swat, along with removal, board wipes and counterspells. Existing decks were updated.']],
  ['2.18','Nov 14, 2026',['Color balance on each deck: for every color, the share of colored mana symbols in your costs next to the share of your mana sources that make it, with a flag when a color is short.','Tap a color to see which cards make it and which cards need it most.']],
  ['2.17','Nov 14, 2026',['Deck options on the Decks tab: tap the ⋯ button on a deck to test, rename, duplicate, share, export, print, move to the top or delete it without opening it.','Share a deck as a card list, or as a deck file that another Brew Bench can import with its sections and themes.','Import on the Decks tab makes a new deck from a pasted card list or a deck file.']],
@@ -489,7 +490,7 @@ function vDeck(){
    ${manaHtml(d)}
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
-   <div class="row"><div class="chips grow"><button class="chip ${UI.group==='type'?'':'on'}" data-act="group" data-g="sec">Sections</button><button class="chip ${UI.group==='type'?'on':''}" data-act="group" data-g="type">Types</button></div>${UI.group==='type'?'':'<button class="sm" data-act="editSecs">Edit sections</button>'}</div>
+   <div class="row"><div class="chips grow"><button class="chip ${UI.group==='type'?'':'on'}" data-act="group" data-g="sec">Sections</button><button class="chip ${UI.group==='type'?'on':''}" data-act="group" data-g="type">Types</button></div>${UI.group==='type'?'':'<button class="sm pri" data-act="addSearch" data-sid="u">Add cards</button><button class="sm" data-act="editSecs">Edit sections</button>'}</div>
    ${UI.group==='type'?typeHtml(d):secs.map(s=>secHtml(d,s)).join('')}`);
 }
 const TYPES=['Creature','Planeswalker','Battle','Instant','Sorcery','Artifact','Enchantment','Land'];
@@ -504,16 +505,15 @@ function typeHtml(d){const m=main(d);if(!m.length)return`<div class="empty">No c
     <div class="row wrapf">${[...TYPES].filter(t=>!m.some(c=>typeOf(c.n)===t)).map(t=>`<button class="sm" data-act="tyFill" data-t="${t}">+ ${t==='Sorcery'?'Sorceries':t+'s'}</button>`).join('')}</div>`}
 function secHtml(d,s){
   const cs=inSec(d,s.id).sort((a,b)=>a.n.localeCompare(b.n));const n=cnt(cs);const special=s.id==='u'||s.id==='m';
-  if(s.id==='u'&&!n)return'';
   const cls=special||s.flex?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
   const rows=UI.view==='grid'
    ?`<div class="grid">${cs.map(c=>`<button data-act="cardSheet" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
    :cs.map(c=>`<button class="crow" data-act="cardSheet" data-n="${esc(c.n)}"><span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span><span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${costOrMana(card(c.n))}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
     <span class="pill num ${cls}">${special?n:s.flex?n+' · about '+s.target:n+'/'+s.target}</span>
-    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${s.id==='u'?'<button class="sm pri" data-act="autoSort">Auto-sort</button>':''}${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
+    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${s.id==='u'?`<button class="sm" data-act="pasteOpen" data-sid="u">Paste</button>${n?'<button class="sm pri" data-act="autoSort" aria-label="Auto-sort into sections">Sort</button>':''}`:''}${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
     ${special?'':`<div class="bar"><i style="width:${Math.min(100,s.target?n/s.target*100:0)}%"></i></div>`}
-    ${closed?'':(cs.length?rows:'')}</section>`;
+    ${closed?'':(cs.length?rows:s.id==='u'?'<p class="muted small" style="margin:0;padding:0 12px 10px">Add cards here without choosing a section. Tap Sort when you want them filed into sections, or tap a card to place it yourself.</p>':'')}</section>`;
 }
 
 function vPkgs(){
