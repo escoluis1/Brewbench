@@ -44,7 +44,7 @@ h1{font-size:22px}h2{font-size:17px}h3{font-size:15px}
 main{padding-block:14px;display:flex;flex-direction:column;gap:14px}
 .muted{color:var(--muted)}.small{font-size:13px}.num{font-variant-numeric:tabular-nums}
 .row{display:flex;align-items:center;gap:8px}.grow{flex:1;min-width:0}.wrapf{flex-wrap:wrap}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;transform:translateZ(0);will-change:transform;background:var(--surface);border-top:1px solid var(--line);
   display:flex;padding-bottom:env(safe-area-inset-bottom,0)}
 nav.tabs a{flex:1;text-align:center;padding:10px 4px;text-decoration:none;color:var(--muted);font-size:12px;font-weight:500}
 nav.tabs a b{display:block;font:700 15px var(--display)}
@@ -129,6 +129,7 @@ nav.tabs a.on{color:var(--accent)}
 .pan .delta{pointer-events:none;height:18px;font-weight:700}
 .pan .more{position:relative;z-index:1;margin-top:4px;background:#00000055;border-color:#ffffff66;font-size:12px;min-height:30px;padding:2px 10px}
 nav.tabs a b{font-size:13px}
+body.kb nav.tabs{display:none}
 /* color balance: two thin bars per color on one 0-100% scale, values labeled in text ink */
 .cbl{display:flex;gap:14px;flex-wrap:wrap;padding:0 12px 6px;font-size:12px;color:var(--muted)}
 .cbl i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
@@ -215,8 +216,9 @@ nav.tabs a b{font-size:13px}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.20';
+const VERSION='2.21';
 const NEWS=[
+ ['2.21','Nov 19, 2026',['Mana total: the mana curve shows the total mana value of all your spells, the number of spells, and the average.','Fixed on iPhone: the tab bar could get stuck in the middle of the screen after typing. It now hides while the keyboard is open and snaps back into place afterwards.']],
  ['2.20','Nov 18, 2026',['Unsorted is always at the top of a deck, so you can add cards without choosing a section. Search, Paste and Auto-sort are right there.','The new Add cards button above the sections adds straight to Unsorted.']],
  ['2.19','Nov 14, 2026',['Interaction now includes protection and redirection instants, such as Heroic Intervention and Deflecting Swat, along with removal, board wipes and counterspells. Existing decks were updated.']],
  ['2.18','Nov 14, 2026',['Color balance on each deck: for every color, the share of colored mana symbols in your costs next to the share of your mana sources that make it, with a flag when a color is short.','Tap a color to see which cards make it and which cards need it most.']],
@@ -470,7 +472,7 @@ function vDeck(){
   const d=deck();edhLoad(d);pmRefresh(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
   const val=[...d.cmd.map(n=>card(n).p),...m.map(c=>card(c.n).p*c.q)].reduce((a,b)=>a+b,0);
   const gc=m.filter(c=>card(c.n).gc).length+d.cmd.filter(n=>card(n).gc).length;
-  const non=m.filter(c=>!/Land/.test(card(c.n).t));const curve=Array(8).fill(0);non.forEach(c=>curve[Math.min(7,Math.floor(card(c.n).cmc))]+=c.q);
+  const non=m.filter(c=>!/Land/.test(card(c.n).t));const tot=Math.round(non.reduce((a,c)=>a+card(c.n).cmc*c.q,0)*10)/10;const curve=Array(8).fill(0);non.forEach(c=>curve[Math.min(7,Math.floor(card(c.n).cmc))]+=c.q);
   const mx=Math.max(1,...curve);const avg=cnt(non)?(non.reduce((a,c)=>a+card(c.n).cmc*c.q,0)/cnt(non)).toFixed(2):'0';
   const cmdHtml=d.cmd.length?d.cmd.map(n=>`<button class="art" data-act="cardSheet" data-n="${esc(n)}" style="background-image:url('${esc(img(card(n),'art_crop'))}')">${esc(n)}</button>`).join(''):`<div class="art none">No commander set</div>`;
   const secs=[{id:'u',name:'Unsorted',target:0,q:''},...d.sections,{id:'m',name:'Maybeboard',target:0,q:''}];
@@ -485,7 +487,7 @@ function vDeck(){
      <div class="stat"><b class="num">${money(val)}</b><span>Value</span></div>
      <div class="stat"><b class="num">${gc}</b><span>Game chg.</span></div>
    </div>
-   <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small">avg ${avg}</span></header>
+   <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small num" style="text-align:right">total <b style="color:var(--ink)">${tot}</b> · ${cnt(non)} spells · avg ${avg}</span></header>
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
    ${manaHtml(d)}
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
@@ -1346,6 +1348,11 @@ document.addEventListener('input',ev=>{if(ev.target.id==='tS'){const q=ev.target
   if(ev.target.id==='collQ'){UI.collQ=ev.target.value;const q=UI.collQ.toLowerCase();const l=$('#collList');if(l)l.innerHTML=collRows(collShown())}});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('#peek').hidden)A.unpeek();else if(!$('#sheet').hidden)A.close()}});
 window.addEventListener('hashchange',route);
+/* iPhone: while the keyboard is open the fixed tab bar can be left mid-screen, so hide it then and nudge the page once the keyboard closes */
+const isField=t=>t&&t.matches&&t.matches('input:not([type=checkbox]):not([type=file]),textarea,select');
+document.addEventListener('focusin',e=>{if(isField(e.target))document.body.classList.add('kb')});
+document.addEventListener('focusout',e=>{if(!isField(e.target))return;setTimeout(()=>{if(isField(document.activeElement))return;document.body.classList.remove('kb');window.scrollTo(window.scrollX,window.scrollY)},120)});
+try{if(window.visualViewport)visualViewport.addEventListener('resize',()=>{const open=visualViewport.height<window.innerHeight*.8;document.body.classList.toggle('kb',open&&isField(document.activeElement));if(!open)window.scrollTo(window.scrollX,window.scrollY)})}catch(e){}
 load().then(()=>{route();hydrate();try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
 </script>
 </body>
