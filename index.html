@@ -224,8 +224,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.22';
+const VERSION='2.23';
 const NEWS=[
+ ['2.23','Nov 19, 2026',['Color balance now counts fetch lands and land-search spells (like Cultivate) as sources of the colors they can find in your deck. They are marked "finds" when you tap a color.']],
  ['2.22','Nov 19, 2026',['Select several cards at once: tap Select, tick cards, then move them to a section, share them into another section, send them to the Maybeboard or remove them.','Fixed: themes picked from EDHREC (like Myriad) could not sort cards, because their search pointed at a Scryfall tag that does not exist. The app now finds a search that works, trying keywords first, and saves it to the theme.','Menu → Re-check all cards against sections files Unsorted cards and shares every card into any other section it fits.']],
  ['2.21','Nov 19, 2026',['Mana total: the mana curve shows the total mana value of all your spells, the number of spells, and the average.','Fixed on iPhone: the tab bar could get stuck in the middle of the screen after typing. It now hides while the keyboard is open and snaps back into place afterwards.']],
  ['2.20','Nov 18, 2026',['Unsorted is always at the top of a deck, so you can add cards without choosing a section. Search, Paste and Auto-sort are right there.','The new Add cards button above the sections adds straight to Unsorted.']],
@@ -1332,13 +1333,22 @@ Object.assign(A,{
 });
 /* ================= color balance ================= */
 const CNAME={W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'};
+/* colors a card can find by searching for lands: named land types (plus the colors of this deck's lands with those types), or the deck's basics */
+const BTYPE={Plains:'W',Island:'U',Swamp:'B',Mountain:'R',Forest:'G'};
+function fetchColors(d,n,id){const o=card(n).o||'';const m=o.match(/search(?:es)? (?:your|their) library for ([^.]*)/i);if(!m||!/\b(land|plains|island|swamp|mountain|forest)\b/i.test(m[1]))return[];
+  const clause=m[1];const types=Object.keys(BTYPE).filter(t=>new RegExp('\\b'+t+'\\b','i').test(clause));const out=new Set();const deckLands=main(d).filter(c=>anyLand(c.n));
+  if(types.length){types.forEach(t=>out.add(BTYPE[t]));deckLands.forEach(c=>{if(types.some(t=>card(c.n).t.includes(t)))(card(c.n).pm||[]).forEach(x=>out.add(x))})}
+  else if(/basic land/i.test(clause)){const b=deckLands.filter(c=>/Basic/.test(card(c.n).t));if(b.length)b.forEach(c=>Object.entries(BTYPE).forEach(([t,x])=>{if(card(c.n).t.includes(t))out.add(x)}));else id.forEach(x=>out.add(x))}
+  else if(/\bland card\b/i.test(clause))id.forEach(x=>out.add(x));
+  return[...out].filter(x=>id.includes(x))}
 /* need = colored symbols in costs (a two-color hybrid symbol counts half for each); have = cards that can make that color */
 function manaStats(d){const id=['W','U','B','R','G'].filter(c=>ident(d).includes(c));const need={},lands={},other={},who={},cost={};id.forEach(c=>{need[c]=0;lands[c]=0;other[c]=0;who[c]=[];cost[c]=[]});let cOnly=0;
   [...d.cmd.map(n=>({n,q:1})),...main(d)].forEach(c=>{const per={};((card(c.n).mc||'').match(/\{[^}]+\}/g)||[]).forEach(x=>{const cs=[...new Set(x.match(/[WUBRG]/g)||[])];cs.forEach(k=>{if(k in need)per[k]=(per[k]||0)+1/cs.length})});
     for(const k in per){need[k]+=per[k]*c.q;cost[k].push({n:c.n,v:per[k]})}});
-  main(d).forEach(c=>{const pm=card(c.n).pm||[];if(!pm.length)return;const cols=pm.filter(x=>x in need);if(!cols.length){cOnly+=c.q;return}const land=anyLand(c.n);cols.forEach(k=>{(land?lands:other)[k]+=c.q;who[k].push({n:c.n,q:c.q,land})})});
+  let fetchN=0;main(d).forEach(c=>{const pm=card(c.n).pm||[];let cols=pm.filter(x=>x in need);let f=false;if(!cols.length){const fc=fetchColors(d,c.n,id);if(fc.length){cols=fc;f=true;fetchN+=c.q}}
+    if(!cols.length){if(pm.length)cOnly+=c.q;return}const land=anyLand(c.n);cols.forEach(k=>{(land?lands:other)[k]+=c.q;who[k].push({n:c.n,q:c.q,land,f})})});
   const nT=id.reduce((a,c)=>a+need[c],0),sT=id.reduce((a,c)=>a+lands[c]+other[c],0);
-  return{id,cOnly,nT,sT,rows:id.map(c=>{const np=nT?need[c]/nT*100:0,sp=sT?(lands[c]+other[c])/sT*100:0;return{c,need:need[c],np,lands:lands[c],other:other[c],sp,gap:np-sp,who:who[c],cost:cost[c]}})}}
+  return{id,cOnly,fetchN,nT,sT,rows:id.map(c=>{const np=nT?need[c]/nT*100:0,sp=sT?(lands[c]+other[c])/sT*100:0;return{c,need:need[c],np,lands:lands[c],other:other[c],sp,gap:np-sp,who:who[c],cost:cost[c]}})}}
 const manaVerdict=r=>!r.need?['','No costs']:r.lands+r.other===0?['▲','No sources']:r.gap>5?['▲','Short']:r.gap<-12?['','Plenty']:['✓','On track'];
 function manaHtml(d){if(!d.cmd.length||!main(d).length)return'';const m=manaStats(d);if(!m.id.length)return'';
   if(!m.nT)return`<div class="sec"><header><span class="ttl">Color balance</span></header><p class="muted small" style="margin:0;padding:0 12px 10px">No colored mana costs in the deck yet.</p></div>`;
@@ -1348,10 +1358,10 @@ function manaHtml(d){if(!d.cmd.length||!main(d).length)return'';const m=manaStat
       <span class="pip ${r.c}">${r.c}</span>
       <span class="cbars"><span class="cbr"><i style="width:${r.np*.78}%;background:var(--s1)"></i><b>${Math.round(r.np)}%</b></span><span class="cbr"><i style="width:${r.sp*.78}%;background:var(--s2)"></i><b>${Math.round(r.sp)}%</b></span></span>
       <span class="cbv"><span style="color:${ic==='▲'?'var(--warn)':ic==='✓'?'var(--ok)':'var(--muted)'}">${ic}</span> ${tx}<small>${r.lands+r.other} source${r.lands+r.other===1?'':'s'}</small></span></button>`}).join('')}
-    <p class="muted small" style="margin:0;padding:8px 12px 10px;border-top:1px solid var(--line)">${Math.round(m.nT)} colored symbols in costs. A card that makes two colors counts as a source of both.${m.cOnly?' '+m.cOnly+' card'+(m.cOnly===1?' makes':'s make')+' only colorless mana.':''}</p></div>`}
+    <p class="muted small" style="margin:0;padding:8px 12px 10px;border-top:1px solid var(--line)">${Math.round(m.nT)} colored symbols in costs. A card that makes two colors counts as a source of both.${m.fetchN?' '+m.fetchN+(m.fetchN===1?' fetch land or land-search card counts for the colors it can find.':' fetch lands and land-search cards count for the colors they can find.'):''}${m.cOnly?' '+m.cOnly+' card'+(m.cOnly===1?' makes':'s make')+' only colorless mana.':''}</p></div>`}
 Object.assign(A,{
   manaColor(e){const d=deck();const m=manaStats(d);const r=m.rows.find(x=>x.c===e.dataset.c);if(!r)return;const[ic,tx]=manaVerdict(r);
-    const names=l=>l.sort((a,b)=>a.n.localeCompare(b.n)).map(x=>`<button class="item" data-act="peek" data-n="${esc(x.n)}"><span class="name">${x.q>1?x.q+'× ':''}${esc(x.n)}</span>${costOrMana(card(x.n))}</button>`).join('');
+    const names=l=>l.sort((a,b)=>a.n.localeCompare(b.n)).map(x=>`<button class="item" data-act="peek" data-n="${esc(x.n)}"><span class="name">${x.q>1?x.q+'× ':''}${esc(x.n)}${x.f?' <span class="muted small">finds</span>':''}</span>${costOrMana(card(x.n))}</button>`).join('');
     const lands=r.who.filter(x=>x.land),other=r.who.filter(x=>!x.land);const top=[...r.cost].sort((a,b)=>b.v-a.v||a.n.localeCompare(b.n)).slice(0,8);
     sheet(CNAME[r.c]+' mana',`<p style="margin:0"><b>${ic} ${tx}.</b> ${CNAME[r.c]} is ${Math.round(r.np)}% of the colored symbols in your costs and ${Math.round(r.sp)}% of your color sources.</p>
      <p class="muted small" style="margin:0">${r.gap>5?'Your costs lean on '+CNAME[r.c].toLowerCase()+' more than your mana does. Add '+CNAME[r.c].toLowerCase()+' sources or trim heavy '+CNAME[r.c].toLowerCase()+' costs.':r.gap<-12?'You have more '+CNAME[r.c].toLowerCase()+' sources than your costs call for. Some could become another color.':'Your sources match what your costs ask for.'} This compares shares, so it shows balance between colors, not whether you have enough mana overall.</p>
