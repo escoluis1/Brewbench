@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="bolt">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="Brew Bench">
 <meta name="theme-color" content="#12181a">
 <title>Brew Bench</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=Sorts+Mill+Goudy:ital@0;1&display=swap">
 <style>
 /* Layout: one column, phone first. Sticky top bar, fixed bottom tabs, bottom sheets for every action. Wider screens get a centred 760px column. */
 :root{
@@ -204,6 +204,53 @@ body.kb nav.tabs{display:none}
 #selbar{position:fixed;left:0;right:0;bottom:calc(57px + env(safe-area-inset-bottom,0px));z-index:7;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 16px #0003}
 #selbar .wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-block:8px}
 body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
+
+/* ===== "Bolt" look: an old red card frame. Red marble frame with pale ink; rose text boxes with dark ink, beveled edges; old-style serif.
+   Tokens are set for the frame on :root and re-set inside every box, so text always matches what it sits on. ===== */
+:root.bolt:not(.x){
+  --edge:#3a0d10;--rim:#d48b8c;--frame:#8c2c31;
+  --marble-l:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .018' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .86 0 0 0 0 .82 0 0 0 .7 -.26'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --marble-d:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.014' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 0 0 0 0 0 .02 0 0 0 .9 -.32'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --bg:#8c2c31;--surface:#edd3cb;--sunk:#e2bdb3;--ink:#f7ece6;--muted:#ecccc4;--line:#5c171b;
+  --accent:#f2d49b;--accent-ink:#4a1013;--s1:#2558a8;--s2:#8a5a00;--warn:#8a4a00;--ok:#2b6a3c;--over:#4b3a9e;--danger:#9e1b1b;
+  --display:"Sorts Mill Goudy","Goudy Old Style","Iowan Old Style",Georgia,serif;--body:"Sorts Mill Goudy","Goudy Old Style","Iowan Old Style",Georgia,serif;
+  color-scheme:light}
+:root.bolt :is(.sec,.list,.stat,.secbox,.otext,.empty,.cmd .art,#selbar,button:not(.ghost),input,select,textarea){
+  --ink:#2a1614;--muted:#6a443e;--line:#c99a93;--accent:#7c1d24;--accent-ink:#fbefe6}
+:where(:root.bolt) :is(.sec,.list,.stat,.secbox,.otext,#selbar){color:var(--ink)}
+:where(:root.bolt) :is(button,input,select,textarea){color:var(--ink)}
+:root.bolt body{background:var(--marble-l),var(--marble-d),var(--frame);font-size:16px}
+:root.bolt .small{font-size:14px}
+:root.bolt :is(h1,h2,h3){font-weight:400;letter-spacing:.01em}
+:root.bolt h1{font-size:26px}:root.bolt h2{font-size:21px}:root.bolt h3{font-size:17px}
+/* titles on the frame read like an embossed card name */
+:root.bolt :is(.top h1,.sheet>header h2,main>h2,main>.row h2){color:#efe4df;text-shadow:1px 1px 0 #2a0b0c,-1px -1px 0 #ffffff26}
+:root.bolt .top{background:linear-gradient(#0000001f,#0000001f),var(--marble-l),var(--marble-d),var(--frame);border-bottom:2px solid var(--edge);box-shadow:0 1px 0 #ffffff1f}
+/* boxes: light rose rim, dark outer line, slightly sunken inside, like the art and text boxes */
+:root.bolt :is(.sec,.list,.stat,.secbox,.otext,.empty,.cmd .art){border:2px solid var(--rim);border-radius:3px;box-shadow:0 0 0 1px var(--edge),inset 1px 1px 3px #0000004d}
+:root.bolt :is(.list,.stat,.secbox,.otext,.empty){background:var(--surface)}
+:root.bolt .empty{border-style:solid;color:var(--muted)}
+:root.bolt .cmd .art{border-width:3px}
+:root.bolt .sec>header .ttl{font:400 19px var(--display);box-shadow:none}
+:root.bolt :is(.crow,.item,.cb){border-color:var(--line)}
+:root.bolt .stat b{font-family:var(--display);font-weight:400;font-size:20px}
+/* buttons raised, fields sunken */
+:root.bolt button:not(.ghost):not(.ttl):not(.crow):not(.item):not(.cb):not(.info):not(.zone):not(.tc):not(.grid button){border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff8c,inset -1px -1px 0 #00000026}
+:root.bolt button.pri,:root.bolt .chip.on{box-shadow:inset 1px 1px 0 #ffffff40,inset -1px -1px 0 #00000059}
+:root.bolt .chip{border-radius:3px}
+:root.bolt :is(input,select,textarea){background:#f7e7e1;border:1px solid var(--edge);border-radius:2px;box-shadow:inset 1px 1px 2px #00000040}
+:root.bolt button.ghost{font-size:17px}
+:root.bolt label{letter-spacing:.08em}
+/* the black card border */
+:root.bolt nav.tabs{background:#150708;border-top:2px solid var(--edge);box-shadow:0 -1px 0 #ffffff14}
+:root.bolt nav.tabs a{color:#cdb1aa}
+:root.bolt nav.tabs a b{font:400 17px var(--display)}
+:root.bolt nav.tabs a.on{color:var(--accent)}
+:root.bolt .sheet{background:var(--marble-l),var(--marble-d),var(--frame);border-top:2px solid var(--rim);border-radius:6px 6px 0 0}
+:root.bolt .sheet>header{border-bottom:2px solid var(--edge)}
+:root.bolt #selbar{border-top:2px solid var(--rim)}
+:root.bolt :is(#test,#live) button{box-shadow:none;border-radius:8px}
+:root.bolt .pan .life{font-family:"Space Grotesk","Avenir Next",sans-serif}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
   padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
@@ -224,8 +271,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='2.23';
+const VERSION='3.0';
 const NEWS=[
+ ['3.0','Nov 22, 2026',['New look inspired by the old red card frames: a mottled red frame, rose text boxes with beveled edges, old-style serif type and a black tab bar.','Prefer the previous look? Setup → Look switches back.']],
  ['2.23','Nov 19, 2026',['Color balance now counts fetch lands and land-search spells (like Cultivate) as sources of the colors they can find in your deck. They are marked "finds" when you tap a color.']],
  ['2.22','Nov 19, 2026',['Select several cards at once: tap Select, tick cards, then move them to a section, share them into another section, send them to the Maybeboard or remove them.','Fixed: themes picked from EDHREC (like Myriad) could not sort cards, because their search pointed at a Scryfall tag that does not exist. The app now finds a search that works, trying keywords first, and saves it to the theme.','Menu → Re-check all cards against sections files Unsorted cards and shares every card into any other section it fits.']],
  ['2.21','Nov 19, 2026',['Mana total: the mana curve shows the total mana value of all your spells, the number of spells, and the average.','Fixed on iPhone: the tab bar could get stuck in the middle of the screen after typing. It now hides while the keyboard is open and snaps back into place afterwards.']],
@@ -419,7 +467,8 @@ const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
 /* ================= views ================= */
-function route(){if(!S)return;if(UI.sel&&(location.hash!=='#deck'||UI.selDeck!==UI.deck))selEnd(true);const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','play','setup'].includes(h)?h:'decks';
+function applyLook(){const b=S.look!=='plain';document.documentElement.classList.toggle('bolt',b);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=b?'#5e1a1e':'#12181a'}
+function route(){if(!S)return;applyLook();if(UI.sel&&(location.hash!=='#deck'||UI.selDeck!==UI.deck))selEnd(true);const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','play','setup'].includes(h)?h:'decks';
   if(v==='deck'&&!deck()){location.hash='decks';return}
   $('#tabs').innerHTML=[['decks','Decks'],['packages','Packages'],['collection','Collection'],['play','Play'],['setup','Setup']].map(([k,l])=>`<a href="#${k}" class="${(v===k||(v==='deck'&&k==='decks'))?'on':''}"><b>${l}</b></a>`).join('');
   ({decks:vDecks,deck:vDeck,packages:vPkgs,collection:vColl,play:vPlay,setup:vSetup})[v]();}
@@ -564,6 +613,8 @@ function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const
    <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
    <div class="row"><h2 class="grow">Default sections</h2><button class="sm" data-act="editTemplate">Edit</button></div>
    <p class="muted small" style="margin:0">Every new deck starts with these: ${S.template.map(x=>esc(x.name)+' '+(x.flex?'about ':'')+x.target).join(' · ')}.</p>
+   <h2>Look</h2>
+   <div class="chips"><button class="chip ${S.look!=='plain'?'on':''}" data-act="look" data-v="">Classic red</button><button class="chip ${S.look==='plain'?'on':''}" data-act="look" data-v="plain">Original</button></div>
    <h2>Deck building</h2>
    <div class="row"><span class="grow">Share cards across sections automatically<br><span class="muted small">When you add a card, it is also counted in any other section whose search it matches.</span></span><button data-act="shareTog" aria-pressed="${S.autoShare!==false}">${S.autoShare!==false?'On':'Off'}</button></div>
    <h2>Backup and moving devices</h2>
@@ -952,6 +1003,7 @@ const A={
   cardSheet(e){cardSheet(e.dataset.n)},
   autoSort(){autoSort(deck())},
   editTemplate(){secEditor('Default sections for new decks',null,S.template,rows=>{S.template=rows})},
+  look(e){S.look=e.dataset.v;save(false);rerender()},
   shareTog(){S.autoShare=S.autoShare===false;save();rerender()},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
   rmCard(e){removeCard(deck(),e.dataset.n);closeSheet();rerender()},
