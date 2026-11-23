@@ -275,8 +275,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.1';
+const VERSION='3.2';
 const NEWS=[
+ ['3.2','Nov 22, 2026',['New default sections: Ramp 10, Card Advantage 12, Targeted Disruption 12, Mass Disruption 6, Lands 38 and Plan about 30. A card can count in more than one, so the targets add up to more than 99.','Mass Disruption covers board wipes and cards that hit every opponent or player, like Soul Shatter, Pick Your Poison and Ruinous Ultimatum.','Older decks show a button to switch to the new sections. Interaction cards are split between the two Disruption sections, and Game Plan, Pay Off and Finisher become Plan.']],
  ['3.1','Nov 22, 2026',['The old card frame look now comes in all five colors: white, blue, black, red and green. Pick one in Setup → Look.']],
  ['3.0','Nov 22, 2026',['New look inspired by the old red card frames: a mottled red frame, rose text boxes with beveled edges, old-style serif type and a black tab bar.','Prefer the previous look? Setup → Look switches back.']],
  ['2.23','Nov 19, 2026',['Color balance now counts fetch lands and land-search spells (like Cultivate) as sources of the colors they can find in your deck. They are marked "finds" when you tap a color.']],
@@ -359,17 +360,21 @@ function seedPkgs(){return [
  {id:uid(),name:'My staples (edit me)',type:'custom',q:'',cards:['Sol Ring','Arcane Signet','Command Tower','Swiftfoot Boots','Lightning Greaves']}
 ];}
 /* sections every new deck starts with: four fixed ones, then three with loose targets that are fed by the deck's themes */
-const ROLES=[[/game ?plan/i,'plan'],[/pay ?offs?/i,'payoff'],[/finishers?/i,'finisher']];
+const ROLES=[[/^(game ?)?plan$/i,'plan'],[/pay ?offs?/i,'payoff'],[/finishers?/i,'finisher']];
 const roleOf=n=>(ROLES.find(([re])=>re.test(n||''))||[])[1]||'';
 /* a section named Game Plan, Pay Off or Finisher is fed by the deck's themes and has a loose target */
 function applyRole(x){const r=roleOf(x.name);if(r){x.role=r;x.flex=1}else{delete x.role;delete x.flex}return x}
 const INTERACT_OLD='(otag:removal or otag:board-wipe or (t:instant o:"counter target"))';
 const INTERACT='(otag:removal or otag:board-wipe or (t:instant (o:"counter target" or o:hexproof or o:indestructible or o:"phase out" or o:"new targets" or o:"change the target")))';
-const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Interaction',10,INTERACT),SEC('Card Advantage',10,'otag:draw'),LANDS(),
-  {...SEC('Game Plan',20,''),flex:1,role:'plan'},{...SEC('Pay Off',8,''),flex:1,role:'payoff'},{...SEC('Finisher',3,'(o:"you win the game" or o:"each opponent loses" or o:"extra turn")'),flex:1,role:'finisher'}];
+/* Mass Disruption: board wipes and anything that hits every opponent or player. Targeted: single-target removal, counterspells, protection and redirection. */
+const MASSQ='(otag:board-wipe or o:"destroy all" or o:"destroy each" or o:"exile all" or o:"exile each" or o:"return all" or o:"return each" or o:"each opponent sacrifices" or o:"each player sacrifices" or o:"each other player sacrifices")';
+const TARGQ='((otag:removal -otag:board-wipe -o:"destroy all" -o:"destroy each" -o:"exile all" -o:"each opponent sacrifices" -o:"each player sacrifices") or (t:instant (o:"counter target" or o:hexproof or o:indestructible or o:"phase out" or o:"new targets" or o:"change the target")))';
+const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Card Advantage',12,'otag:draw'),SEC('Targeted Disruption',12,TARGQ),SEC('Mass Disruption',6,MASSQ),LANDS(),{...SEC('Plan',30,''),flex:1,role:'plan'}];
+const newStd=d=>d.sections.some(x=>/disruption/i.test(x.name));
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
 function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
+  if(!S.mStd2){S.mStd2=1;S.template=STD()}
   if(!S.mInt){S.mInt=1;[S.template,...(S.decks||[]).map(d=>d.sections)].forEach(l=>l.forEach(x=>{if(x.q===INTERACT_OLD)x.q=INTERACT}))}S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
 /* storage: the browser's large store (IndexedDB), falling back to the small one (localStorage) when it is unavailable */
@@ -551,7 +556,7 @@ function vDeck(){
    <div class="cmd">${cmdHtml}</div>
    <div class="row wrapf"><span class="pips">${ident(d).map(c=>`<span class="pip ${c}">${c}</span>`).join('')}</span><span class="grow"></span>
      <button class="sm pri" data-act="test">Test deck</button><button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
-   <div class="chips" style="align-items:center"><span class="grp" style="margin:0">Game Plan</span>${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit':'Pick this deck\'s game plan themes'}</button></div>
+   <div class="chips" style="align-items:center"><span class="grp" style="margin:0">Plan</span>${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit':'Pick this deck\'s game plan themes'}</button></div>
    <div class="stats">
      <div class="stat"><b class="num">${total(d)}/100</b><span>Cards</span></div>
      <div class="stat"><b class="num">${own}</b><span>Owned</span></div>
@@ -561,6 +566,7 @@ function vDeck(){
    <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small num" style="text-align:right">total <b style="color:var(--ink)">${tot}</b> · ${cnt(non)} spells · avg ${avg}</span></header>
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
    ${manaHtml(d)}
+   ${newStd(d)||!d.sections.some(x=>/interaction|game ?plan|removal|wipe/i.test(x.name))?'':'<div class="secbox" style="padding:12px;display:flex;gap:10px;align-items:center"><span class="grow">This deck uses the old sections.</span><button class="sm pri" data-act="convertAsk">Switch to the new ones</button></div>'}
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
    <div class="row"><div class="chips grow"><button class="chip ${UI.group==='type'?'':'on'}" data-act="group" data-g="sec">Sections</button><button class="chip ${UI.group==='type'?'on':''}" data-act="group" data-g="type">Types</button></div>${UI.group==='type'?'':'<button class="sm pri" data-act="addSearch" data-sid="u">Add cards</button><button class="sm" data-act="editSecs">Edit sections</button>'}</div>
@@ -736,9 +742,9 @@ function openSearch(ctx,title,extra=''){const d=deck();
 }
 function openFill(sid){const d=deck();const s=secOf(d,sid);
   sheet('Fill '+s.name,`<p class="muted small" style="margin:0">Pick where the cards come from. Results are limited to this deck's colors.</p>
-   ${(s.flex||!/ramp|interaction|removal|wipe|draw|advantage|land/i.test(s.name))&&!d.themes.length?'<button data-act="themes">Pick themes for this deck to get suggestions here</button>':''}
+   ${(s.flex||!/ramp|interaction|removal|wipe|disruption|draw|advantage|land/i.test(s.name))&&!d.themes.length?'<button data-act="themes">Pick themes for this deck to get suggestions here</button>':''}
    ${(e=>!d.cmd.length?'':!e?'<p class="muted small" style="margin:0">Loading EDHREC recommendations…</p>':e.lists.length?'':'<p class="muted small" style="margin:0">EDHREC recommendations could not be loaded in this browser.</p>')(EDH[d.cmd.join('|')])}
-   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.flex||!/ramp|interaction|removal|wipe|draw|advantage|land/i.test(s.name)?d.themes.map((t,i)=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="th:${i}"><span class="name"><b>Theme: ${esc(t.name)}</b><br><span class="muted small">Scryfall · ${t.q?esc(t.q):'finds a search from the theme name'}</span></span><span class="muted">›</span></button>`).join(''):''}${!s.flex||s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>`:''}
+   <div class="list">${((EDH[d.cmd.join('|')]||{}).lists||[]).length?`<button class="item" data-act="fillEdh" data-sid="${sid}"><span class="name"><b>EDHREC picks for ${esc(d.cmd.join(' + '))}</b><br><span class="muted small">What other decks with this commander run</span></span><span class="muted">›</span></button>`:''}${s.flex||!/ramp|interaction|removal|wipe|disruption|draw|advantage|land/i.test(s.name)?d.themes.map((t,i)=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="th:${i}"><span class="name"><b>Theme: ${esc(t.name)}</b><br><span class="muted small">Scryfall · ${t.q?esc(t.q):'finds a search from the theme name'}</span></span><span class="muted">›</span></button>`).join(''):''}${!s.flex||s.q?`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="sec"><span class="name"><b>Suggested for ${esc(s.name)}</b><br><span class="muted small">Scryfall · ${s.q?esc(s.q):'finds a search from the section name'}</span></span><span class="muted">›</span></button>`:''}
    ${S.packages.map(p=>`<button class="item" data-act="fillSrc" data-sid="${sid}" data-src="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>
    <button data-act="pasteOpen" data-sid="${sid}">Paste a list of cards</button>
    ${d.cmd.length?`<a class="btn" href="https://edhrec.com/commanders/${edhSlug(d.cmd)}" target="_blank" rel="noopener">Open ${esc(d.cmd.join(' + '))} on EDHREC ↗</a>`:''}`);
@@ -824,8 +830,8 @@ function drawEd(){const sum=ED.rows.reduce((a,r)=>a+(+r.target||0),0);
    <p class="muted small" style="margin:0">Each section has a name, a target count, and an optional Scryfall search used for suggestions. Targets add up to <b class="num">${sum}</b>; a deck has 99 cards plus one commander, or 98 plus two.</p>
    ${ED.rows.map((r,i)=>`<div class="secbox"><div class="secrow"><input class="n" value="${esc(r.name)}" aria-label="Section name"><input class="t" type="number" inputmode="numeric" min="0" value="${r.target}" aria-label="Target count"><button class="sm danger" data-act="edDel" data-i="${i}" aria-label="Delete section">✕</button><input class="q" value="${esc(r.q)}" placeholder="Scryfall search for suggestions (optional)" aria-label="Scryfall search"></div></div>`).join('')}
    ${(ch=>{UI.edCh=ch;const gs=[...new Set(ch.map(c=>c.g))];return`<select id="edPick" aria-label="Add a section"><option value="">Add a section…</option>${gs.map(g=>`<optgroup label="${esc(g)}">${ch.map((c,i)=>c.g===g?`<option value="${i}">${esc(c.name)}</option>`:'').join('')}</optgroup>`).join('')}<option value="blank">Blank section (name it yourself)</option></select>`})(edChoices())}
-   <div class="row wrapf">${[['Game Plan',20],['Pay Off',8],['Finisher',3]].filter(([n])=>!ED.rows.some(r=>roleOf(r.name)===roleOf(n))).map(([n,t])=>`<button data-act="edAddRole" data-n="${n}" data-t="${t}">+ ${n}</button>`).join('')}</div>
-   <p class="muted small" style="margin:0">Game Plan, Pay Off and Finisher take their suggestions from the deck's themes.</p>`,
+   <div class="row wrapf">${[['Plan',30],['Pay Off',8],['Finisher',3]].filter(([n])=>!ED.rows.some(r=>roleOf(r.name)===roleOf(n))).map(([n,t])=>`<button data-act="edAddRole" data-n="${n}" data-t="${t}">+ ${n}</button>`).join('')}</div>
+   <p class="muted small" style="margin:0">Plan, Pay Off and Finisher take their suggestions from the deck's themes.</p>`,
    `<div class="row"><button class="pri grow" data-act="edSave">Save</button>${ED.onDelete?'<button class="danger" data-act="edRemove">Delete</button>':''}</div>`);}
 
 function pkgSheet(p){sheet(p.id?'Edit package':'New package',`
@@ -936,17 +942,26 @@ function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.fi
 function themeSheet(){const d=deck();const e=EDH[d.cmd.join('|')];const{sugg,rest}=themeSuggest(d);const all=[...sugg,...rest];UI.cats=all;
   const has=n=>d.themes.some(t=>t.name.toLowerCase()===n.toLowerCase());const chip=c=>`<button class="chip ${has(c.name)?'on':''}" data-act="thTog" data-i="${all.indexOf(c)}">${esc(c.name)}</button>`;
   const edh=sugg.filter(c=>c.src==='EDHREC'),own=sugg.filter(c=>c.src!=='EDHREC');const mine=d.themes.filter(t=>!all.some(c=>c.name.toLowerCase()===t.name.toLowerCase()));
-  sheet('Game Plan themes for '+d.name,`<p class="muted small" style="margin:0">Pick the themes that make up this deck's game plan. They supply the suggestions for the Game Plan section, and Auto-sort files matching cards there. Pay Off and Finisher can draw on them too.</p>
+  sheet('Plan themes for '+d.name,`<p class="muted small" style="margin:0">Pick the themes that make up this deck's game plan. They supply the suggestions for the Plan section, and Auto-sort files matching cards there. Pay Off and Finisher can draw on them too.</p>
    ${d.cmd.length?`<label>EDHREC themes for ${esc(d.cmd.join(' + '))}</label>${edh.length?`<div class="chips">${edh.map(chip).join('')}</div>`:`<p class="muted small" style="margin:0">${e?'EDHREC has no themes available for this commander here.':'Loading from EDHREC…'}</p>`}`:'<p class="muted small" style="margin:0">Set a commander to get suggestions for it.</p>'}
    ${own.length?`<label>From the commander's card</label><div class="chips">${own.map(chip).join('')}</div>`:''}
    <label>All themes</label><div class="chips">${rest.map(chip).join('')}</div>
    <label for="thNew">Your own</label>${mine.length?`<div class="chips">${mine.map(t=>`<button class="chip on" data-act="thDel" data-n="${esc(t.name)}">${esc(t.name)} ✕</button>`).join('')}</div>`:''}
    <div class="row"><input id="thNew" class="grow" placeholder="e.g. Scry" autocomplete="off"><button data-act="thAdd">Add</button></div>`,`<button class="pri" data-act="close">Done</button>`);UI.themeOpen=true}
 /* turns an older archetype-based deck into the standard sections; its old theme sections become themes */
-function convertStd(d){const ns=S.template.map(x=>({...x,id:uid()}));const by=re=>ns.find(x=>re.test(x.name));const plan=ns.find(x=>x.role==='plan')||ns[ns.length-1];const map={};
-  d.sections.forEach(o=>{const n=o.name;const t=/ramp/i.test(n)?by(/ramp/i):/draw|advantage/i.test(n)?by(/advantage|draw/i):/removal|wipe|interaction|counterspell|protection/i.test(n)?by(/interaction|removal/i):/land/i.test(n)?by(/land/i):/finisher/i.test(n)?by(/finisher/i):/pay ?off/i.test(n)?by(/pay ?off/i):null;
-    map[o.id]=(t||plan).id;if(!t&&!/^(theme|new section)$/i.test(n)&&!d.themes.some(x=>x.name.toLowerCase()===n.toLowerCase()))d.themes.push({name:n,q:o.q||''})});
-  d.cards.forEach(c=>{if(c.s!=='u'&&c.s!=='m')c.s=map[c.s]||'u';c.x=[...new Set((c.x||[]).map(i=>map[i]).filter(i=>i&&i!==c.s))]});d.sections=withLands(ns);d.arch=''}
+/* moves a deck to the current default sections. Interaction cards are split by checking the two Disruption searches; custom sections are kept. */
+async function convertStd(d){const ns=S.template.map(x=>({...x,id:uid()}));const by=re=>ns.find(x=>re.test(x.name));const plan=ns.find(x=>x.role==='plan')||ns[ns.length-1];
+  const tgt=by(/targeted/i),mass=by(/mass/i),map={},split=new Set(),keep=[];
+  d.sections.forEach(o=>{const n=o.name;let t=null;
+    if(/ramp/i.test(n))t=by(/ramp/i);else if(/draw|advantage/i.test(n))t=by(/advantage|draw/i);else if(/wipe|mass/i.test(n))t=mass;
+    else if(/interaction/i.test(n)){t=tgt;split.add(o.id)}else if(/targeted|removal|counterspell/i.test(n))t=tgt;else if(/land/i.test(n))t=by(/land/i);
+    else if(roleOf(n)||/finisher|pay ?off|^theme$/i.test(n))t=plan;
+    if(t)map[o.id]=t.id;else{keep.push({...o});map[o.id]=o.id}});
+  const inter=[];d.cards.forEach(c=>{const from=c.s;if(c.s!=='u'&&c.s!=='m'){c.s=map[c.s]||'u';if(split.has(from))inter.push(c)}c.x=[...new Set((c.x||[]).map(i=>map[i]).filter(i=>i&&i!==c.s))]});
+  d.sections=withLands([...ns,...keep]).map(applyRole);d.arch='';
+  if(tgt&&mass&&inter.length){const res=await matchSections(d,inter);const m=res.find(r=>r.s.id===mass.id),t=res.find(r=>r.s.id===tgt.id);
+    inter.forEach(c=>{const isM=m&&m.names.has(c.n),isT=t&&t.names.has(c.n);if(isM&&!isT){c.s=mass.id;c.x=(c.x||[]).filter(i=>i!==mass.id)}else if(isM)shareInto(c,mass.id)})}
+  return{kept:keep.map(k=>k.name),split:inter.length}}
 function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
   sheet(pname(pid),`<p class="muted small" style="margin:0">Commander damage also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
    ${L.players.filter(o=>o.pid!==pid).map(o=>row('From '+esc(pname(o.pid))+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`)).join('')}
@@ -966,12 +981,13 @@ const A={
   thTog(e){const d=deck();const c=UI.cats[+e.dataset.i];const k=c.name.toLowerCase();if(d.themes.some(t=>t.name.toLowerCase()===k))d.themes=d.themes.filter(t=>t.name.toLowerCase()!==k);else d.themes.push({name:c.name,q:c.q||''});save();themeSheet()},
   thAdd(){const d=deck();const n=$('#thNew').value.trim();if(!n){toast('Type a theme name');return}if(!d.themes.some(t=>t.name.toLowerCase()===n.toLowerCase()))d.themes.push({name:n,q:''});save();themeSheet()},
   thDel(e){const d=deck();d.themes=d.themes.filter(t=>t.name!==e.dataset.n);save();themeSheet()},
-  thEdit(e){const t=deck().themes[+e.dataset.i];sheet('Game Plan theme: '+t.name,`<label for="thQ">Scryfall search for this theme</label><input id="thQ" value="${esc(t.q)}" placeholder="Left blank, the app finds one from the name" autocomplete="off">
-    <p class="muted small" style="margin:0">Used for suggestions in Game Plan, Pay Off and Finisher, and by Auto-sort.</p>`,`<div class="row"><button class="pri grow" data-act="thSave" data-i="${e.dataset.i}">Save</button><button class="danger" data-act="thRemove" data-i="${e.dataset.i}">Remove theme</button></div>`)},
+  thEdit(e){const t=deck().themes[+e.dataset.i];sheet('Plan theme: '+t.name,`<label for="thQ">Scryfall search for this theme</label><input id="thQ" value="${esc(t.q)}" placeholder="Left blank, the app finds one from the name" autocomplete="off">
+    <p class="muted small" style="margin:0">Used for suggestions in Plan, Pay Off and Finisher, and by Auto-sort.</p>`,`<div class="row"><button class="pri grow" data-act="thSave" data-i="${e.dataset.i}">Save</button><button class="danger" data-act="thRemove" data-i="${e.dataset.i}">Remove theme</button></div>`)},
   thSave(e){deck().themes[+e.dataset.i].q=$('#thQ').value.trim();save();closeSheet();rerender()},
   thRemove(e){deck().themes.splice(+e.dataset.i,1);save();closeSheet();rerender()},
-  convertAsk(){confirmSheet('Convert to standard sections','This replaces this deck\'s sections with Ramp, Interaction, Card Advantage, Lands, Game Plan, Pay Off and Finisher. Cards move to the closest match, and the old theme sections become themes. It cannot be undone, so export a backup first if you are unsure.','convertGo','Convert')},
-  convertGo(){convertStd(deck());save();closeSheet();rerender();toast('Converted')},
+  convertAsk(){confirmSheet('Switch to the new sections','This gives the deck Ramp, Card Advantage, Targeted Disruption, Mass Disruption, Lands and Plan. Interaction cards are split between the two Disruption sections, and Game Plan, Pay Off and Finisher cards move to Plan. Sections you made yourself, like Dragons, are kept. It cannot be undone, so you may want to duplicate the deck first.','convertGo','Switch')},
+  async convertGo(){const d=deck();sheet('Switching sections','<div class="empty">Sorting your Interaction cards…</div>');const r=await convertStd(d);save();rerender();
+    sheet('Switched to the new sections',`<p style="margin:0">${r.split?r.split+' Interaction card'+(r.split===1?' was':'s were')+' split between Targeted and Mass Disruption.':'Done.'}${r.kept.length?' Kept your own sections: '+esc(r.kept.join(', '))+'.':''}</p><p class="muted small" style="margin:0">Tap any card to move it, or use Menu → Re-check all cards against sections to share cards into every section they fit.</p>`)},
   setCmd(){openSearch({k:'cmd'},'Pick your commander (up to two)')},
   view(e){UI.view=e.dataset.v;rerender()},
   group(e){UI.group=e.dataset.g;rerender()},
@@ -1025,8 +1041,8 @@ const A={
     <button class="item" data-act="pull">Pull list: find these cards in my collection</button>
     <button class="item" data-act="rename">Rename deck</button>
     <button class="item" data-act="editSecs">Edit sections and targets</button>
-    <button class="item" data-act="themes">Edit Game Plan themes</button>
-    ${d.sections.some(x=>x.role==='plan')?'':'<button class="item" data-act="convertAsk">Convert to standard sections</button>'}
+    <button class="item" data-act="themes">Edit Plan themes</button>
+    ${newStd(d)?'':'<button class="item" data-act="convertAsk">Switch to the new sections</button>'}
     <button class="item" data-act="basics">Add basic lands</button>
     <button class="item" data-act="importDeck">Import a card list</button>
     <button class="item" data-act="askOpen">Ask Claude for recommendations</button>
