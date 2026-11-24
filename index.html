@@ -297,8 +297,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.6';
+const VERSION='3.7';
 const NEWS=[
+ ['3.7','Nov 24, 2026',['Sign in (Setup → Account and sync) to save everything online for free and use it on any device. Changes save online a few seconds after you make them, and the app checks for newer data when you open it.','Each person\'s data is private to their account, so friends can make their own account and use the app too.','Link Google and email/password to one account in Setup, then sign in either way.','If two devices both changed things, the app asks which copy to keep.']],
  ['3.6','Nov 24, 2026',['Autofill now fills every section. Sections take turns so none is left empty, and it prefers cards that count in several sections at once, like a creature that also draws cards or a wipe that only hits opponents.','If a section still comes up short, Autofill says which one and why.','Choose how Autofill picks: Synergy with my Plan (high-synergy cards and cards that fit your Plan themes) or Most popular (what most decks with your commander play).']],
  ['3.5','Nov 24, 2026',['Autofill: tap Autofill on a deck (or Menu → Autofill deck to 100) to fill every section to its target with EDHREC\'s picks for your commander, then each section\'s own search, then lands and basics. Each section\'s Fill also has an Autofill button for just that section.','Choose to put cards you own first, or use only cards you own. Undo right after if you don\'t like it.']],
  ['3.4','Nov 24, 2026',['Tap the four boxes at the top of a deck. Cards lists every card by type. Owned shows the cards you have and where they are, and what is missing. Value lists cards from most to least expensive and what you still need to spend. Changers lists the Game Changers.','Order missing cards from Card Kingdom or Mana Pool. Tapping a store copies the list of cards you don\'t own and opens the store\'s list page, where you paste it. Basic lands are skipped unless you turn that off.']],
@@ -419,8 +420,69 @@ function writeNow(){clearTimeout(saveT);saveT=null;if(!S)return;
   S.cards=keep;const str=JSON.stringify(S);
   idbSet('state',str).then(ok=>{if(ok)return;try{localStorage.setItem(KEY,str)}catch(e){toast('Could not save. Export a backup in Setup now.')}})}
 /* save(false) stores without counting as a change that needs backing up */
-function save(changed){if(changed!==false&&S)S.changed=Date.now();clearTimeout(saveT);saveT=setTimeout(writeNow,250)}
+function save(changed){if(changed!==false&&S){S.changed=Date.now();if(CL.user)cloudQueue()}clearTimeout(saveT);saveT=setTimeout(writeNow,250)}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&saveT)writeNow()});
+
+/* ---- Cloud sync (Firebase). Each signed-in person's data is stored at users/<their id>/sync, and the database rules let only them read or write it.
+   The card cache is not uploaded (it is fetched again from Scryfall), and a few settings stay on each device. ---- */
+var CL={fb:null,user:null,busy:false,t:null,err:'',state:'off',meta:null,unsub:null};
+const FB_CFG={apiKey:"AIzaSyBuCgDgrk1LpSyp9_HUTKZsiF-DgYgJuUs",authDomain:"bolt-the-bird-a256f.firebaseapp.com",projectId:"bolt-the-bird-a256f",storageBucket:"bolt-the-bird-a256f.firebasestorage.app",messagingSenderId:"1050696850486",appId:"1:1050696850486:web:b86951ba0dad651e160c97"};
+const FBV='10.12.2';const LOCAL_ONLY=['cards','syncAt','lastBackup','snooze','cloudUser','look','drift'];
+const devName=()=>{const u=navigator.userAgent;return /iPhone/.test(u)?'iPhone':/iPad/.test(u)?'iPad':/Android/.test(u)?'Android phone':/Mac/.test(u)?'Mac':/Windows/.test(u)?'Windows PC':'another device'};
+const agoT=t=>{if(!t)return'never';const m=Math.round((Date.now()-t)/6e4);return m<1?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':ago(t)};
+function cloudRefresh(){const typing=document.activeElement&&/INPUT/.test(document.activeElement.tagName);if(CL.user&&$('#cEmail')&&typing)document.activeElement.blur();if(location.hash==='#setup'&&$('#sheet').hidden&&(CL.user?!typing||$('#cEmail'):!typing))rerender();const e=$('#cloudSt');if(e)e.textContent=cloudStatus()}
+function cloudStatus(){return CL.state==='syncing'?'Syncing…':CL.state==='error'?CL.err:CL.state==='conflict'?'Waiting for you to pick which copy to keep':CL.state==='loading'?'Connecting…':'Synced '+agoT(S.syncAt)}
+function cloudErr(e){const c=(e&&e.code)||'';const m={'auth/invalid-credential':'That email and password don\'t match. Check them, or tap Forgot password.','auth/wrong-password':'That password is wrong. Tap Forgot password to reset it.','auth/user-not-found':'No account uses that email yet. Tap Create account.','auth/email-already-in-use':'An account already uses that email. Tap Sign in instead.','auth/weak-password':'Use a password of at least 6 characters.','auth/invalid-email':'That email address doesn\'t look right.','auth/missing-password':'Type a password.','auth/network-request-failed':'Couldn\'t reach the internet. Your data is still saved on this device.','auth/too-many-requests':'Too many tries. Wait a few minutes and try again.','auth/operation-not-allowed':'This sign-in method is turned off in Firebase (Authentication → Sign-in method).','auth/popup-blocked':'The sign-in window was blocked. Use email and password instead.','auth/popup-closed-by-user':'The sign-in window was closed before finishing.','auth/credential-already-in-use':'That Google account already has its own separate account in this app, so it can\'t be linked. Sign in with it, export a backup if it has data you want, and ask me to help merge them.','auth/provider-already-linked':'That sign-in method is already linked.','auth/requires-recent-login':'For safety, sign out and back in, then try again.','auth/account-exists-with-different-credential':'This email already has an account with a password. Sign in with the password, then use Also allow Google sign-in.','auth/unauthorized-domain':'This web address isn\'t on Firebase\'s Authorized domains list yet.','permission-denied':'The database refused the request. Check the Firestore rules were published.','unavailable':'Couldn\'t reach the sync service. Your data is still saved on this device.'};
+  return m[c]||m[c.replace(/^firestore\//,'')]||('Sync problem: '+((e&&e.message)||e))}
+async function fbLoad(){if(CL.fb)return CL.fb;const u='https://www.gstatic.com/firebasejs/'+FBV+'/';
+  const [app,auth,fs]=await Promise.all([import(u+'firebase-app.js'),import(u+'firebase-auth.js'),import(u+'firebase-firestore.js')]);
+  const a=app.initializeApp(FB_CFG);CL.fb={auth,fs,A:auth.getAuth(a),D:fs.getFirestore(a)};
+  auth.onAuthStateChanged(CL.fb.A,u=>{const was=CL.user&&CL.user.uid;CL.user=u||null;if(CL.unsub){CL.unsub();CL.unsub=null}
+    if(u){S.cloudUser=u.email||'signed in';save(false);CL.unsub=fs.onSnapshot(metaRef(),snap=>{const m=snap.exists()?snap.data():null;if(m&&m.at>(S.syncAt||0)&&!CL.busy)cloudCheck('remote')},()=>{});if(was!==u.uid)cloudCheck('start')}
+    else{CL.state='off';CL.meta=null;if(S.cloudUser){S.cloudUser='';save(false)}}
+    cloudRefresh()});
+  return CL.fb}
+const metaRef=()=>CL.fb.fs.doc(CL.fb.D,'users',CL.user.uid,'sync','meta');
+const partRef=i=>CL.fb.fs.doc(CL.fb.D,'users',CL.user.uid,'sync','c'+i);
+function cloudPayload(){const o={};for(const k in S)if(!LOCAL_ONLY.includes(k))o[k]=S[k];return JSON.stringify(o)}
+async function cloudPush(){const{fs}=CL.fb;const str=cloudPayload();const N=600000;const parts=[];for(let i=0;i<str.length;i+=N)parts.push(str.slice(i,i+N));
+  const old=CL.meta?CL.meta.n||0:0;const at=Date.now();const b=fs.writeBatch(CL.fb.D);
+  parts.forEach((p,i)=>b.set(partRef(i),{s:p}));for(let i=parts.length;i<old;i++)b.delete(partRef(i));
+  const meta={n:parts.length,at,dev:devName(),size:str.length};b.set(metaRef(),meta);await b.commit();CL.meta=meta;S.syncAt=at;save(false);writeNow()}
+async function cloudPull(meta){const{fs}=CL.fb;let str='';for(let i=0;i<meta.n;i++){const d=await fs.getDoc(partRef(i));if(!d.exists())throw new Error('Part of the online copy is missing. Try Sync now.');str+=d.data().s}
+  const j=JSON.parse(str);const keep={};LOCAL_ONLY.forEach(k=>{if(S[k]!==undefined)keep[k]=S[k]});S=Object.assign(j,keep);norm();S.cards=CARDS;S.syncAt=meta.at;S.changed=meta.at;CL.meta=meta;
+  save(false);writeNow();applyLook&&applyLook();if($('#sheet').hidden)rerender();hydrate()}
+async function cloudCheck(why){if(!CL.user||!CL.fb)return;if(CL.busy){CL.again=true;return}CL.busy=true;CL.state='syncing';cloudRefresh();
+  try{const snap=await CL.fb.fs.getDoc(metaRef());const meta=snap.exists()?snap.data():null;CL.meta=meta;const local=(S.changed||0)>(S.syncAt||0);
+    if(!meta){if(hasData())await cloudPush()}
+    else if(meta.at>(S.syncAt||0)){if(local&&hasData()){CL.state='conflict';CL.busy=false;cloudRefresh();conflictSheet(meta);return}await cloudPull(meta)}
+    else if(local)await cloudPush();
+    CL.state='ok';CL.err=''}
+  catch(e){CL.state='error';CL.err=cloudErr(e)}
+  CL.busy=false;cloudRefresh();if(CL.again){CL.again=false;cloudQueue(500)}else if(CL.state==='ok'&&(S.changed||0)>(S.syncAt||0))cloudQueue()}
+function cloudQueue(ms){if(!CL.user)return;clearTimeout(CL.t);CL.t=setTimeout(()=>cloudCheck('save'),ms||3000)}
+async function cloudAuth(kind){const em=(($('#cEmail')||{}).value||'').trim(),pw=($('#cPw')||{}).value||'';UI.cEm=em;
+  if(!em||!pw){toast('Type your email and a password');return}CL.err='';CL.state='loading';
+  try{const fb=await fbLoad();if(kind==='new')await fb.auth.createUserWithEmailAndPassword(fb.A,em,pw);else await fb.auth.signInWithEmailAndPassword(fb.A,em,pw);toast(kind==='new'?'Account created':'Signed in')}
+  catch(e){CL.state='error';CL.err=cloudErr(e);rerender()}}
+function conflictSheet(meta){sheet('Which copy should we keep?',`<p style="margin:0">Your account already has data saved online from <b>${esc(meta.dev||'another device')}</b>, ${agoT(meta.at)}. This ${esc(devName())} also has its own changes that aren't online.</p>
+   <p class="muted small" style="margin:0">Pick one to keep. The other one is replaced. If you're not sure, export a backup of this device first.</p>
+   <button class="pri" data-act="cloudUseRemote">Use the online copy</button><button data-act="cloudUseLocal">Use this ${esc(devName())}'s copy</button><button data-act="export">Export a backup of this device first</button>`)}
+document.addEventListener('visibilitychange',()=>{if(!CL.user)return;if(document.visibilityState==='visible')cloudCheck('wake');else if(CL.t&&(S.changed||0)>(S.syncAt||0)){clearTimeout(CL.t);cloudCheck('leave')}});
+function cloudBox(){if(!CL.user)return`<p class="muted small" style="margin:0">Sign in to save your decks, collection and games online for free, and to use them on any device. Each person's data is private to them, so friends can use the app with their own account.</p>
+   <input id="cEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" aria-label="Email" value="${esc(UI.cEm||'')}">
+   <input id="cPw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" aria-label="Password">
+   ${CL.err&&CL.state!=='ok'?`<p class="small" style="margin:0;color:var(--warn)">${esc(CL.err)}</p>`:''}
+   <div class="row wrapf"><button class="pri" data-act="cloudIn">Sign in</button><button data-act="cloudNew">Create account</button><button class="ghost sm" data-act="cloudReset">Forgot password</button></div>
+   <button data-act="cloudGoogle">Sign in with Google <span class="muted small">(best on a computer)</span></button>`;
+  const pv=(CL.user.providerData||[]).map(x=>x.providerId);const hasG=pv.includes('google.com'),hasP=pv.includes('password');
+  return`<div class="secbox" style="padding:12px"><b>Signed in as ${esc(CL.user.email||'you')}</b><br><span class="muted small" id="cloudSt">${esc(cloudStatus())}</span><br><span class="muted small">Changes save online a few seconds after you make them.</span></div>
+   <div class="row wrapf"><button data-act="cloudNow">Sync now</button><button data-act="cloudOut">Sign out</button></div>
+   <h3>Ways to sign in</h3>
+   <p class="small" style="margin:0">${[hasP&&'Email and password',hasG&&'Google'].filter(Boolean).join(' · ')||'Email'}</p>
+   ${!hasG?`<button data-act="cloudLinkG">Also allow Google sign-in</button><p class="muted small" style="margin:0">Use the Google account with this same email if you can. A Google window opens, so this works best on a computer or in Safari; you only need to do it once.</p>`:''}
+   ${!hasP&&CL.user.email?`<input id="cPw2" type="password" autocomplete="new-password" placeholder="New password (6+ characters)" aria-label="New password"><button data-act="cloudLinkP">Also allow email and password</button><p class="muted small" style="margin:0">Then on iPhone you can sign in with ${esc(CL.user.email)} and this password. It's the easiest way to sign in from the home screen app.</p>`:''}
+   ${CL.linkErr?`<p class="small" style="margin:0;color:var(--warn)">${esc(CL.linkErr)}</p>`:''}`}
 const hasData=()=>S.decks.length||Object.keys(S.coll).length||(S.games||[]).length;
 const dirty=()=>!S.lastBackup||(S.changed||0)>S.lastBackup;
 const ago=t=>{if(!t)return'never';const d=Math.floor((Date.now()-t)/864e5);return d<1?'today':d===1?'yesterday':d+' days ago'};
@@ -758,6 +820,8 @@ function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const
   
   page('<h1>Setup</h1>','',`
    <div class="about"><img src="icon-256.png" alt="Bolt the Bird logo"><div><b>Bolt the Bird</b><span class="muted small num">Version ${VERSION}</span></div></div>
+   <h2>Account and sync</h2>
+   ${cloudBox()}
    <div class="row"><h2 class="grow">What's new</h2><button class="sm" data-act="news">All versions</button></div>
    <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
    <div class="row"><h2 class="grow">Default sections</h2><button class="sm" data-act="editTemplate">Edit</button></div>
@@ -769,7 +833,7 @@ function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const
    <h2>Deck building</h2>
    <div class="row"><span class="grow">Share cards across sections automatically<br><span class="muted small">When you add a card, it is also counted in any other section whose search it matches.</span></span><button data-act="shareTog" aria-pressed="${S.autoShare!==false}">${S.autoShare!==false?'On':'Off'}</button></div>
    <h2>Backup and moving devices</h2>
-   <p class="muted small" style="margin:0">Everything is saved on this device only. To move it to another device, export here and import there.</p>
+   <p class="muted small" style="margin:0">${CL.user?'Your data is saved on this device and online. A backup file is an extra copy you control.':'Everything is saved on this device only. To move it to another device, sign in above, or export here and import there.'}</p>
    <div class="secbox" style="padding:12px"><b>Last backup: ${ago(S.lastBackup)}</b><br><span class="muted small">${!hasData()?'Nothing to back up yet.':dirty()?'You have changes since then.':'Everything is backed up.'}</span><br><span class="muted small" id="stInfo">Saved in the browser's ${STORE==='large'?'large':'small'} storage.</span></div>
    <div class="row wrapf"><button data-act="export">Export backup</button><button data-act="importOpen">Import backup</button><button class="danger" data-act="resetAsk">Erase everything</button></div>`);
 }
@@ -1158,6 +1222,16 @@ const A={
   pick(e){pick(e.dataset.n)},
   peek(e){peek(e.dataset.n)},
   afAsk(e){afAsk(e&&e.dataset&&e.dataset.sid)},afGo(e){afRun(e.dataset.sid)},
+  async cloudIn(){await cloudAuth('in')},async cloudNew(){await cloudAuth('new')},
+  async cloudReset(){const em=($('#cEmail')||{}).value||'';if(!em.trim()){toast('Type your email first');return}try{const fb=await fbLoad();await fb.auth.sendPasswordResetEmail(fb.A,em.trim());toast('Check your email for a reset link')}catch(e){CL.err=cloudErr(e);CL.state='error';rerender()}},
+  async cloudGoogle(){try{const fb=await fbLoad();await fb.auth.signInWithPopup(fb.A,new fb.auth.GoogleAuthProvider())}catch(e){CL.err=cloudErr(e);CL.state='error';rerender()}},
+  cloudNow(){cloudCheck('manual')},
+  async cloudLinkG(){CL.linkErr='';try{const fb=CL.fb;await fb.auth.linkWithPopup(fb.A.currentUser||CL.user,new fb.auth.GoogleAuthProvider());await (fb.A.currentUser||CL.user).reload?.();toast('Google sign-in linked')}catch(e){CL.linkErr=cloudErr(e)}rerender()},
+  async cloudLinkP(){CL.linkErr='';const pw=($('#cPw2')||{}).value||'';if(pw.length<6){toast('Use at least 6 characters');return}const fb=CL.fb;const u=fb.A.currentUser||CL.user;
+    try{await fb.auth.linkWithCredential(u,fb.auth.EmailAuthProvider.credential(u.email,pw));await u.reload?.();toast('Password added. You can sign in either way now.')}catch(e){CL.linkErr=cloudErr(e)}rerender()},
+  async cloudOut(){if(CL.t){clearTimeout(CL.t);if((S.changed||0)>(S.syncAt||0))await cloudCheck('leave')}try{await CL.fb.auth.signOut(CL.fb.A)}catch(e){}S.syncAt=0;S.cloudUser='';save(false);toast('Signed out. Your data stays on this device.');rerender()},
+  async cloudUseRemote(){closeSheet();if(!CL.meta)return;CL.busy=true;try{await cloudPull(CL.meta);CL.state='ok'}catch(e){CL.state='error';CL.err=cloudErr(e)}CL.busy=false;cloudRefresh();toast('Using the online copy')},
+  async cloudUseLocal(){closeSheet();CL.busy=true;try{await cloudPush();CL.state='ok'}catch(e){CL.state='error';CL.err=cloudErr(e)}CL.busy=false;cloudRefresh();toast('Online copy replaced with this device\'s')},
   afMode(e){(UI.af=UI.af||{own:true}).mode=e.dataset.v;afAsk(e.dataset.sid)},
   afTog(e){const o=UI.af||(UI.af={own:true,ownOnly:false});o[e.dataset.k]=!o[e.dataset.k];if(e.dataset.k==='ownOnly'&&o.ownOnly)o.own=true;afAsk(e.dataset.sid)},
   afUndo(){if(!AFUNDO)return;const d=S.decks.find(x=>x.id===AFUNDO.id);if(d){d.cards=JSON.parse(AFUNDO.cards);save()}AFUNDO=null;closeSheet();rerender();toast('Autofill undone')},
@@ -1639,7 +1713,7 @@ document.addEventListener('focusout',e=>{if(!isField(e.target))return;setTimeout
 function fitVV(){const v=window.visualViewport;if(!v)return;const r=document.documentElement.style;r.setProperty('--vh',v.height+'px');r.setProperty('--vt',v.offsetTop+'px')}
 try{if(window.visualViewport){visualViewport.addEventListener('scroll',fitVV);fitVV()}}catch(e){}
 try{if(window.visualViewport)visualViewport.addEventListener('resize',()=>{fitVV();const open=visualViewport.height<window.innerHeight*.8;document.body.classList.toggle('kb',open&&isField(document.activeElement));if(!open)window.scrollTo(window.scrollX,window.scrollY)})}catch(e){}
-load().then(()=>{route();hydrate();try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
+load().then(()=>{route();hydrate();if(S.cloudUser){CL.state='loading';fbLoad().catch(e=>{CL.state='error';CL.err=cloudErr({code:'unavailable'});cloudRefresh()})}try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
 </script>
 </body>
 </html>
