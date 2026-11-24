@@ -1,4 +1,4 @@
-# Brew Bench
+# Bolt Brew
 
 A personal Commander deck builder, collection tracker, life counter and deck tester.
 
