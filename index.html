@@ -43,8 +43,8 @@ h1{font-size:22px}h2{font-size:17px}h3{font-size:15px}
 .top{position:sticky;top:env(safe-area-inset-top,0);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;align-items:center;gap:8px;min-height:52px}
 .top h1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.brand{display:flex;align-items:center;gap:10px}.logo{width:36px;height:36px;border-radius:9px;flex:none;box-shadow:0 0 0 1px #0006,0 2px 6px #0005}
-.about{display:flex;align-items:center;gap:14px}.about img{width:72px;height:72px;border-radius:16px;box-shadow:0 0 0 1px #0006,0 3px 10px #0006}.about div{display:flex;flex-direction:column;gap:2px}.about b{font-family:var(--display);font-size:22px}
+.brand{display:flex;align-items:center;gap:10px}.logo{width:40px;height:40px;flex:none;margin:-4px 0;filter:drop-shadow(0 1px 2px #0008)}
+.about{display:flex;align-items:center;gap:14px}.about img{width:84px;height:84px;filter:drop-shadow(0 2px 4px #0008)}.about div{display:flex;flex-direction:column;gap:2px}.about b{font-family:var(--display);font-size:22px}
 main{padding-block:14px;display:flex;flex-direction:column;gap:14px}
 .muted{color:var(--muted)}.small{font-size:13px}.num{font-variant-numeric:tabular-nums}
 .row{display:flex;align-items:center;gap:8px}.grow{flex:1;min-width:0}.wrapf{flex-wrap:wrap}
@@ -297,7 +297,7 @@ const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
 const VERSION='3.3';
 const NEWS=[
- ['3.3','Nov 24, 2026',['The app is now called Bolt the Bird, with a new logo: a lightning bolt striking an arcane bird. It shows on the Decks tab, in Setup, and as the home screen icon.','Tidied the look: even tab labels, a dark band behind the commander name so it reads on any art, and stat labels that fit on one line.','The marble background drifts slowly. Turn it off in Setup → Look.','Searching no longer makes the screen jump around. Search windows keep the same size while results load, the search box stays at the top, and the window fits above the keyboard.','The collection search box also stays in place while you type.']],
+ ['3.3','Nov 24, 2026',['The app is now called Bolt the Bird, with a new logo: lightning striking an arcane raven, painted in the style of 90s card art. It shows on the Decks tab, in Setup, and as the home screen icon.','Tidied the look: even tab labels, a dark band behind the commander name so it reads on any art, and stat labels that fit on one line.','The marble background drifts slowly. Turn it off in Setup → Look.','Searching no longer makes the screen jump around. Search windows keep the same size while results load, the search box stays at the top, and the window fits above the keyboard.','The collection search box also stays in place while you type.']],
  ['3.2','Nov 22, 2026',['New default sections: Ramp 10, Card Advantage 12, Targeted Disruption 12, Mass Disruption 6, Lands 38 and Plan about 30. A card can count in more than one, so the targets add up to more than 99.','Mass Disruption covers board wipes and cards that hit every opponent or player, like Soul Shatter, Pick Your Poison and Ruinous Ultimatum.','Older decks show a button to switch to the new sections. Interaction cards are split between the two Disruption sections, and Game Plan, Pay Off and Finisher become Plan.']],
  ['3.1','Nov 22, 2026',['The old card frame look now comes in all five colors: white, blue, black, red and green. Pick one in Setup → Look.']],
  ['3.0','Nov 22, 2026',['New look inspired by the old red card frames: a mottled red frame, rose text boxes with beveled edges, old-style serif type and a black tab bar.','Prefer the previous look? Setup → Look switches back.']],
