@@ -1,4 +1,4 @@
-# Bolt Brew
+# Bolt the Bird
 
 A personal Commander deck builder, collection tracker, life counter and deck tester.
 

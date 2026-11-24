@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+ <radialGradient id="bg" cx="50%" cy="42%" r="70%"><stop offset="0" stop-color="#8e2428"/><stop offset=".65" stop-color="#4a0f13"/><stop offset="1" stop-color="#1c0507"/></radialGradient>
+ <linearGradient id="bird" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2550"/><stop offset="1" stop-color="#0d0b1e"/></linearGradient>
+ <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<!-- arcane circle -->
+<g fill="none" stroke="#7fe3ff" stroke-opacity=".55" filter="url(#soft)">
+ <circle cx="256" cy="290" r="168" stroke-width="3"/>
+ <circle cx="256" cy="290" r="148" stroke-width="1.5" stroke-dasharray="4 10"/>
+ <path d="M256 122 L401 374 L111 374 Z" stroke-width="2"/>
+ <path d="M256 458 L111 206 L401 206 Z" stroke-width="2"/>
+</g>
+<g fill="#7fe3ff" fill-opacity=".8"><circle cx="256" cy="122" r="6"/><circle cx="401" cy="374" r="6"/><circle cx="111" cy="374" r="6"/><circle cx="256" cy="458" r="6"/><circle cx="111" cy="206" r="6"/><circle cx="401" cy="206" r="6"/></g>
+<!-- bird: wings flung up, body falling -->
+<g fill="url(#bird)" stroke="#7fe3ff" stroke-width="4" stroke-linejoin="round">
+ <path d="M246 296 C210 290 176 262 150 226 L70 214 L118 196 L56 170 L124 166 L76 128 L146 140 L120 96 L186 140 C212 170 232 220 252 262 Z"/>
+ <path d="M266 296 C302 290 336 262 362 226 L442 214 L394 196 L456 170 L388 166 L436 128 L366 140 L392 96 L326 140 C300 170 280 220 260 262 Z"/>
+ <path d="M256 238 C284 250 292 292 282 332 L296 378 L270 364 L256 404 L242 364 L216 378 L230 332 C220 292 228 250 256 238 Z"/>
+ <path d="M244 246 C224 236 222 214 234 204 C246 194 262 202 262 218 L264 240 Z"/>
+ <path d="M234 206 L196 212 L230 222 Z"/>
+</g>
+<g fill="none" stroke="#7fe3ff" stroke-width="3" stroke-linecap="round" stroke-opacity=".9">
+ <path d="M112 180 L170 196 M128 146 L180 176 M148 120 L190 160"/>
+ <path d="M400 180 L342 196 M384 146 L332 176 M364 120 L322 160"/>
+ <path d="M256 280 L256 336 M242 306 L270 306 M246 292 L266 292"/>
+</g>
+<circle cx="240" cy="214" r="5" fill="#fff6b0" filter="url(#soft)"/>
+<!-- the bolt -->
+<g filter="url(#glow)">
+ <path d="M400 0 L334 92 L366 92 L300 180 L330 180 L262 272 L362 160 L330 160 L404 70 L372 70 L438 0 Z" fill="#fff6b0" stroke="#ffd23f" stroke-width="5" stroke-linejoin="round"/>
+</g>
+<g fill="none" stroke="#fffbe0" stroke-width="3" stroke-linecap="round" filter="url(#soft)">
+ <path d="M262 272 L236 300 L246 316 M262 272 L292 296 L284 318 M262 272 L262 320"/>
+</g>
+</svg>
