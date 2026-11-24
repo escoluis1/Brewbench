@@ -28,7 +28,7 @@ body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);-webkit-te
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;min-height:38px}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.pri,a.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 button.ghost{background:none;border-color:transparent;color:var(--accent);padding:8px}
 button.danger{color:var(--danger)}
 button.sm{min-height:32px;padding:4px 10px;font-size:13px}
@@ -65,6 +65,8 @@ nav.tabs a.on{color:var(--accent)}
 .cmd .art.none{color:var(--muted);text-shadow:none;align-items:center;justify-content:center;font-weight:500}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+button.stat{text-align:left;width:100%;min-height:0;font:inherit;color:inherit;position:relative}button.stat::after{content:'›';position:absolute;right:7px;bottom:5px;color:var(--muted);font-size:15px;line-height:1}
+.buy{display:grid;grid-template-columns:1fr 1fr;gap:8px}.buy a{text-align:center}
 .stat b{display:block;font:700 17px var(--display)}
 .stat span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;display:block;overflow:hidden;text-overflow:ellipsis}
 .stats .stat{min-width:0}
@@ -258,8 +260,8 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 :root.bolt :is(.crow,.item,.cb){border-color:var(--line)}
 :root.bolt .stat b{font-family:var(--display);font-weight:400;font-size:20px}
 /* buttons raised, fields sunken */
-:root.bolt button:not(.ghost):not(.ttl):not(.crow):not(.item):not(.cb):not(.info):not(.zone):not(.tc):not(.grid button){border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff8c,inset -1px -1px 0 #00000026}
-:root.bolt button.pri,:root.bolt .chip.on{box-shadow:inset 1px 1px 0 #ffffff40,inset -1px -1px 0 #00000059}
+:root.bolt button:not(.ghost):not(.ttl):not(.crow):not(.item):not(.cb):not(.info):not(.zone):not(.tc):not(.stat):not(.grid button){border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff8c,inset -1px -1px 0 #00000026}
+:root.bolt button.pri,:root.bolt a.btn.pri,:root.bolt .chip.on{border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff40,inset -1px -1px 0 #00000059}
 :root.bolt .chip{border-radius:3px}
 :root.bolt :is(input,select,textarea){background:var(--field);border:1px solid var(--edge);border-radius:2px;box-shadow:inset 1px 1px 2px #00000040}
 :root.bolt button.ghost{font-size:17px}
@@ -295,8 +297,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.3';
+const VERSION='3.4';
 const NEWS=[
+ ['3.4','Nov 24, 2026',['Tap the four boxes at the top of a deck. Cards lists every card by type. Owned shows the cards you have and where they are, and what is missing. Value lists cards from most to least expensive and what you still need to spend. Changers lists the Game Changers.','Order missing cards from Card Kingdom or Mana Pool. Tapping a store copies the list of cards you don\'t own and opens the store\'s list page, where you paste it. Basic lands are skipped unless you turn that off.']],
  ['3.3','Nov 24, 2026',['The app is now called Bolt the Bird, with a new logo: blue-white lightning striking a red bird of fire, painted in the style of the early cards. It shows on the Decks tab, in Setup, and as the home screen icon.','Tidied the look: even tab labels, a dark band behind the commander name so it reads on any art, and stat labels that fit on one line.','The marble background drifts slowly. Turn it off in Setup → Look.','Searching no longer makes the screen jump around. Search windows keep the same size while results load, the search box stays at the top, and the window fits above the keyboard.','The collection search box also stays in place while you type.']],
  ['3.2','Nov 22, 2026',['New default sections: Ramp 10, Card Advantage 12, Targeted Disruption 12, Mass Disruption 6, Lands 38 and Plan about 30. A card can count in more than one, so the targets add up to more than 99.','Mass Disruption covers board wipes and cards that hit every opponent or player, like Soul Shatter, Pick Your Poison and Ruinous Ultimatum.','Older decks show a button to switch to the new sections. Interaction cards are split between the two Disruption sections, and Game Plan, Pay Off and Finisher become Plan.']],
  ['3.1','Nov 22, 2026',['The old card frame look now comes in all five colors: white, blue, black, red and green. Pick one in Setup → Look.']],
@@ -565,6 +568,36 @@ const PMTRIED=new Set();
 async function pmRefresh(d){const need=[...d.cmd,...d.cards.map(c=>c.n)].filter(n=>CARDS[n]&&(CARDS[n].pm===undefined||(n.includes(' // ')&&CARDS[n].img2===undefined))&&!PMTRIED.has(n));if(!need.length)return;need.forEach(n=>PMTRIED.add(n));
   try{for(let i=0;i<need.length;i+=75){const j=await sf('/cards/collection',{identifiers:need.slice(i,i+75).map(n=>({name:n.split(' // ')[0]}))});(j.data||[]).forEach(slim)}save();
     if(location.hash==='#deck'&&$('#sheet').hidden&&deck()===d)rerender()}catch(e){}}
+/* ---- stat tiles: what the four numbers on a deck are made of, and ordering the cards you don't own ---- */
+function deckRows(d){const rows=d.cmd.map(n=>({n,q:1,cmd:1}));main(d).forEach(c=>{const r=rows.find(x=>x.n===c.n);if(r)r.q+=c.q;else rows.push({n:c.n,q:c.q})});return rows}
+function missingRows(d,skipBasics){return deckRows(d).map(r=>({...r,need:Math.max(0,r.q-owned(r.n))})).filter(r=>r.need&&!(skipBasics&&isBasic(r.n)))}
+function statRow(n,q,sub,right){return`<button class="item" data-act="peek" data-n="${esc(n)}"><span class="name">${q>1?q+'× ':''}${esc(n)}${sub?`<br><span class="muted small">${sub}</span>`:''}</span><span class="num small">${right||''}</span></button>`}
+const TYPE_ORDER=['Creature','Planeswalker','Battle','Instant','Sorcery','Artifact','Enchantment','Land','Other'];
+function buyList(rows){return rows.map(r=>r.need+' '+r.n.split(' // ')[0]).join('\n')}
+const SHOPS=[['Card Kingdom','https://www.cardkingdom.com/builder'],['Mana Pool','https://manapool.com/add-deck']];
+function buyBox(d){const rows=missingRows(d,UI.skipBasics!==false);if(!rows.length)return'<p class="muted small" style="margin:0">You own every card in this deck'+(UI.skipBasics!==false?' (not counting basic lands)':'')+'.</p>';
+  const cost=rows.reduce((a,r)=>a+card(r.n).p*r.need,0);const n=rows.reduce((a,r)=>a+r.need,0);
+  return`<div class="secbox" style="padding:12px;display:flex;flex-direction:column;gap:8px"><b>Order the ${n} card${n>1?'s':''} you don't own · about ${money(cost)}</b>
+   <div class="buy">${SHOPS.map(([l,u],i)=>`<a class="btn pri" href="${u}" target="_blank" rel="noopener" data-act="buyGo" data-i="${i}">${l} ↗</a>`).join('')}</div>
+   <p class="muted small" style="margin:0">Tapping a store copies the list. On the store's page, tap the big text box and choose Paste.</p>
+   <div class="row"><span class="grow small">Skip basic lands</span><button class="sm" data-act="buyBasics" aria-pressed="${UI.skipBasics!==false}">${UI.skipBasics!==false?'On':'Off'}</button><button class="sm" data-act="buyCopy">Copy list</button></div></div>`}
+function copyNow(t){const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.append(ta);ta.select();ta.setSelectionRange(0,t.length);let ok=false;try{ok=document.execCommand('copy')}catch(e){}ta.remove();if(!ok&&navigator.clipboard)navigator.clipboard.writeText(t).catch(()=>{});return true}
+function statSheet(k){const d=deck();UI.stat=k;const rows=deckRows(d);let body='';
+  if(k==='cards'){const by={};rows.forEach(r=>{(by[typeOf(r.n)]=by[typeOf(r.n)]||[]).push(r)});const t=total(d);
+    body=`<p class="muted small" style="margin:0">${t} of 100${t>100?` · ${t-100} over, cut ${t-100} to be legal`:t<100?` · ${100-t} to go`:' · ready to play'}. Tap a card to see it.</p>`+
+     TYPE_ORDER.filter(x=>by[x]).map(x=>`<h3>${x==='Sorcery'?'Sorceries':x==='Other'?'Other':x+'s'} <span class="muted small num">${by[x].reduce((a,r)=>a+r.q,0)}</span></h3><div class="list">${by[x].sort((a,b)=>a.n.localeCompare(b.n)).map(r=>statRow(r.n,r.q,r.cmd?'Commander':'',card(r.n).mc?'':'')).join('')}</div>`).join('')}
+  if(k==='owned'){const have=rows.filter(r=>owned(r.n)),miss=missingRows(d,false);
+    body=buyBox(d)+`<h3>You own ${have.reduce((a,r)=>a+Math.min(r.q,owned(r.n)),0)} <span class="muted small">· where to find them</span></h3><div class="list">${have.length?have.map(r=>statRow(r.n,r.q,esc(S.loc[r.n]||'No location set')+(owned(r.n)<r.q?` · you have ${owned(r.n)}`:''),'')).join(''):'<div class="empty">None yet. Mark cards you own in the Collection tab.</div>'}</div>
+     <h3>Missing ${miss.reduce((a,r)=>a+r.need,0)}</h3><div class="list">${miss.map(r=>statRow(r.n,r.need,isBasic(r.n)?'Basic land':'',money(card(r.n).p*r.need))).join('')||'<div class="empty">Nothing missing.</div>'}</div>`}
+  if(k==='value'){const all=rows.map(r=>({...r,v:card(r.n).p*r.q})).sort((a,b)=>b.v-a.v);const tot=all.reduce((a,r)=>a+r.v,0);
+    const have=all.reduce((a,r)=>a+card(r.n).p*Math.min(r.q,owned(r.n)),0);const noP=all.filter(r=>!card(r.n).p).length;
+    body=`<div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${money(tot)}</b><span>Whole deck</span></div><div class="stat"><b class="num">${money(have)}</b><span>You own</span></div><div class="stat"><b class="num">${money(tot-have)}</b><span>To buy</span></div></div>
+     ${buyBox(d)}<h3>Most expensive first</h3><div class="list">${all.map(r=>statRow(r.n,r.q,owned(r.n)>=r.q?'Owned':owned(r.n)?'Own '+owned(r.n)+' of '+r.q:'',r.v?money(r.v):'no price')).join('')}</div>
+     <p class="muted small" style="margin:0">Prices are Scryfall's lowest US price for each card${noP?`; ${noP} card${noP>1?'s have':' has'} no listed price`:''}. Store prices will differ.</p>`}
+  if(k==='gc'){const g=rows.filter(r=>card(r.n).gc);
+    body=`<p class="muted small" style="margin:0">Game Changers are cards on Wizards of the Coast's official list of especially powerful Commander cards. How many a deck runs decides which bracket it fits in.</p>
+     <div class="list">${g.length?g.map(r=>statRow(r.n,1,r.cmd?'Commander':'',card(r.n).p?money(card(r.n).p):'')).join(''):'<div class="empty">This deck has no Game Changers.</div>'}</div>`}
+  sheet({cards:'Cards in '+d.name,owned:'Cards you own',value:'Deck value',gc:'Game Changers'}[k],body)}
 function vDeck(){
   const d=deck();edhLoad(d);pmRefresh(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
   const val=[...d.cmd.map(n=>card(n).p),...m.map(c=>card(c.n).p*c.q)].reduce((a,b)=>a+b,0);
@@ -579,10 +612,10 @@ function vDeck(){
      <button class="sm pri" data-act="test">Test deck</button><button class="sm" data-act="setCmd">${d.cmd.length?'Change commander':'Set commander'}</button></div>
    <div class="chips" style="align-items:center"><span class="grp" style="margin:0">Plan</span>${d.themes.map((t,i)=>`<button class="chip on" data-act="thEdit" data-i="${i}">${esc(t.name)}</button>`).join('')}<button class="chip" data-act="themes">${d.themes.length?'Edit':'Pick this deck\'s game plan themes'}</button></div>
    <div class="stats">
-     <div class="stat"><b class="num">${total(d)}/100</b><span>Cards</span></div>
-     <div class="stat"><b class="num">${own}</b><span>Owned</span></div>
-     <div class="stat"><b class="num">${money(val)}</b><span>Value</span></div>
-     <div class="stat"><b class="num">${gc}</b><span>Changers</span></div>
+     <button class="stat" data-act="stCards"><b class="num">${total(d)}/100</b><span>Cards</span></button>
+     <button class="stat" data-act="stOwned"><b class="num">${own}</b><span>Owned</span></button>
+     <button class="stat" data-act="stValue"><b class="num">${money(val)}</b><span>Value</span></button>
+     <button class="stat" data-act="stGC"><b class="num">${gc}</b><span>Changers</span></button>
    </div>
    <div class="sec"><header><span class="ttl">Mana curve</span><span class="muted small num" style="text-align:right">total <b style="color:var(--ink)">${tot}</b> · ${cnt(non)} spells · avg ${avg}</span></header>
      <div class="curve" style="padding:0 12px 8px">${curve.map((v,i)=>`<div><span class="num">${v||''}</span><i style="height:${v/mx*70}%"></i><span>${i===7?'7+':i}</span></div>`).join('')}</div></div>
@@ -1041,6 +1074,10 @@ const A={
       R.cards=r.cards.filter(Boolean);save()}catch(err){if(R!==mine)return;R.err=err.message}R.loading=false;drawRes()},
   pick(e){pick(e.dataset.n)},
   peek(e){peek(e.dataset.n)},
+  stCards(){statSheet('cards')},stOwned(){statSheet('owned')},stValue(){statSheet('value')},stGC(){statSheet('gc')},
+  buyGo(e){copyNow(buyList(missingRows(deck(),UI.skipBasics!==false)));toast('List copied. Paste it on '+SHOPS[+e.dataset.i][0])},
+  buyCopy(){copyNow(buyList(missingRows(deck(),UI.skipBasics!==false)));toast('List copied')},
+  buyBasics(){UI.skipBasics=UI.skipBasics===false;statSheet(UI.stat)},
   unpeek(){$('#peek').hidden=true},
   rOwnedFirst(){R.ownedFirst=!R.ownedFirst;drawRes()},
   rOwnedOnly(){R.ownedOnly=!R.ownedOnly;drawRes()},
