@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#12181a">
 <title>Bolt the Bird</title>
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-256.png" type="image/png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=Sorts+Mill+Goudy:ital@0;1&display=swap">
 <style>
 /* Layout: one column, phone first. Sticky top bar, fixed bottom tabs, bottom sheets for every action. Wider screens get a centred 760px column. */
@@ -297,7 +297,7 @@ const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
 const VERSION='3.3';
 const NEWS=[
- ['3.3','Nov 24, 2026',['The app is now called Bolt the Bird, with a new logo: lightning striking a phoenix, drawn in pen-and-ink style. It shows on the Decks tab, in Setup, and as the home screen icon.','Tidied the look: even tab labels, a dark band behind the commander name so it reads on any art, and stat labels that fit on one line.','The marble background drifts slowly. Turn it off in Setup → Look.','Searching no longer makes the screen jump around. Search windows keep the same size while results load, the search box stays at the top, and the window fits above the keyboard.','The collection search box also stays in place while you type.']],
+ ['3.3','Nov 24, 2026',['The app is now called Bolt the Bird, with a new logo: blue-white lightning striking a red bird of fire, painted in the style of the early cards. It shows on the Decks tab, in Setup, and as the home screen icon.','Tidied the look: even tab labels, a dark band behind the commander name so it reads on any art, and stat labels that fit on one line.','The marble background drifts slowly. Turn it off in Setup → Look.','Searching no longer makes the screen jump around. Search windows keep the same size while results load, the search box stays at the top, and the window fits above the keyboard.','The collection search box also stays in place while you type.']],
  ['3.2','Nov 22, 2026',['New default sections: Ramp 10, Card Advantage 12, Targeted Disruption 12, Mass Disruption 6, Lands 38 and Plan about 30. A card can count in more than one, so the targets add up to more than 99.','Mass Disruption covers board wipes and cards that hit every opponent or player, like Soul Shatter, Pick Your Poison and Ruinous Ultimatum.','Older decks show a button to switch to the new sections. Interaction cards are split between the two Disruption sections, and Game Plan, Pay Off and Finisher become Plan.']],
  ['3.1','Nov 22, 2026',['The old card frame look now comes in all five colors: white, blue, black, red and green. Pick one in Setup → Look.']],
  ['3.0','Nov 22, 2026',['New look inspired by the old red card frames: a mottled red frame, rose text boxes with beveled edges, old-style serif type and a black tab bar.','Prefer the previous look? Setup → Look switches back.']],
@@ -508,7 +508,7 @@ const rerender=()=>route();
 const page=(title,actions,body)=>{$('#app').innerHTML=`<div class="top"><div class="wrap">${title}${actions||''}</div></div><main class="wrap">${body}</main>`};
 
 function vDecks(){
-  page('<h1 class="brand"><img class="logo" src="icon.svg" alt="">Decks</h1>','<button data-act="deckImport">Import</button><button class="pri" data-act="newDeck">New deck</button>',
+  page('<h1 class="brand"><img class="logo" src="icon-256.png" alt="">Decks</h1>','<button data-act="deckImport">Import</button><button class="pri" data-act="newDeck">New deck</button>',
   (hasData()&&dirty()&&Date.now()-(S.lastBackup||0)>7*864e5&&Date.now()-(S.snooze||0)>3*864e5?`<div class="secbox" style="padding:12px;display:flex;flex-direction:column;gap:8px"><span><b>You have changes that are not backed up.</b> Last backup: ${ago(S.lastBackup)}.</span><div class="row"><button class="pri grow" data-act="export">Back up now</button><button data-act="snooze">Later</button></div></div>`:'')+
   (S.seen!==VERSION?`<button class="empty" style="width:100%;color:var(--ink);border-style:solid;border-color:var(--accent)" data-act="news">Bolt the Bird updated to version ${VERSION}. <b style="color:var(--accent)">See what's new</b></button>`:'')+(
   S.decks.length?`<div class="list">${S.decks.map(d=>`<div class="item" style="padding:0 6px 0 0"><button class="item grow" style="border:0;min-width:0" data-act="openDeck" data-id="${d.id}"><span class="name"><b>${esc(d.name)}</b><br><span class="muted small">${esc(d.cmd.join(' + ')||'No commander yet')}${d.themes.length?' · '+esc(d.themes.map(t=>t.name).join(', ')):''}</span></span><span class="num muted">${total(d)}/100</span></button><button data-act="deckActs" data-id="${d.id}" aria-label="Options for ${esc(d.name)}" style="font-weight:700;letter-spacing:.1em">⋯</button></div>`).join('')}</div>`
@@ -642,7 +642,7 @@ const collRows=show=>show.slice(0,300).map(n=>`<div class="item"><button class="
 function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const mb=o.used!=null?' Using '+(o.used/1048576).toFixed(1)+' MB.':'';e.textContent=`Saved in the browser's ${STORE==='large'?'large':'small'} storage.${mb}${o.kept===true?' Protected from automatic clearing.':o.kept===false?' The browser may clear it if the device runs low on space, so keep backups.':''}`});
   
   page('<h1>Setup</h1>','',`
-   <div class="about"><img src="icon.svg" alt="Bolt the Bird logo"><div><b>Bolt the Bird</b><span class="muted small num">Version ${VERSION}</span></div></div>
+   <div class="about"><img src="icon-256.png" alt="Bolt the Bird logo"><div><b>Bolt the Bird</b><span class="muted small num">Version ${VERSION}</span></div></div>
    <div class="row"><h2 class="grow">What's new</h2><button class="sm" data-act="news">All versions</button></div>
    <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
    <div class="row"><h2 class="grow">Default sections</h2><button class="sm" data-act="editTemplate">Edit</button></div>
