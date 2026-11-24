@@ -297,8 +297,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.5';
+const VERSION='3.6';
 const NEWS=[
+ ['3.6','Nov 24, 2026',['Autofill now fills every section. Sections take turns so none is left empty, and it prefers cards that count in several sections at once, like a creature that also draws cards or a wipe that only hits opponents.','If a section still comes up short, Autofill says which one and why.','Choose how Autofill picks: Synergy with my Plan (high-synergy cards and cards that fit your Plan themes) or Most popular (what most decks with your commander play).']],
  ['3.5','Nov 24, 2026',['Autofill: tap Autofill on a deck (or Menu → Autofill deck to 100) to fill every section to its target with EDHREC\'s picks for your commander, then each section\'s own search, then lands and basics. Each section\'s Fill also has an Autofill button for just that section.','Choose to put cards you own first, or use only cards you own. Undo right after if you don\'t like it.']],
  ['3.4','Nov 24, 2026',['Tap the four boxes at the top of a deck. Cards lists every card by type. Owned shows the cards you have and where they are, and what is missing. Value lists cards from most to least expensive and what you still need to spend. Changers lists the Game Changers.','Order missing cards from Card Kingdom or Mana Pool. Tapping a store copies the list of cards you don\'t own and opens the store\'s list page, where you paste it. Basic lands are skipped unless you turn that off.']],
  ['3.3','Nov 24, 2026',['The app is now called Bolt the Bird, with a new logo: blue-white lightning striking a red bird of fire, painted in the style of the early cards. It shows on the Decks tab, in Setup, and as the home screen icon.','Tidied the look: even tab labels, a dark band behind the commander name so it reads on any art, and stat labels that fit on one line.','The marble background drifts slowly. Turn it off in Setup → Look.','Searching no longer makes the screen jump around. Search windows keep the same size while results load, the search box stays at the top, and the window fits above the keyboard.','The collection search box also stays in place while you type.']],
@@ -604,50 +605,69 @@ let AFUNDO=null;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function afPool(d){edhLoad(d);const key=d.cmd.join('|');for(let i=0;i<60&&!EDH[key];i++)await wait(250);
   const e=EDH[key];const seen=new Map();
-  ((e&&e.lists)||[]).forEach(l=>l.cards.forEach(c=>{const sc=(c.pct||0)+Math.max(0,c.syn||0)*.6;if(!seen.has(c.name)||sc>seen.get(c.name))seen.set(c.name,sc)}));
+  ((e&&e.lists)||[]).forEach(l=>l.cards.forEach(c=>{const o=seen.get(c.name)||{pct:0,syn:0};seen.set(c.name,{pct:Math.max(o.pct,c.pct||0),syn:Math.max(o.syn,c.syn||0)})}));
   const names=[...seen.keys()].filter(n=>!inDeck(d,n)&&!d.cards.some(c=>c.s==='m'&&c.n===n));if(!names.length)return[];
   const r=await byNames(names);const id=ident(d);
-  return r.cards.map((c,i)=>c&&{n:c.n,score:seen.get(names[i])}).filter(x=>x&&card(x.n).ci.every(k=>id.includes(k)))}
+  const sc=v=>v.pct+Math.max(0,v.syn)*.6;return r.cards.map((c,i)=>c&&{n:c.n,pct:seen.get(names[i]).pct,syn:seen.get(names[i]).syn,score:sc(seen.get(names[i]))}).filter(x=>x&&card(x.n).ci.every(k=>id.includes(k)))}
 function colorWeights(d){const w={};ident(d).forEach(c=>w[c]=1);main(d).concat(d.cmd.map(n=>({n,q:1}))).forEach(c=>((card(c.n).mc||'').match(/\{[^}]+\}/g)||[]).forEach(sym=>{for(const k of 'WUBRG')if(sym.includes(k)&&w[k]!==undefined)w[k]+=c.q}));return w}
 async function autofill(d,only,opt){
   AFUNDO={id:d.id,cards:JSON.stringify(d.cards)};const log=[];const prog=t=>{const e=$('#afP');if(e)e.textContent=t};
-  const landSec=d.sections.find(s=>/land/i.test(s.name));const have=s=>cnt(inSec(d,s.id));
+  const landSec=d.sections.find(s=>/land/i.test(s.name));const have=s=>cnt(inSec(d,s.id));const need=s=>s.target-have(s);
   const lands=()=>cnt(main(d).filter(c=>anyLand(c.n)));const spells=()=>cnt(main(d).filter(c=>!anyLand(c.n)));
   const landGoal=landSec?landSec.target:38;const spellRoom=()=>100-d.cmd.length-Math.max(landGoal,lands())-spells();
-  const want=x=>!opt.ownOnly||owned(x.n);const rank=x=>(x.score||0)+(opt.own&&owned(x.n)?1:0);
+  const want=c=>!opt.ownOnly||owned(c.n);const ownB=n=>opt.own&&owned(n)?1:0;
+  const targets=d.sections.filter(s=>s!==landSec&&(!only||only===s.id));const fixed=targets.filter(s=>!s.flex),flex=targets.filter(s=>s.flex);
+  // 1. candidates: EDHREC picks for the commander, plus the top results of every section's own search
   prog('Getting EDHREC picks for '+d.cmd.join(' + ')+'…');
-  let pool=[];try{pool=(await afPool(d)).filter(want).sort((a,b)=>rank(b)-rank(a))}catch(e){}
-  const spellPool=pool.filter(x=>!anyLand(x.n)).slice(0,170),landPool=pool.filter(x=>pureLand(x.n)&&!isBasic(x.n));
-  const targets=d.sections.filter(s=>s!==landSec&&(!only||only===s.id));let fits=new Map();
-  if(spellPool.length&&targets.length){try{const res=await matchSections(d,spellPool.map(x=>({n:x.n})),(s,i,n)=>prog('Matching picks to '+s.name+' ('+(i+1)+' of '+n+')'));fits=new Map(res.map(r=>[r.s.id,r.names]))}catch(e){}}
-  const homeOf=n=>d.sections.filter(s=>s!==landSec&&fits.get(s.id)&&fits.get(s.id).has(n)).map(s=>s.id);
-  const put=(n,s,why)=>{if(inDeck(d,n))return false;const also=homeOf(n).filter(i=>i!==s.id);d.cards.push({n,s:s.id,q:1,...(also.length?{x:also}:{})});log.push({n,s:s.name,why});return true};
-  const fillFrom=async(s,need,q,mk)=>{if(need<=0||!q)return need;let cs=[];
-    try{cs=await search('('+q+')'+idf(d)+(mk?prodFilter(d,false):''))}catch(e){try{if(mk)cs=await search('('+q+')'+idf(d))}catch(e2){}}
-    cs=cs.filter(c=>!inDeck(d,c.n)&&!anyLand(c.n)&&want(c));if(opt.own)cs.sort((a,b)=>(owned(b.n)?1:0)-(owned(a.n)?1:0));
-    for(const c of cs){if(need<=0||spellRoom()<=0)break;if(put(c.n,s,'search')){queueShare(d,c.n);need--}}return need};
-  const fixed=targets.filter(s=>!s.flex),flex=targets.filter(s=>s.flex);
-  for(const s of fixed){prog('Filling '+s.name+'…');let need=s.target-have(s);const f=fits.get(s.id)||new Set();
-    for(const x of spellPool){if(need<=0||spellRoom()<=0)break;if(f.has(x.n)&&put(x.n,s,'edhrec'))need=s.target-have(s)}
-    if(need>0&&spellRoom()>0){const q=s.q||((autoQueries(s.name)[0]||{}).raw||'');await fillFrom(s,Math.min(need,spellRoom()),q,/ramp|rock|mana/i.test(s.name))}}
-  for(const s of flex){prog('Filling '+s.name+'…');const f=fits.get(s.id)||new Set();const cap=()=>only?s.target-have(s):spellRoom();
-    for(const x of spellPool){if(cap()<=0||spellRoom()<=0)break;if(f.has(x.n))put(x.n,s,'theme')}
-    for(const x of spellPool){if(cap()<=0||spellRoom()<=0)break;put(x.n,s,'edhrec')}
-    for(const t of d.themes){if(cap()<=0||spellRoom()<=0)break;await resolveTheme(t);if(t.q)await fillFrom(s,Math.min(cap(),spellRoom()),t.q)}}
+  const C=new Map();const addC=(n,score,sid)=>{if(inDeck(d,n)||d.cards.some(c=>c.n===n))return;let c=C.get(n);if(!c){c={n,score,fits:new Set()};C.set(n,c)}else c.score=Math.max(c.score,score);if(sid)c.fits.add(sid)};
+  let pool=[];try{pool=await afPool(d)}catch(e){}
+  const syn=opt.mode!=='pop';const pick=x=>syn?Math.max(0,x.syn)+x.pct*.4:x.pct;
+  pool.filter(x=>!anyLand(x.n)&&want(x)).sort((a,b)=>pick(b)-pick(a)).slice(0,170).forEach(x=>addC(x.n,pick(x)+.3));
+  const landPool=pool.filter(x=>pureLand(x.n)&&!isBasic(x.n)&&want(x)).sort((a,b)=>(b.score+ownB(b.n))-(a.score+ownB(a.n)));
+  const searchSec=fixed.filter(s=>need(s)>0);
+  for(let i=0;i<searchSec.length;i++){const s=searchSec[i];prog('Searching for '+s.name+' cards ('+(i+1)+' of '+searchSec.length+')');
+    const q=s.q||((autoQueries(s.name)[0]||{}).raw||'');if(!q)continue;const mk=/ramp|rock|mana/i.test(s.name);let cs=[];
+    try{cs=await search('('+q+')'+idf(d)+(mk?prodFilter(d,false):''))}catch(e){}
+    if(!cs.length&&mk)try{cs=await search('('+q+')'+idf(d))}catch(e){}
+    cs.filter(c=>!anyLand(c.n)&&want(c)).slice(0,45).forEach((c,j)=>addC(c.n,.25*(1-j/45),s.id))}
+  // 2. check every candidate against every section, so cards that fit several sections are known
+  const list=[...C.values()];
+  if(list.length&&targets.length){try{const res=await matchSections(d,list.map(c=>({n:c.n})),(s,i,n)=>prog('Checking which cards fit '+s.name+' ('+(i+1)+' of '+n+')'));
+    res.forEach(r=>r.names.forEach(n=>{const c=C.get(n);if(c)c.fits.add(r.s.id)}))}catch(e){}}
+  const put=(c,s,why)=>{if(inDeck(d,c.n))return false;const also=[...c.fits].filter(i=>i!==s.id&&i!==landSec?.id);d.cards.push({n:c.n,s:s.id,q:1,...(also.length?{x:also}:{})});C.delete(c.n);log.push({n:c.n,s:s.name,why,multi:also.length});return true};
+  // 3. take turns: each section that still needs cards gets one card per round, preferring cards that also fill other needy sections
+  const planIds=new Set(flex.map(s=>s.id));const done=new Set();
+  prog('Filling sections…');
+  for(let guard=0;guard<200&&spellRoom()>0;guard++){const needy=fixed.filter(s=>need(s)>0&&!done.has(s.id));if(!needy.length)break;
+    for(const s of needy){if(spellRoom()<=0)break;if(need(s)<=0)continue;let best=null,bv=-1e9;
+      for(const c of C.values()){if(!c.fits.has(s.id))continue;const helps=needy.filter(o=>o!==s&&need(o)>0&&c.fits.has(o.id)).length;
+        const v=helps*.6+([...c.fits].some(i=>planIds.has(i))?(syn?.7:.1):0)+c.score+ownB(c.n);if(v>bv){bv=v;best=c}}
+      if(!best){done.add(s.id);continue}put(best,s,best.fits.size>1?'multi':best.score>.3?'edhrec':'search')}}
+  // 4. Plan and other flexible sections: theme fits first, then the best remaining picks, then theme searches
+  for(const s of flex){prog('Filling '+s.name+'…');const cap=()=>Math.min(only?need(s):spellRoom(),spellRoom());
+    const byV=[...C.values()].sort((a,b)=>(b.score+ownB(b.n)+b.fits.size*.15)-(a.score+ownB(a.n)+a.fits.size*.15));
+    if(syn)for(const c of byV){if(cap()<=0)break;if(c.fits.has(s.id))put(c,s,'theme')}
+    for(const c of byV){if(cap()<=0)break;if(C.has(c.n)&&c.score>.3)put(c,s,'edhrec')}
+    for(const t of d.themes){if(cap()<=0)break;await resolveTheme(t);if(!t.q)continue;let cs=[];try{cs=await search('('+t.q+')'+idf(d))}catch(e){}
+      for(const c of cs.filter(c=>!inDeck(d,c.n)&&!anyLand(c.n)&&want(c))){if(cap()<=0)break;put({n:c.n,fits:new Set()},s,'search');queueShare(d,c.n)}}}
+  // 5. lands: EDHREC's land picks, then basics split by the deck's mana symbols
   if(landSec&&(!only||only===landSec.id)){prog('Adding lands…');const room=()=>Math.min(landGoal-lands(),100-total(d));
     const id=ident(d);const minBasic=id.length<=1?Math.round(landGoal*.6):id.length===2?12:id.length===3?7:4;
-    for(const x of landPool){if(room()<=minBasic-cnt(main(d).filter(c=>isBasic(c.n))))break;if(room()<=0)break;put(x.n,landSec,'edhrec')}
+    for(const x of landPool){if(room()<=0||room()<=minBasic-cnt(main(d).filter(c=>isBasic(c.n))))break;put({n:x.n,fits:new Set()},landSec,'edhrec')}
     let b=room();if(b>0){const map={W:'Plains',U:'Island',B:'Swamp',R:'Mountain',G:'Forest'};const w=colorWeights(d);const ks=Object.keys(w);
       if(!ks.length){w.C=1;ks.push('C')}const names=ks.map(k=>map[k]||'Wastes');try{await byNames(names)}catch(e){}
       names.forEach(n=>{if(!CARDS[n])CARDS[n]={n,mc:'',cmc:0,t:'Basic Land',o:'',ci:[],img:'',p:0}});
       const sum=ks.reduce((a,k)=>a+w[k],0);let split=ks.map(k=>Math.floor(b*w[k]/sum));let left=b-split.reduce((a,v)=>a+v,0);
       ks.map((k,i)=>[w[k]*b/sum-split[i],i]).sort((a,c)=>c[0]-a[0]).forEach(([,i])=>{if(left>0){split[i]++;left--}});
       ks.forEach((k,i)=>{if(!split[i])return;const n=names[i];const e=d.cards.find(c=>c.n===n);if(e)e.q+=split[i];else d.cards.push({n,s:landSec.id,q:split[i]});log.push({n,s:landSec.name,why:'basic',q:split[i]})})}}
-  save();rerender();return log}
+  save();rerender();
+  log.short=fixed.filter(s=>need(s)>0).map(s=>({name:s.name,n:need(s),why:done.has(s.id)?'none':'room'}));return log}
 function afAsk(sid){const d=deck();if(!d.cmd.length){toast('Pick a commander first');return}const s=sid&&secOf(d,sid);
-  const o=UI.af||(UI.af={own:true,ownOnly:false});
+  const o=UI.af||(UI.af={own:true,ownOnly:false});if(!o.mode)o.mode='syn';
   sheet(s?'Autofill '+s.name:'Autofill deck',`<p style="margin:0">${s?`Fills <b>${esc(s.name)}</b> up to ${s.flex?'about ':''}${s.target} cards`:`Fills every section up to its target and stops at 100 cards`}, using what EDHREC players run with ${esc(d.cmd.join(' + '))} first, then ${s?'the section\'s':'each section\'s'} own Scryfall search.${s&&/land/i.test(s.name)||!s?' Lands use EDHREC\'s land picks plus basics split by your mana symbols.':''}</p>
    <p class="muted small" style="margin:0">Cards already in the deck stay. Cards in the Maybeboard are skipped. You can undo it right after.</p>
+   <div><b>Pick cards by</b><div class="chips" style="margin-top:6px"><button class="chip ${o.mode==='syn'?'on':''}" data-act="afMode" data-v="syn" data-sid="${sid||''}">Synergy with my Plan</button><button class="chip ${o.mode==='pop'?'on':''}" data-act="afMode" data-v="pop" data-sid="${sid||''}">Most popular</button></div>
+   <p class="muted small" style="margin:6px 0 0">${o.mode==='syn'?`Favors cards EDHREC marks as high synergy with ${esc(d.cmd.join(' + '))}, and cards that fit your Plan themes${d.themes.length?' ('+esc(d.themes.map(t=>t.name).join(', '))+')':''}.`:`Favors the cards played in the most ${esc(d.cmd.join(' + '))} decks on EDHREC, whatever the theme.`}</p></div>
    <div class="row"><span class="grow">Put cards I own first</span><button class="sm" data-act="afTog" data-k="own" data-sid="${sid||''}" aria-pressed="${o.own}">${o.own?'On':'Off'}</button></div>
    <div class="row"><span class="grow">Only cards I own</span><button class="sm" data-act="afTog" data-k="ownOnly" data-sid="${sid||''}" aria-pressed="${o.ownOnly}">${o.ownOnly?'On':'Off'}</button></div>`,
    `<button class="pri" data-act="afGo" data-sid="${sid||''}">${s?'Autofill '+esc(s.name):'Autofill to 100'}</button>`)}
@@ -656,8 +676,9 @@ async function afRun(sid){const d=deck();sheet('Autofilling…','<div id="afP" c
   const by={};log.forEach(l=>{(by[l.s]=by[l.s]||[]).push(l)});const added=log.reduce((a,l)=>a+(l.q||1),0);
   const buy=log.filter(l=>l.why!=='basic'&&!owned(l.n)).reduce((a,l)=>a+card(l.n).p,0);
   sheet(added?'Added '+added+' cards':'Nothing to add',`${added?`<p style="margin:0">The deck now has <b>${total(d)}</b> of 100 cards. ${buy?'The cards you don\'t own cost about <b>'+money(buy)+'</b>.':''}</p>`:'<p style="margin:0">Every section is already at its target, or no fitting cards were found.</p>'}
-   ${Object.keys(by).map(k=>`<h3>${esc(k)} <span class="muted small num">+${by[k].reduce((a,l)=>a+(l.q||1),0)}</span></h3><div class="list">${by[k].map(l=>statRow(l.n,l.q||1,l.why==='edhrec'?'EDHREC pick':l.why==='theme'?'EDHREC pick, fits your themes':l.why==='search'?'From the section\'s search':'',owned(l.n)?'Owned':card(l.n).p?money(card(l.n).p):'')).join('')}</div>`).join('')}
-   <p class="muted small" style="margin:0">Cards that fit more than one section are counted in each. Tap a card to see it.</p>`,
+   ${Object.keys(by).map(k=>`<h3>${esc(k)} <span class="muted small num">+${by[k].reduce((a,l)=>a+(l.q||1),0)}</span></h3><div class="list">${by[k].map(l=>statRow(l.n,l.q||1,l.why==='multi'?'Counts in more than one section':l.why==='edhrec'?'EDHREC pick':l.why==='theme'?'EDHREC pick, fits your themes':l.why==='search'?'From the section\'s search':'',owned(l.n)?'Owned':card(l.n).p?money(card(l.n).p):'')).join('')}</div>`).join('')}
+   ${log.short&&log.short.length?`<div class="secbox" style="padding:10px 12px"><b>Still short</b>${log.short.map(x=>`<p class="small" style="margin:4px 0 0">${esc(x.name)} needs ${x.n} more. ${x.why==='room'?'The deck hit 100 cards first. Remove a few Plan cards and run Autofill again.':'No more cards matched its search. Try Fill on that section, or change its search in Edit sections.'}</p>`).join('')}</div>`:''}
+   <p class="muted small" style="margin:0">Cards marked "counts in more than one section" fill several sections with one slot. Tap a card to see it.</p>`,
    added?`<div class="row"><button data-act="afUndo">Undo</button><button class="pri grow" data-act="close">Keep</button></div>`:'')}
 function vDeck(){
   const d=deck();edhLoad(d);pmRefresh(d);const m=main(d);const own=d.cmd.filter(owned).length+m.filter(c=>owned(c.n)).reduce((a,c)=>a+Math.min(c.q,owned(c.n)),0);
@@ -1137,6 +1158,7 @@ const A={
   pick(e){pick(e.dataset.n)},
   peek(e){peek(e.dataset.n)},
   afAsk(e){afAsk(e&&e.dataset&&e.dataset.sid)},afGo(e){afRun(e.dataset.sid)},
+  afMode(e){(UI.af=UI.af||{own:true}).mode=e.dataset.v;afAsk(e.dataset.sid)},
   afTog(e){const o=UI.af||(UI.af={own:true,ownOnly:false});o[e.dataset.k]=!o[e.dataset.k];if(e.dataset.k==='ownOnly'&&o.ownOnly)o.own=true;afAsk(e.dataset.sid)},
   afUndo(){if(!AFUNDO)return;const d=S.decks.find(x=>x.id===AFUNDO.id);if(d){d.cards=JSON.parse(AFUNDO.cards);save()}AFUNDO=null;closeSheet();rerender();toast('Autofill undone')},
   stCards(){statSheet('cards')},stOwned(){statSheet('owned')},stValue(){statSheet('value')},stGC(){statSheet('gc')},
