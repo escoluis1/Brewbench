@@ -301,8 +301,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.9';
+const VERSION='4.0';
 const NEWS=[
+ ['4.0','Nov 24, 2026',['Collection export: an Excel file (.xlsx), a CSV, or a simple list like "2 Sol Ring" to copy or save.','Collection import now takes Excel files too, along with scanner CSVs and pasted lists. Quantity, printing, foil and Location columns are read, so an exported sheet you edit imports back exactly.','Choose to add to your collection or replace it when importing.']],
  ['3.9','Nov 24, 2026',['The box you tap now stays in view above the keyboard everywhere: in windows, in Setup, and when moving between boxes with the keyboard arrows. Windows keep one steady size while you type.','Inside the home-screen app on iPhone, Google sign-in is replaced by a note to use email and password, because iPhone blocks Google\'s sign-in window there. Link Google from a computer instead.']],
  ['3.8','Nov 24, 2026',['Typing in a box no longer zooms the iPhone screen in and pushes windows off the edge. Every text box now uses text large enough that iPhone leaves the zoom alone.','With the keyboard up, windows use all the space above it, so the paste box has room.']],
  ['3.7','Nov 24, 2026',['Sign in (Setup → Account and sync) to save everything online for free and use it on any device. Changes save online a few seconds after you make them, and the app checks for newer data when you open it.','Each person\'s data is private to their account, so friends can make their own account and use the app too.','Link Google and email/password to one account in Setup, then sign in either way.','If two devices both changed things, the app asks which copy to keep.']],
@@ -533,9 +534,9 @@ async function byNames(names){
 function csvRow(l){const out=[];let cur='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===','){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out.map(s=>s.trim())}
 /* accepts plain lists ("2 Sol Ring") and CSV exports from scanner apps (needs a Name column; Quantity is optional) */
 function parseList(text){const lines=text.split(/\r?\n/);const head=csvRow(lines[0]||'').map(h=>h.toLowerCase());const ni=head.findIndex(h=>h==='name'||h==='card name'||h==='card');
-  if(head.length>1&&ni>=0){const col=re=>head.findIndex(h=>re.test(h));const qi=col(/^(quantity|qty|count|amount)$/),si=col(/^(set code|set|edition code|edition)$/),ci=col(/^(collector number|collector's number|card number|number)$/),fi=col(/^(foil|finish|printing)$/);const m=new Map();
+  if(head.length>1&&ni>=0){const col=re=>head.findIndex(h=>re.test(h));const qi=col(/^(quantity|qty|count|amount)$/),si=col(/^(set code|set|edition code|edition)$/),ci=col(/^(collector number|collector's number|card number|number)$/),fi=col(/^(foil|finish|printing)$/),li=col(/^(location|storage|stored|binder|box|where)$/);const m=new Map();
     lines.slice(1).forEach(l=>{if(!l.trim())return;const r=csvRow(l);const n=r[ni];if(!n)return;const e=m.get(n)||{n,q:0};e.q+=qi>=0?parseInt(r[qi])||1:1;
-      if(!e.set&&si>=0&&ci>=0&&r[si]&&r[ci]){e.set=r[si].toLowerCase();e.cn=r[ci];e.foil=fi>=0&&/foil|etched|^(true|yes|1)$/i.test(r[fi])&&!/^(non-?foil|normal)$/i.test(r[fi])}m.set(n,e)});return[...m.values()]}
+      if(!e.set&&si>=0&&ci>=0&&r[si]&&r[ci]){e.set=r[si].toLowerCase();e.cn=r[ci];e.foil=fi>=0&&/foil|etched|^(true|yes|1)$/i.test(r[fi])&&!/^(non-?foil|normal)$/i.test(r[fi])}if(!e.loc&&li>=0&&r[li])e.loc=r[li];m.set(n,e)});return[...m.values()]}
   const out=[];lines.forEach(l=>{l=l.trim();if(!l||/^(\/\/|#)/.test(l)||/^(deck|commander|sideboard|maybeboard|mainboard)\s*:?$/i.test(l))return;
   const m=l.match(/^(\d+)\s*x?\s+(.+)$/i);let q=1,n=l;if(m){q=+m[1];n=m[2]}
   n=n.replace(/\s+\([A-Za-z0-9]{2,6}\).*$/,'').replace(/\s+\*.*$/,'').trim();if(n)out.push({n,q})});return out}
@@ -813,10 +814,65 @@ const colorOf=n=>{const c=card(n);if(/Land/.test(c.t.split(' // ')[0]))return'La
 const locs=()=>[...new Set(Object.values(S.loc))].sort();
 const locData=()=>`<datalist id="locs">${locs().map(l=>`<option value="${esc(l)}"></option>`).join('')}</datalist>`;
 const locField=(id,val)=>`<label for="${id}">Where are these stored? (optional)</label><input id="${id}" list="locs" value="${esc(val||'')}" placeholder="e.g. Red binder, Box 2" autocomplete="off">${locData()}`;
+/* ---- Collection export (simple list, CSV, Excel) and Excel import. Excel files are zipped XML, so they are written and read here without an outside library. ---- */
+const CRCT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRCT[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+function zipStore(files,type){const enc=new TextEncoder();const parts=[],cent=[];let off=0;
+  files.forEach(f=>{const nm=enc.encode(f.name),d=typeof f.data==='string'?enc.encode(f.data):f.data,crc=crc32(d);
+    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nm.length,true);
+    parts.push(new Uint8Array(h.buffer),nm,d);
+    const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,d.length,true);c.setUint32(24,d.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+    cent.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+d.length});
+  const cs=cent.reduce((a,x)=>a+x.length,0);const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cent,new Uint8Array(e.buffer)],{type})}
+const xcol=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+const xcolIdx=ref=>{const m=/^([A-Z]+)/.exec(ref||'');if(!m)return -1;let n=0;for(const ch of m[1])n=n*26+ch.charCodeAt(0)-64;return n-1};
+function xlsxBlob(rows,sheetName,widths){const x=v=>String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';const R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const sd=rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>v===''||v==null?'':typeof v==='number'&&isFinite(v)?`<c r="${xcol(ci)}${ri+1}"${ri===0?' s="1"':''}><v>${v}</v></c>`:`<c r="${xcol(ci)}${ri+1}" t="inlineStr"${ri===0?' s="1"':''}><is><t xml:space="preserve">${x(v)}</t></is></c>`).join('')}</row>`).join('');
+  const cols=widths?`<cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>`:'';
+  const name=String(sheetName).replace(/[\[\]:*?\/\\]/g,' ').slice(0,31)||'Sheet1';
+  return zipStore([
+   {name:'[Content_Types].xml',data:X+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
+   {name:'_rels/.rels',data:X+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+   {name:'xl/workbook.xml',data:X+`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${R}"><sheets><sheet name="${x(name)}" sheetId="1" r:id="rId1"/></sheets></workbook>`},
+   {name:'xl/_rels/workbook.xml.rels',data:X+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${R}/styles" Target="styles.xml"/></Relationships>`},
+   {name:'xl/styles.xml',data:X+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'},
+   {name:'xl/worksheets/sheet1.xml',data:X+`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>${cols}<sheetData>${sd}</sheetData></worksheet>`}
+  ],'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+function unzipList(buf){const b=new Uint8Array(buf),dv=new DataView(buf);let e=b.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;if(e<0)throw new Error('That file isn\'t an Excel (.xlsx) file.');
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={};const dec=new TextDecoder();
+  for(let i=0;i<n;i++){const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+    const name=dec.decode(b.subarray(p+46,p+46+nl));const st=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true);out[name]={method,data:b.subarray(st,st+csize)};p+=46+nl+xl+cl}
+  return out}
+async function unzipEntry(f){if(f.method===0)return f.data;if(f.method!==8)throw new Error('This Excel file uses a format the app can\'t read. Save it as CSV and import that.');
+  if(typeof DecompressionStream==='undefined')throw new Error('This browser can\'t open Excel files. Save the sheet as CSV and import that.');
+  return new Uint8Array(await new Response(new Blob([f.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer())}
+async function xlsxRows(buf){const z=unzipList(buf);const txt=async n=>z[n]?new TextDecoder().decode(await unzipEntry(z[n])):'';const P=t=>new DOMParser().parseFromString(t||'<x/>','application/xml');
+  let path='xl/worksheets/sheet1.xml';
+  try{const wb=P(await txt('xl/workbook.xml'));const sh=wb.getElementsByTagName('sheet')[0];const rid=sh.getAttribute('r:id')||sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+    for(const r of P(await txt('xl/_rels/workbook.xml.rels')).getElementsByTagName('Relationship'))if(r.getAttribute('Id')===rid){const t=r.getAttribute('Target');path=t.startsWith('/')?t.slice(1):'xl/'+t.replace(/^\.\//,'')}}catch(e){}
+  if(!z[path])path=Object.keys(z).find(k=>/^xl\/worksheets\/[^/]+\.xml$/.test(k))||path;if(!z[path])throw new Error('Couldn\'t find a sheet in that Excel file.');
+  const ss=[];for(const si of P(await txt('xl/sharedStrings.xml')).getElementsByTagName('si'))ss.push([...si.getElementsByTagName('t')].filter(t=>!t.closest||!t.closest('rPh')).map(t=>t.textContent).join(''));
+  const rows=[];for(const row of P(await txt(path)).getElementsByTagName('row')){const r=[];for(const c of row.getElementsByTagName('c')){const ci=xcolIdx(c.getAttribute('r'));const t=c.getAttribute('t');const v=c.getElementsByTagName('v')[0];
+      const val=t==='s'?(ss[+(v&&v.textContent)]||''):t==='inlineStr'?[...c.getElementsByTagName('t')].map(x=>x.textContent).join(''):(v?v.textContent:'');r[ci>=0?ci:r.length]=val}
+    rows.push(Array.from(r,x=>x==null?'':String(x)))}
+  return rows}
+const toCsv=rows=>rows.map(r=>r.map(v=>{v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\n');
+async function fileText(f){if(/\.xls$/i.test(f.name))throw new Error('That\'s an old .xls Excel file. In Excel, use Save As → Excel Workbook (.xlsx) or CSV, then import that.');
+  if(/\.(xlsx|xlsm)$/i.test(f.name)||/spreadsheetml/.test(f.type))return toCsv(await xlsxRows(await f.arrayBuffer()));return await f.text()}
+function collRowsOut(){const head=['Quantity','Name','Set code','Collector number','Foil','Location','Color','Type','Price each (USD)','Total (USD)'];
+  const rows=Object.keys(S.coll).sort((a,b)=>a.localeCompare(b)).map(n=>{const q=owned(n),pr=prtOf(n)||{};const each=pr.s?(pr.foil?pr.pf||pr.p:pr.p):card(n).p||0;
+    return[q,n,(pr.s||'').toUpperCase(),pr.cn||'',pr.foil?'Foil':'',S.loc[n]||'',colorOf(n),typeOf(n),each?Math.round(each*100)/100:'',each?Math.round(each*q*100)/100:'']});
+  return[head,...rows]}
+async function saveBlob(blob,name,title){const f=new File([blob],name,{type:blob.type});
+  try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title});return'shared'}}catch(e){if(e&&e.name==='AbortError')return'cancel'}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return'downloaded'}catch(e){return'fail'}}
+const collTxt=()=>Object.keys(S.coll).sort((a,b)=>a.localeCompare(b)).map(n=>owned(n)+' '+n).join('\n');
 function collShown(){const q=UI.collQ.toLowerCase();return Object.keys(S.coll).sort().filter(n=>(!q||n.toLowerCase().includes(q))&&(!UI.collColor||colorOf(n)===UI.collColor)&&(!UI.collLoc||(UI.collLoc==='-'?!S.loc[n]:S.loc[n]===UI.collLoc)))}
 function vColl(){
   const names=Object.keys(S.coll);const tot=names.reduce((a,n)=>a+S.coll[n],0);const val=names.reduce((a,n)=>a+ownPrice(n)*S.coll[n],0);
-  page('<h1>Collection</h1>','<button data-act="collPaste">Paste list</button><button class="pri" data-act="collAdd">Add cards</button>',`
+  page('<h1>Collection</h1>','<button class="sm" data-act="collImport">Import</button><button class="sm" data-act="collExport">Export</button><button class="sm pri" data-act="collAdd">Add</button>',`
    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${names.length}</b><span>Unique</span></div><div class="stat"><b class="num">${tot}</b><span>Cards</span></div><div class="stat"><b class="num">${money(val)}</b><span>Value</span></div></div>
    ${names.length?`<input id="collQ" type="search" placeholder="Find a card you own" value="${esc(UI.collQ)}" aria-label="Find a card you own">
    <div class="chips"><button class="chip ${UI.collColor?'':'on'}" data-act="collColor" data-c="">All</button>${COLORS.map(c=>`<button class="chip ${UI.collColor===c?'on':''}" data-act="collColor" data-c="${c}">${c}</button>`).join('')}</div>
@@ -1058,16 +1114,17 @@ const flipBtn=c=>c.img2?`<button data-act="flipImg" data-a="${esc(c.img)}" data-
 function confirmSheet(title,msg,act,label){sheet(title,`<p style="margin:0">${msg}</p>`,`<div class="row"><button class="grow" data-act="close">Cancel</button><button class="danger grow" data-act="${act}">${label}</button></div>`)}
 function download(name,text){try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}catch(e){}}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Copied')}catch(e){toast('Select the text and copy it')}}
-async function importList(text,to,loc){const items=parseList(text);if(!items.length){toast('Nothing to import');return}
+async function importList(text,to,loc,mode){const items=parseList(text);if(!items.length){toast('Nothing to import');return}
   toast('Looking up '+items.length+' cards…');let r;try{r=await byNames(items.map(i=>i.n))}catch(e){toast(e.message);return}
+  if(to==='coll'&&mode==='replace'&&r.cards.some(Boolean)){S.coll={};S.loc={};S.prt={}}
   let ok=0;items.forEach((it,i)=>{const c=r.cards[i];if(!c)return;ok++;
-    if(to==='coll'){S.coll[c.n]=owned(c.n)+it.q;if(loc)S.loc[c.n]=loc;if(it.set)it.name=c.n}else{const d=deck();if(d.cmd.includes(c.n))return;const e=d.cards.find(k=>k.n===c.n);if(e){if(isBasic(c.n))e.q+=it.q}else d.cards.push({n:c.n,s:'u',q:isBasic(c.n)?it.q:1})}});
+    if(to==='coll'){S.coll[c.n]=owned(c.n)+it.q;if(it.loc)S.loc[c.n]=it.loc;else if(loc)S.loc[c.n]=loc;if(it.set)it.name=c.n}else{const d=deck();if(d.cmd.includes(c.n))return;const e=d.cards.find(k=>k.n===c.n);if(e){if(isBasic(c.n))e.q+=it.q}else d.cards.push({n:c.n,s:'u',q:isBasic(c.n)?it.q:1})}});
   const pr=to==='coll'?items.filter(i=>i.name&&i.set&&i.cn):[];
   try{for(let i=0;i<pr.length;i+=75){const part=pr.slice(i,i+75);const j=await sf('/cards/collection',{identifiers:part.map(x=>({set:x.set,collector_number:String(x.cn)}))});
     (j.data||[]).forEach(c=>{const it=part.find(x=>x.set===c.set&&String(x.cn)===String(c.collector_number));if(it)S.prt[it.name]={...prtFrom(c),foil:!!it.foil}})}}catch(e){}
   save();closeSheet();rerender();
   if(r.missing.length)sheet('Some cards were not found',`<p style="margin:0">Added ${ok}. Scryfall did not recognise these names:</p><div class="otext">${esc(r.missing.join('\n'))}</div>`,to==='deck'&&ok?'<button class="pri" data-act="autoSort">Sort the rest into sections</button>':'');
-  else if(to==='deck'&&ok)autoSort(deck());else toast('Added '+ok+' cards');}
+  else if(to==='deck'&&ok)autoSort(deck());else toast('Added '+ok+' card'+(ok===1?'':'s'));}
 
 /* ================= play: life counter, game log, stats ================= */
 const PCOL=['#2f6f8f','#8f4a3a','#4d7a4a','#6a5192','#8a6d1f','#3d4a5c'];
@@ -1314,6 +1371,34 @@ const A={
   /* collection */
   collAdd(){openSearch({k:'coll'},'Add to collection',locField('addLoc',UI.lastLoc)+'<label for="q">Card</label>')},
   collPaste(){sheet('Paste a list',`<p class="muted small" style="margin:0">One card per line, like <b>2 Lightning Greaves</b>. You can also paste a CSV export from a card scanner app, as long as it has a Name column.</p>${locField('impLoc',UI.lastLoc)}<label for="imp">Card list</label><textarea id="imp"></textarea>`,`<button class="pri" data-act="collPasteGo">Add to collection</button>`)},
+  collPaste(){A.collImport()},
+  collImport(){const m=UI.ciMode||'add';sheet('Import to collection',`<label for="ciF">Choose a file</label><input id="ciF" type="file" accept=".xlsx,.xlsm,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+   <p class="muted small" style="margin:0">Excel (.xlsx), a CSV from a card scanner app, or a text list. A spreadsheet needs a <b>Name</b> column. <b>Quantity</b>, <b>Set code</b>, <b>Collector number</b>, <b>Foil</b> and <b>Location</b> columns are used when they're there, so a file exported from here imports back exactly.</p>
+   <label for="imp">Or paste a list</label><textarea id="imp" style="min-height:110px" placeholder="2 Lightning Greaves&#10;1 Sol Ring"></textarea>
+   ${locField('impLoc',UI.lastLoc)}<p class="muted small" style="margin:-4px 0 0">Used for cards whose row has no Location.</p>
+   <div><b>What to do with it</b><div class="chips" style="margin-top:6px"><button class="chip ${m==='add'?'on':''}" data-act="ciMode" data-v="add">Add to my collection</button><button class="chip ${m==='replace'?'on':''}" data-act="ciMode" data-v="replace">Replace my collection</button></div>
+   <p class="muted small" style="margin:6px 0 0">${m==='add'?'Quantities are added to what you already have.':'<b>Everything in your collection is replaced</b> by the file, including locations and printings. Use this after editing an exported sheet. Export first if you\'re not sure.'}</p></div>`,
+   `<button class="pri" data-act="collImportGo">${m==='add'?'Import':'Replace collection'}</button>`)},
+  ciMode(e){const keep={t:($('#imp')||{}).value||'',l:($('#impLoc')||{}).value||''};UI.ciMode=e.dataset.v;A.collImport();$('#imp').value=keep.t;$('#impLoc').value=keep.l},
+  async collImportGo(){const f=($('#ciF')||{}).files&&$('#ciF').files[0];let txt=($('#imp')||{}).value||'';const l=($('#impLoc')||{}).value.trim();UI.lastLoc=l;
+    if(f){try{txt=await fileText(f)}catch(e){toast(e.message||'Couldn\'t read that file');return}}
+    if(!txt.trim()){toast('Choose a file or paste a list');return}
+    await importList(txt,'coll',l,UI.ciMode||'add')},
+  collExport(){const n=Object.keys(S.coll).length,t=Object.values(S.coll).reduce((a,b)=>a+b,0);if(!n){toast('Your collection is empty');return}
+    const lines=collTxt().split('\n');
+    sheet('Export collection',`<p style="margin:0">${t} cards, ${n} different.</p>
+     <div class="list"><button class="item" data-act="cxOut" data-f="xlsx"><span class="name">Excel file (.xlsx)<br><span class="muted small">Opens in Excel, Numbers, Google Sheets</span></span></button>
+     <button class="item" data-act="cxOut" data-f="csv"><span class="name">CSV file<br><span class="muted small">Same columns, for any card site</span></span></button>
+     <button class="item" data-act="cxOut" data-f="txt"><span class="name">Simple list (.txt)<br><span class="muted small">One line per card, like "2 Sol Ring"</span></span></button></div>
+     <p class="muted small" style="margin:0">The Excel and CSV files have quantity, name, printing, foil, location, color, type and price. Edit one and import it back with Replace my collection.</p>
+     <button data-act="cxCopy">Copy simple list</button>
+     <div class="otext small">${esc(lines.slice(0,8).join('\n'))}${lines.length>8?'\n… and '+(lines.length-8)+' more':''}</div>`)},
+  async cxOut(e){const f=e.dataset.f,day=new Date().toISOString().slice(0,10),base='collection-'+day;let blob,name;
+    if(f==='xlsx'){blob=xlsxBlob(collRowsOut(),'Collection',[9,34,9,16,7,20,12,13,15,12]);name=base+'.xlsx'}
+    else if(f==='csv'){blob=new Blob([toCsv(collRowsOut())],{type:'text/csv'});name=base+'.csv'}
+    else{blob=new Blob([collTxt()],{type:'text/plain'});name=base+'.txt'}
+    const r=await saveBlob(blob,name,'My collection');if(r==='downloaded')toast('Saved '+name);else if(r==='fail')toast('Couldn\'t save the file')},
+  cxCopy(){copyNow(collTxt());toast('List copied')},
   collPasteGo(){const l=$('#impLoc').value.trim();UI.lastLoc=l;importList($('#imp').value,'coll',l)},
   collInc(e){S.coll[e.dataset.n]++;save();rerender()},
   collDec(e){const n=e.dataset.n;if(S.coll[n]>1)S.coll[n]--;else{delete S.coll[n];delete S.loc[n];delete S.prt[n]}save();rerender()},
