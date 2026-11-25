@@ -37,7 +37,7 @@ textarea{min-height:140px;font-size:16px}
 /* iPhone zooms the page into any text box under 16px; keep them all at 16px or more */
 input,select,textarea{font-size:max(16px,1em)!important}
 /* with the keyboard up, a window uses all the space above it */
-body.kb .sheet{max-height:100%;border-radius:0}body.kb .sheet.tall{height:100%}
+body.kb .sheet{max-height:100%;height:100%;border-radius:0}
 label.item{font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);margin:0}
 .item input[type=checkbox]{width:20px;height:20px;flex:none}
 label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
@@ -301,8 +301,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.8';
+const VERSION='3.9';
 const NEWS=[
+ ['3.9','Nov 24, 2026',['The box you tap now stays in view above the keyboard everywhere: in windows, in Setup, and when moving between boxes with the keyboard arrows. Windows keep one steady size while you type.','Inside the home-screen app on iPhone, Google sign-in is replaced by a note to use email and password, because iPhone blocks Google\'s sign-in window there. Link Google from a computer instead.']],
  ['3.8','Nov 24, 2026',['Typing in a box no longer zooms the iPhone screen in and pushes windows off the edge. Every text box now uses text large enough that iPhone leaves the zoom alone.','With the keyboard up, windows use all the space above it, so the paste box has room.']],
  ['3.7','Nov 24, 2026',['Sign in (Setup → Account and sync) to save everything online for free and use it on any device. Changes save online a few seconds after you make them, and the app checks for newer data when you open it.','Each person\'s data is private to their account, so friends can make their own account and use the app too.','Link Google and email/password to one account in Setup, then sign in either way.','If two devices both changed things, the app asks which copy to keep.']],
  ['3.6','Nov 24, 2026',['Autofill now fills every section. Sections take turns so none is left empty, and it prefers cards that count in several sections at once, like a creature that also draws cards or a wipe that only hits opponents.','If a section still comes up short, Autofill says which one and why.','Choose how Autofill picks: Synergy with my Plan (high-synergy cards and cards that fit your Plan themes) or Most popular (what most decks with your commander play).']],
@@ -433,6 +434,8 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 var CL={fb:null,user:null,busy:false,t:null,err:'',state:'off',meta:null,unsub:null};
 const FB_CFG={apiKey:"AIzaSyBuCgDgrk1LpSyp9_HUTKZsiF-DgYgJuUs",authDomain:"bolt-the-bird-a256f.firebaseapp.com",projectId:"bolt-the-bird-a256f",storageBucket:"bolt-the-bird-a256f.firebasestorage.app",messagingSenderId:"1050696850486",appId:"1:1050696850486:web:b86951ba0dad651e160c97"};
 const FBV='10.12.2';const LOCAL_ONLY=['cards','syncAt','lastBackup','snooze','cloudUser','look','drift'];
+const homeApp=()=>navigator.standalone===true||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
+const noGoogle=()=>homeApp()&&/iPhone|iPad|iPod/.test(navigator.userAgent);
 const devName=()=>{const u=navigator.userAgent;return /iPhone/.test(u)?'iPhone':/iPad/.test(u)?'iPad':/Android/.test(u)?'Android phone':/Mac/.test(u)?'Mac':/Windows/.test(u)?'Windows PC':'another device'};
 const agoT=t=>{if(!t)return'never';const m=Math.round((Date.now()-t)/6e4);return m<1?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':ago(t)};
 function cloudRefresh(){const typing=document.activeElement&&/INPUT/.test(document.activeElement.tagName);if(CL.user&&$('#cEmail')&&typing)document.activeElement.blur();if(location.hash==='#setup'&&$('#sheet').hidden&&(CL.user?!typing||$('#cEmail'):!typing))rerender();const e=$('#cloudSt');if(e)e.textContent=cloudStatus()}
@@ -479,13 +482,14 @@ function cloudBox(){if(!CL.user)return`<p class="muted small" style="margin:0">S
    <input id="cPw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" aria-label="Password">
    ${CL.err&&CL.state!=='ok'?`<p class="small" style="margin:0;color:var(--warn)">${esc(CL.err)}</p>`:''}
    <div class="row wrapf"><button class="pri" data-act="cloudIn">Sign in</button><button data-act="cloudNew">Create account</button><button class="ghost sm" data-act="cloudReset">Forgot password</button></div>
-   <button data-act="cloudGoogle">Sign in with Google <span class="muted small">(best on a computer)</span></button>`;
+   ${noGoogle()?`<p class="muted small" style="margin:0">Google sign-in can't finish inside the home-screen app on iPhone, so use email and password here. You can link your Google account later from a computer, then use either one.</p>`:`<button data-act="cloudGoogle">Sign in with Google <span class="muted small">(best on a computer)</span></button>`}`;
   const pv=(CL.user.providerData||[]).map(x=>x.providerId);const hasG=pv.includes('google.com'),hasP=pv.includes('password');
   return`<div class="secbox" style="padding:12px"><b>Signed in as ${esc(CL.user.email||'you')}</b><br><span class="muted small" id="cloudSt">${esc(cloudStatus())}</span><br><span class="muted small">Changes save online a few seconds after you make them.</span></div>
    <div class="row wrapf"><button data-act="cloudNow">Sync now</button><button data-act="cloudOut">Sign out</button></div>
    <h3>Ways to sign in</h3>
    <p class="small" style="margin:0">${[hasP&&'Email and password',hasG&&'Google'].filter(Boolean).join(' · ')||'Email'}</p>
-   ${!hasG?`<button data-act="cloudLinkG">Also allow Google sign-in</button><p class="muted small" style="margin:0">Use the Google account with this same email if you can. A Google window opens, so this works best on a computer or in Safari; you only need to do it once.</p>`:''}
+   ${!hasG&&noGoogle()?`<p class="muted small" style="margin:0">To also sign in with Google, open the app on a computer (or in Safari), sign in with your email and password, and tap Also allow Google sign-in there.</p>`:''}
+   ${!hasG&&!noGoogle()?`<button data-act="cloudLinkG">Also allow Google sign-in</button><p class="muted small" style="margin:0">Use the Google account with this same email if you can. A Google window opens, so this works best on a computer or in Safari; you only need to do it once.</p>`:''}
    ${!hasP&&CL.user.email?`<input id="cPw2" type="password" autocomplete="new-password" placeholder="New password (6+ characters)" aria-label="New password"><button data-act="cloudLinkP">Also allow email and password</button><p class="muted small" style="margin:0">Then on iPhone you can sign in with ${esc(CL.user.email)} and this password. It's the easiest way to sign in from the home screen app.</p>`:''}
    ${CL.linkErr?`<p class="small" style="margin:0;color:var(--warn)">${esc(CL.linkErr)}</p>`:''}`}
 const hasData=()=>S.decks.length||Object.keys(S.coll).length||(S.games||[]).length;
@@ -1712,12 +1716,15 @@ document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('#peek').hi
 window.addEventListener('hashchange',route);
 /* iPhone: while the keyboard is open the fixed tab bar can be left mid-screen, so hide it then and nudge the page once the keyboard closes */
 const isField=t=>t&&t.matches&&t.matches('input:not([type=checkbox]):not([type=file]),textarea,select');
-document.addEventListener('focusin',e=>{if(isField(e.target))document.body.classList.add('kb')});
+function keepInView(el){if(!el||!el.isConnected||!isField(el))return;const v=window.visualViewport;const r=el.getBoundingClientRect();
+  const sb=el.closest('#sheet .body');if(sb){const b=sb.getBoundingClientRect();if(r.top<b.top+8||r.bottom>b.bottom-8)sb.scrollTop+=r.top-b.top-Math.max(8,(b.height-r.height)/3);return}
+  const top=(v?v.offsetTop:0)+8,bottom=(v?v.offsetTop+v.height:innerHeight)-12;if(r.bottom>bottom||r.top<top)window.scrollBy(0,r.top-top-Math.max(0,((bottom-top)-r.height)/3))}
+document.addEventListener('focusin',e=>{if(!isField(e.target))return;document.body.classList.add('kb');const el=e.target;[60,350,700].forEach(ms=>setTimeout(()=>{if(document.activeElement===el)keepInView(el)},ms))});
 document.addEventListener('focusout',e=>{if(!isField(e.target))return;setTimeout(()=>{if(isField(document.activeElement))return;document.body.classList.remove('kb');window.scrollTo(window.scrollX,window.scrollY)},120)});
 /* sheets fit the part of the screen above the keyboard */
 function fitVV(){const v=window.visualViewport;if(!v)return;const r=document.documentElement.style;r.setProperty('--vh',v.height+'px');r.setProperty('--vt',v.offsetTop+'px')}
 try{if(window.visualViewport){visualViewport.addEventListener('scroll',fitVV);fitVV()}}catch(e){}
-try{if(window.visualViewport)visualViewport.addEventListener('resize',()=>{fitVV();const open=visualViewport.height<window.innerHeight*.8;document.body.classList.toggle('kb',open&&isField(document.activeElement));if(!open)window.scrollTo(window.scrollX,window.scrollY)})}catch(e){}
+try{if(window.visualViewport)visualViewport.addEventListener('resize',()=>{fitVV();const open=visualViewport.height<window.innerHeight*.8;document.body.classList.toggle('kb',open&&isField(document.activeElement));if(open)setTimeout(()=>keepInView(document.activeElement),30);if(!open)window.scrollTo(window.scrollX,window.scrollY)})}catch(e){}
 load().then(()=>{route();hydrate();if(S.cloudUser){CL.state='loading';fbLoad().catch(e=>{CL.state='error';CL.err=cloudErr({code:'unavailable'});cloudRefresh()})}try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
 </script>
 </body>
