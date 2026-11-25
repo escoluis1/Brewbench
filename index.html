@@ -33,7 +33,11 @@ button.ghost{background:none;border-color:transparent;color:var(--accent);paddin
 button.danger{color:var(--danger)}
 button.sm{min-height:32px;padding:4px 10px;font-size:13px}
 input,select,textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:16px}
-textarea{min-height:140px;font-size:14px}
+textarea{min-height:140px;font-size:16px}
+/* iPhone zooms the page into any text box under 16px; keep them all at 16px or more */
+input,select,textarea{font-size:max(16px,1em)!important}
+/* with the keyboard up, a window uses all the space above it */
+body.kb .sheet{max-height:100%;border-radius:0}body.kb .sheet.tall{height:100%}
 label.item{font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);margin:0}
 .item input[type=checkbox]{width:20px;height:20px;flex:none}
 label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
@@ -123,7 +127,7 @@ body.kb #collList{min-height:100vh}
 .cardimg{align-self:center;width:min(260px,70%);border-radius:12px}
 .otext{white-space:pre-wrap;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
 .secrow{display:grid;grid-template-columns:1fr 64px 38px;gap:6px}
-.secrow input.q{grid-column:1/-1;font-size:13px}
+.secrow input.q{grid-column:1/-1}
 .secbox{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface)}
 
 /* life counter: one deliberate dark look so it reads at arm's length on a table */
@@ -297,8 +301,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='3.7';
+const VERSION='3.8';
 const NEWS=[
+ ['3.8','Nov 24, 2026',['Typing in a box no longer zooms the iPhone screen in and pushes windows off the edge. Every text box now uses text large enough that iPhone leaves the zoom alone.','With the keyboard up, windows use all the space above it, so the paste box has room.']],
  ['3.7','Nov 24, 2026',['Sign in (Setup → Account and sync) to save everything online for free and use it on any device. Changes save online a few seconds after you make them, and the app checks for newer data when you open it.','Each person\'s data is private to their account, so friends can make their own account and use the app too.','Link Google and email/password to one account in Setup, then sign in either way.','If two devices both changed things, the app asks which copy to keep.']],
  ['3.6','Nov 24, 2026',['Autofill now fills every section. Sections take turns so none is left empty, and it prefers cards that count in several sections at once, like a creature that also draws cards or a wipe that only hits opponents.','If a section still comes up short, Autofill says which one and why.','Choose how Autofill picks: Synergy with my Plan (high-synergy cards and cards that fit your Plan themes) or Most popular (what most decks with your commander play).']],
  ['3.5','Nov 24, 2026',['Autofill: tap Autofill on a deck (or Menu → Autofill deck to 100) to fill every section to its target with EDHREC\'s picks for your commander, then each section\'s own search, then lands and basics. Each section\'s Fill also has an Autofill button for just that section.','Choose to put cards you own first, or use only cards you own. Undo right after if you don\'t like it.']],
@@ -1579,7 +1584,7 @@ function askSheet(){const d=deck();const o=UI.ask||(UI.ask={goal:'improve',n:10,
    ${o.goal==='section'?`<label for="askSec">Section</label><select id="askSec">${d.sections.map(s=>`<option value="${s.id}" ${o.sec===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`:''}
    ${o.goal==='cuts'?'':`<label for="askN">How many suggestions</label><input id="askN" type="number" inputmode="numeric" min="1" max="40" value="${o.n}" style="width:90px">`}
    <label for="askNote">Anything else Claude should know (optional)</label><textarea id="askNote" style="min-height:64px" placeholder="e.g. No infinite combos. Budget under $5 a card. Playgroup is casual.">${esc(o.note)}</textarea>
-   <label for="askP">Request</label><textarea id="askP" readonly style="min-height:150px;font-size:13px">${esc(askPrompt(d,o))}</textarea>
+   <label for="askP">Request</label><textarea id="askP" readonly style="min-height:150px">${esc(askPrompt(d,o))}</textarea>
    <div class="row wrapf"><button class="pri grow" data-act="askCopy">Copy request</button><a class="btn grow" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude ↗</a></div>
    <label>When Claude answers</label><div class="row wrapf"><button class="grow" data-act="pasteOpen" data-sid="m">Paste into Maybeboard</button><button class="grow" data-act="pasteOpen" data-sid="u" data-sort="1">Paste into deck and sort</button></div>
    <p class="muted small" style="margin:0">Paste Claude's whole answer. Only the cards under CARDS TO ADD are added.</p>`)}
