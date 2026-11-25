@@ -283,6 +283,47 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 :root.bolt .pan .life{font-family:"Space Grotesk","Avenir Next",sans-serif}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);
   padding:9px 14px;border-radius:8px;font-size:14px;max-width:90%}
+
+/* ================= computer layout (html.desk). The phone layout above stays the default; this only adds to it. ================= */
+.secs{display:flex;flex-direction:column;gap:14px}
+#hov{position:fixed;z-index:40;pointer-events:none;width:244px;border-radius:12px;box-shadow:0 10px 30px #000a;display:none}
+html.desk body{font-size:15px}
+html.desk .wrap{max-width:1180px}
+html.desk #app{padding-left:200px}
+html.desk nav.tabs{top:0;bottom:0;right:auto;width:200px;flex-direction:column;justify-content:flex-start;gap:2px;padding:76px 10px 10px;border-top:0;border-right:1px solid var(--line);display:flex}
+html.desk nav.tabs::before{content:"";position:absolute;top:12px;left:12px;width:52px;height:52px;background:url(icon-256.png) center/contain no-repeat}
+html.desk nav.tabs::after{content:"Bolt the Bird";position:absolute;top:28px;left:70px;font:700 17px var(--display);color:var(--ink)}
+html.desk nav.tabs a{flex:none;text-align:left;padding:10px 14px;border-radius:8px}
+html.desk nav.tabs a:hover{background:#ffffff12}
+html.desk nav.tabs a b{font-size:17px}
+html.desk main{padding-bottom:40px}
+html.desk button{min-height:32px;padding:6px 11px}
+html.desk button.sm{min-height:28px}
+html.desk .item{min-height:38px;padding:8px 12px}
+html.desk .crow{min-height:34px;padding:6px 12px}
+html.desk :is(.item,.crow,.chip,button):hover{filter:brightness(1.06)}
+html.desk .secs{display:block;columns:2 420px;column-gap:16px}
+html.desk .secs>*{break-inside:avoid;margin:0 0 16px}
+html.desk .secs>:not(.sec){column-span:all}
+html.desk .cmd .art{min-height:260px}
+html.desk .scrim{align-items:center;padding:24px}
+html.desk .sheet{max-width:640px;max-height:86%;border-radius:14px}
+html.desk body.kb .sheet{height:auto;max-height:86%;border-radius:14px}
+html.desk .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+html.desk #toast{bottom:24px}
+:root.bolt.desk nav.tabs{border-right:2px solid var(--edge)}
+:root.bolt.desk nav.tabs::after{color:#f2d49b}
+/* tester on a computer: bigger cards that wrap, drag and drop, right-click for options */
+html.desk .tzone{padding:0 14px}
+html.desk .tcards{flex-wrap:wrap;overflow:visible;min-height:150px;align-content:flex-start}
+html.desk .tc{width:104px;height:145px;font-size:12px;cursor:grab}
+html.desk .tc.tap{transform:rotate(90deg) scale(.8)}
+html.desk .thand .tcards{min-height:176px}
+html.desk .thand .tc{width:120px;height:167px}
+html.desk .thand .tc:hover{transform:translateY(-10px)}
+html.desk .tdrop{outline:2px dashed #f2d49b;outline-offset:2px;background:#ffffff10}
+html.desk .tc.dragging{opacity:.35}
+.tkeys{display:none}html.desk .tkeys{display:inline}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
 </head>
@@ -296,13 +337,15 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 <div id="toast" hidden role="status"></div>
 <div id="selbar" hidden></div>
 <div id="print" aria-hidden="true"></div>
+<img id="hov" alt="">
 <script>
 'use strict';
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.2';
+const VERSION='4.3';
 const NEWS=[
+ ['4.3','Nov 25, 2026',['Computer layout: on a computer with a mouse the app shows a sidebar, wider pages, deck sections side by side, and windows in the middle of the screen. Hover over a card name to see the card.','Deck tester on a computer: bigger cards, drag cards between hand, battlefield, graveyard, exile and library, right-click a card for options, double-click a card in hand to play it, and keys D draw, U untap, N next turn.','Setup → Look → Screen picks Automatic, Phone or Computer for each device. The phone layout is unchanged.']],
  ['4.2','Nov 24, 2026',['Sync errors now show their technical details, to make problems easier to fix.']],
  ['4.1','Nov 24, 2026',['Setup → Account and sync now shows a short Account ID and where the online copy came from, so you can check two devices are on the same account.']],
  ['4.0','Nov 24, 2026',['Collection export: an Excel file (.xlsx), a CSV, or a simple list like "2 Sol Ring" to copy or save.','Collection import now takes Excel files too, along with scanner CSVs and pasted lists. Quantity, printing, foil and Location columns are read, so an exported sheet you edit imports back exactly.','Choose to add to your collection or replace it when importing.']],
@@ -436,7 +479,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
    The card cache is not uploaded (it is fetched again from Scryfall), and a few settings stay on each device. ---- */
 var CL={fb:null,user:null,busy:false,t:null,err:'',state:'off',meta:null,unsub:null};
 const FB_CFG={apiKey:"AIzaSyBuCgDgrk1LpSyp9_HUTKZsiF-DgYgJuUs",authDomain:"bolt-the-bird-a256f.firebaseapp.com",projectId:"bolt-the-bird-a256f",storageBucket:"bolt-the-bird-a256f.firebasestorage.app",messagingSenderId:"1050696850486",appId:"1:1050696850486:web:b86951ba0dad651e160c97"};
-const FBV='10.12.2';const LOCAL_ONLY=['cards','syncAt','lastBackup','snooze','cloudUser','look','drift'];
+const FBV='10.12.2';const LOCAL_ONLY=['cards','syncAt','lastBackup','snooze','cloudUser','look','drift','device'];
 const homeApp=()=>navigator.standalone===true||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
 const noGoogle=()=>homeApp()&&/iPhone|iPad|iPod/.test(navigator.userAgent);
 const devName=()=>{const u=navigator.userAgent;return /iPhone/.test(u)?'iPhone':/iPad/.test(u)?'iPad':/Android/.test(u)?'Android phone':/Mac/.test(u)?'Mac':/Windows/.test(u)?'Windows PC':'another device'};
@@ -578,7 +621,10 @@ const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
 const money=v=>'$'+v.toFixed(2);
 
 /* ================= views ================= */
-function applyLook(){const b=S.look!=='plain';const r=document.documentElement;r.classList.toggle('bolt',b);r.classList.toggle('drift',b&&S.drift!==false);r.dataset.c=LOOKS[S.look]?S.look:'R';const m=document.querySelector('meta[name=theme-color]');if(m)m.content=b?getComputedStyle(r).getPropertyValue('--theme').trim()||'#5e1a1e':'#12181a'}
+const isDesk=()=>S&&S.device==='pc'?true:S&&S.device==='phone'?false:!!(window.matchMedia&&matchMedia('(hover:hover) and (pointer:fine)').matches&&innerWidth>=900);
+function applyDevice(){const r=document.documentElement,was=r.classList.contains('desk'),now=isDesk();r.classList.toggle('desk',now);if(was!==now&&S){if(T)drawTest();if(location.hash)rerender()}}
+window.addEventListener('resize',()=>{clearTimeout(window.__dv);window.__dv=setTimeout(applyDevice,200)});
+function applyLook(){applyDevice();const b=S.look!=='plain';const r=document.documentElement;r.classList.toggle('bolt',b);r.classList.toggle('drift',b&&S.drift!==false);r.dataset.c=LOOKS[S.look]?S.look:'R';const m=document.querySelector('meta[name=theme-color]');if(m)m.content=b?getComputedStyle(r).getPropertyValue('--theme').trim()||'#5e1a1e':'#12181a'}
 const LOOKS={W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'};
 function route(){if(!S)return;applyLook();if(UI.sel&&(location.hash!=='#deck'||UI.selDeck!==UI.deck))selEnd(true);const h=location.hash.slice(1)||'decks';const v=['decks','deck','packages','collection','play','setup'].includes(h)?h:'decks';
   if(v==='deck'&&!deck()){location.hash='decks';return}
@@ -781,7 +827,7 @@ function vDeck(){
    <div class="row"><span class="grp grow" style="margin:0">Sections · targets add up to ${d.sections.reduce((a,s)=>a+(+s.target||0),0)}</span>
      <div class="chips"><button class="chip ${UI.view==='list'?'on':''}" data-act="view" data-v="list">List</button><button class="chip ${UI.view==='grid'?'on':''}" data-act="view" data-v="grid">Images</button></div></div>
    <div class="row"><div class="chips grow"><button class="chip ${UI.group==='type'?'':'on'}" data-act="group" data-g="sec">Sections</button><button class="chip ${UI.group==='type'?'on':''}" data-act="group" data-g="type">Types</button></div>${UI.group==='type'?'':'<button class="sm pri" data-act="addSearch" data-sid="u">Add cards</button><button class="sm" data-act="editSecs">Edit sections</button>'}</div>
-   ${UI.group==='type'?typeHtml(d):secs.map(s=>secHtml(d,s)).join('')}`);
+   <div class="secs">${UI.group==='type'?typeHtml(d):secs.map(s=>secHtml(d,s)).join('')}</div>`);
 }
 const TYPES=['Creature','Planeswalker','Battle','Instant','Sorcery','Artifact','Enchantment','Land'];
 /* one type per card, the way deck lists usually group them: a land is a land, a creature is a creature, then the rest */
@@ -897,6 +943,8 @@ function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const
    <h2>Look</h2>
    <p class="muted small" style="margin:0">Old card frames in each color, or the original plain look.</p>
    <div class="chips">${Object.entries(LOOKS).map(([k,l])=>`<button class="chip ${(LOOKS[S.look]?S.look:S.look==='plain'?'':'R')===k?'on':''}" data-act="look" data-v="${k}"><span class="pip ${k}" style="margin-right:6px">${k}</span>${l}</button>`).join('')}<button class="chip ${S.look==='plain'?'on':''}" data-act="look" data-v="plain">Original</button></div>
+   <div><b>Screen</b><div class="chips" style="margin-top:6px">${[['auto','Automatic'],['phone','Phone'],['pc','Computer']].map(([k,l])=>`<button class="chip ${(S.device||'auto')===k?'on':''}" data-act="devMode" data-v="${k}">${l}</button>`).join('')}</div>
+   <p class="muted small" style="margin:6px 0 0">${(S.device||'auto')==='auto'?`Automatic picks the computer layout when there's a mouse and a wide screen. Right now: <b>${isDesk()?'computer':'phone'}</b>.`:S.device==='pc'?'Computer layout: sidebar, wider pages, hover previews, and drag and drop in the tester.':'Phone layout, even on a computer.'} This setting is only for this device.</p></div>
    ${S.look!=='plain'?`<div class="row"><span class="grow">Moving marble<br><span class="muted small">The marble background drifts slowly. Turn off to save battery.</span></span><button data-act="driftTog" aria-pressed="${S.drift!==false}">${S.drift!==false?'On':'Off'}</button></div>`:''}
    <h2>Deck building</h2>
    <div class="row"><span class="grow">Share cards across sections automatically<br><span class="muted small">When you add a card, it is also counted in any other section whose search it matches.</span></span><button data-act="shareTog" aria-pressed="${S.autoShare!==false}">${S.autoShare!==false?'On':'Off'}</button></div>
@@ -1317,6 +1365,7 @@ const A={
   autoSort(){autoSort(deck())},
   editTemplate(){secEditor('Default sections for new decks',null,S.template,rows=>{S.template=rows})},
   look(e){S.look=e.dataset.v;save(false);writeNow();rerender()},
+  devMode(e){S.device=e.dataset.v==='auto'?undefined:e.dataset.v;applyDevice();save(false);writeNow();rerender()},
   driftTog(){S.drift=S.drift===false;applyLook();save(false);writeNow();rerender()},
   shareTog(){S.autoShare=S.autoShare===false;save();rerender()},
   xTog(e){const c=deck().cards.find(c=>c.n===e.dataset.n);c.x=c.x||[];const i=e.dataset.sid;c.x=c.x.includes(i)?c.x.filter(k=>k!==i):[...c.x,i];save();cardSheet(c.n)},
@@ -1524,21 +1573,21 @@ const backOf=n=>{const k=card(n);const bt=k.t.split(' // ')[1]||'';return k.img2
 const tCard=c=>c.token?c.tk:(c.flip&&backOf(c.n))||card(c.n);
 const tType=c=>{const t=frontOf(tCard(c).t||'');return /Land/.test(t)?'land':/Creature/.test(t)?'creature':'other'};
 function tTile(c,tag,attrs){const k=tCard(c);const im=k.img?img(k,'small'):'';
-  return`<${tag} class="tc ${c.tapped?'tap':''}" ${attrs} title="${esc(k.n)}" style="background:#26323a ${im?`url('${esc(im)}')`:''} center/cover">${im?'':`<span class="nm">${esc(k.n)}${k.pt?' '+esc(k.pt):''}</span>`}${c.ctr?`<span class="badge">${c.ctr>0?'+':''}${c.ctr}</span>`:''}</${tag}>`}
+  return`<${tag} class="tc ${c.tapped?'tap':''}" ${attrs} ${document.documentElement.classList.contains('desk')?'draggable="true"':''} title="${esc(k.n)}" style="background:#26323a ${im?`url('${esc(im)}')`:''} center/cover">${im?'':`<span class="nm">${esc(k.n)}${k.pt?' '+esc(k.pt):''}</span>`}${c.ctr?`<span class="badge">${c.ctr>0?'+':''}${c.ctr}</span>`:''}</${tag}>`}
 function drawTest(){const el=$('#test');if(!T){el.hidden=true;el.innerHTML='';return}
   const sc={};el.querySelectorAll('[data-sc]').forEach(x=>sc[x.dataset.sc]=x.scrollLeft);const oz=$('.tzone',el);const zt=oz?oz.scrollTop:0;el.hidden=false;
   const d=S.decks.find(x=>x.id===T.deck);const id=d?ident(d):[];const pool=[...['W','U','B','R','G'].filter(x=>id.includes(x)),'C'];
   const rows=[['other','Artifacts, enchantments and others'],['creature','Creatures'],['land','Lands']];
   el.innerHTML=`<div class="tbar"><button class="sm" data-act="tExit">‹ Exit</button><span class="grow" style="text-align:center">Turn <b class="num">${T.turn}</b></span>
      <button class="sm" data-act="tLife" data-d="-1" aria-label="Lose 1 life">−</button><b class="num" style="min-width:30px;text-align:center" title="Life total">${T.life}</b><button class="sm" data-act="tLife" data-d="1" aria-label="Gain 1 life">+</button><button class="sm" data-act="tMenu">Menu</button></div>
-   <div class="tbar" style="padding-top:0"><button class="sm" data-act="tLib">Library ${T.lib.length}</button><button class="sm" data-act="tPile" data-z="gy">Graveyard ${T.gy.length}</button><button class="sm" data-act="tPile" data-z="ex">Exile ${T.ex.length}</button>
+   <div class="tbar" style="padding-top:0"><button class="sm" data-act="tLib" data-drop="lib">Library ${T.lib.length}</button><button class="sm" data-act="tPile" data-z="gy" data-drop="gy">Graveyard ${T.gy.length}</button><button class="sm" data-act="tPile" data-z="ex" data-drop="ex">Exile ${T.ex.length}</button>
      ${T.cmd.map(c=>`<button class="sm go" data-act="tCast" data-id="${c.id}">Cast ${esc(frontOf(c.n).split(',')[0])}${T.tax[c.n]?' (+'+T.tax[c.n]+')':''}</button>`).join('')}</div>
    ${T.phase==='open'?`<div class="tbar" style="padding-top:0"><span class="grow">${T.mull?'Mulligan '+T.mull+(T.mull>1?': you will put '+(T.mull-1)+' on the bottom':': free'):'Opening hand'}</span><button class="sm" data-act="tMull">Mulligan</button><button class="sm go" data-act="tKeep">Keep</button></div>`
      :T.bottom>0?`<div class="tbar" style="padding-top:0"><span>Put ${T.bottom} card${T.bottom===1?'':'s'} from your hand on the bottom of your library. Tap a card, then Bottom of library.</span></div>`:''}
-   <div class="tzone">${rows.map(([k,l])=>{const cs=T.bf.filter(c=>tType(c)===k);return`<div class="trow"><h3>${l} · ${cs.length}</h3><div class="tcards" data-sc="${k}">${cs.map(c=>tTile(c,'div',`data-bf="${c.id}" role="button" tabindex="0"`)).join('')||'<span class="small tdim">Empty</span>'}</div></div>`}).join('')}
-     <p class="small tdim" style="margin:0;text-align:center">Tap a card to tap or untap it. Press and hold for more.</p></div>
+   <div class="tzone">${rows.map(([k,l])=>{const cs=T.bf.filter(c=>tType(c)===k);return`<div class="trow" data-drop="bf"><h3>${l} · ${cs.length}</h3><div class="tcards" data-sc="${k}">${cs.map(c=>tTile(c,'div',`data-bf="${c.id}" role="button" tabindex="0"`)).join('')||'<span class="small tdim">Empty</span>'}</div></div>`}).join('')}
+     <p class="small tdim" style="margin:0;text-align:center">${document.documentElement.classList.contains('desk')?'Click a card to tap or untap it. Right-click for more. Drag cards between your hand, the battlefield, graveyard, exile and library. Double-click a card in hand to play it. Keys: D draw · U untap · N next turn · Esc exit.':'Tap a card to tap or untap it. Press and hold for more.'}</p></div>
    <div class="tbar" style="padding-bottom:0">${pool.map(x=>`<button class="sm" data-act="tMana" data-c="${x}" aria-label="${x} mana in pool"><span class="pip ${x==='C'?'':x}">${x}</span> <b class="num">${T.mana[x]||0}</b></button>`).join('')}<button class="sm" data-act="tManaMode" aria-pressed="${T.minus}">${T.minus?'Taps spend':'Taps add'}</button></div>
-   <div class="thand"><div class="tbar" style="padding:0 2px 6px"><b class="grow">Hand · ${T.hand.length}</b><button class="sm" data-act="tToken">Token</button><button class="sm" data-act="tUntap">Untap</button><button class="sm" data-act="tDraw1">Draw</button><button class="sm go" data-act="tNext">Next turn</button></div>
+   <div class="thand" data-drop="hand"><div class="tbar" style="padding:0 2px 6px"><b class="grow">Hand · ${T.hand.length}</b><button class="sm" data-act="tToken">Token</button><button class="sm" data-act="tUntap">Untap</button><button class="sm" data-act="tDraw1">Draw</button><button class="sm go" data-act="tNext">Next turn</button></div>
      <div class="tcards" data-sc="hand">${T.hand.map(c=>tTile(c,'button',`data-act="tHand" data-id="${c.id}"`)).join('')||'<span class="small tdim">No cards in hand</span>'}</div></div>`;
   el.querySelectorAll('[data-sc]').forEach(x=>{if(sc[x.dataset.sc])x.scrollLeft=sc[x.dataset.sc]});const nz=$('.tzone',el);if(nz)nz.scrollTop=zt}
 const tBtn=(label,id,to,extra='')=>`<button class="item" data-act="tGo" data-id="${id}" data-to="${to}" ${extra}>${label}</button>`;
@@ -1567,9 +1616,29 @@ async function loadTokens(d){const key=d.id;if(TOK[key])return;TOK[key]='loading
     TOK[key]=out.sort((a,b)=>a.n.localeCompare(b.n))}catch(e){TOK[key]=[]}
   if(T&&T.deck===key&&UI.tokOpen)A.tToken()}
 function tMakeToken(tk){T.bf.push({id:'t'+(T.k++),token:true,tk,tapped:false,ctr:0});drawTest();toast('Created '+tk.n+(tk.pt?' '+tk.pt:''))}
+/* computer: hover over any card name to see the card */
+let hovT=null,hovN='';
+function hovName(e){const x=e.closest&&e.closest('[data-n],[data-bf],.tc[data-id],.tc[title]');if(!x)return'';if(x.dataset.n)return x.dataset.n;const id=x.dataset.bf||x.dataset.id;if(id&&T){const f=tFind(id);if(f)return tCard(f.c).n}return x.getAttribute('title')||''}
+document.addEventListener('mouseover',ev=>{if(!document.documentElement.classList.contains('desk'))return;const n=hovName(ev.target);if(n===hovN)return;hovN=n;clearTimeout(hovT);const h=$('#hov');h.style.display='none';if(!n)return;
+  hovT=setTimeout(()=>{const k=CARDS[n]||(T&&[...T.bf,...T.hand].map(tCard).find(c=>c.n===n))||null;const src=k&&(k.img||'');if(!src)return;h.src=src.replace(/\/(small|art_crop|large|png)\//,'/normal/');h.style.display='block'},260)});
+document.addEventListener('mousemove',ev=>{const h=$('#hov');if(!h||h.style.display!=='block')return;const w=244,ht=340;let x=ev.clientX+18,y=ev.clientY-ht/3;if(x+w>innerWidth-8)x=ev.clientX-w-18;y=Math.max(8,Math.min(y,innerHeight-ht-8));h.style.left=x+'px';h.style.top=y+'px'});
+['mousedown','scroll','keydown'].forEach(t=>document.addEventListener(t,()=>{clearTimeout(hovT);hovN='';const h=$('#hov');if(h)h.style.display='none'},true));
+/* computer tester: drag cards between zones, right-click for options, double-click a card in hand to play it, keyboard shortcuts */
+const deskT=()=>T&&document.documentElement.classList.contains('desk');
+document.addEventListener('dragstart',ev=>{const e=ev.target.closest&&ev.target.closest('#test .tc');if(!e||!deskT())return;const id=e.dataset.bf||e.dataset.id;if(!id)return;ev.dataTransfer.setData('text/plain',id);ev.dataTransfer.effectAllowed='move';e.classList.add('dragging');$('#hov').style.display='none'});
+document.addEventListener('dragend',ev=>{document.querySelectorAll('#test .dragging,#test .tdrop').forEach(x=>x.classList.remove('dragging','tdrop'))});
+const dropZone=t=>t.closest&&t.closest('#test [data-drop]');
+document.addEventListener('dragover',ev=>{const z=dropZone(ev.target);if(!z||!deskT())return;ev.preventDefault();ev.dataTransfer.dropEffect='move';document.querySelectorAll('#test .tdrop').forEach(x=>{if(x!==z)x.classList.remove('tdrop')});z.classList.add('tdrop')});
+document.addEventListener('dragleave',ev=>{const z=dropZone(ev.target);if(z&&!z.contains(ev.relatedTarget))z.classList.remove('tdrop')});
+document.addEventListener('drop',ev=>{const z=dropZone(ev.target);if(!z||!deskT())return;ev.preventDefault();const id=ev.dataTransfer.getData('text/plain');const f=tFind(id);if(!f)return;const to=z.dataset.drop;
+  if(f.z===to&&to!=='lib')return;if(f.z==='hand'&&to==='lib'&&T.bottom>0){T.bottom--;tMove(id,'lib',true)}else tMove(id,to);drawTest()});
+document.addEventListener('contextmenu',ev=>{const e=ev.target.closest&&ev.target.closest('#test .tc');if(!e||!deskT())return;ev.preventDefault();if(e.dataset.bf)tBfSheet(e.dataset.bf);else if(e.dataset.id)tHandSheet(e.dataset.id)});
+document.addEventListener('dblclick',ev=>{const e=ev.target.closest&&ev.target.closest('#test .thand .tc');if(!e||!deskT())return;clearTimeout(window.__th);const f=tFind(e.dataset.id);if(!f||f.z!=='hand')return;closeSheet();const t=frontOf(tCard(f.c).t||'');tMove(f.c.id,/Instant|Sorcery/.test(t)?'gy':'bf');drawTest()});
+document.addEventListener('keydown',ev=>{if(!deskT()||!$('#sheet').hidden||/INPUT|TEXTAREA|SELECT/.test((ev.target.tagName||''))||ev.ctrlKey||ev.metaKey||ev.altKey)return;const k=ev.key.toLowerCase();
+  if(k==='d'){tDraw(1);drawTest()}else if(k==='u'){A.tUntap()}else if(k==='n'){A.tNext()}else if(k==='escape'){A.tExit()}else return;ev.preventDefault()});
 /* battlefield cards: a quick tap taps or untaps, a held press opens the options */
 let th=null;
-document.addEventListener('pointerdown',ev=>{const e=ev.target.closest('[data-bf]');if(!e||!T)return;const id=e.dataset.bf;th={id,x:ev.clientX,y:ev.clientY,held:false};th.t=setTimeout(()=>{if(th){th.held=true;tBfSheet(id)}},450)});
+document.addEventListener('pointerdown',ev=>{const e=ev.target.closest('[data-bf]');if(!e||!T||ev.button>0)return;const id=e.dataset.bf;th={id,x:ev.clientX,y:ev.clientY,held:false};th.t=setTimeout(()=>{if(th){th.held=true;tBfSheet(id)}},450)});
 document.addEventListener('pointermove',ev=>{if(th&&(Math.abs(ev.clientX-th.x)>10||Math.abs(ev.clientY-th.y)>10)){clearTimeout(th.t);th=null}});
 document.addEventListener('pointerup',()=>{if(!th)return;clearTimeout(th.t);if(!th.held&&T){const f=tFind(th.id);if(f&&f.z==='bf'){f.c.tapped=!f.c.tapped;drawTest()}}th=null});
 document.addEventListener('pointercancel',()=>{if(th){clearTimeout(th.t);th=null}});
@@ -1589,7 +1658,7 @@ Object.assign(A,{
   tMana(e){const c=e.dataset.c;T.mana[c]=Math.max(0,(T.mana[c]||0)+(T.minus?-1:1));drawTest()},
   tManaMode(){T.minus=!T.minus;drawTest()},
   tCast(e){const f=tFind(e.dataset.id);if(!f)return;tMove(f.c.id,'bf');T.tax[f.c.n]=(T.tax[f.c.n]||0)+2;drawTest()},
-  tHand(e){tHandSheet(e.dataset.id)},
+  tHand(e){const id=e.dataset.id;if(deskT()){clearTimeout(window.__th);window.__th=setTimeout(()=>tHandSheet(id),260);return}tHandSheet(id)},
   tGo(e){const f=tFind(e.dataset.id);if(!f)return;const d=e.dataset;if(f.z==='hand'&&d.to==='lib'&&d.b&&T.bottom>0)T.bottom--;if(d.lk&&T.look>0)T.look--;
     tMove(d.id,d.to,!!d.b);if(d.flip)f.c.flip=true;if(d.shuf){shuffle(T.lib);toast('Library shuffled')}drawTest();if(d.back==='lib')tLibSheet();else if(d.back)tPileSheet(d.back);else closeSheet()},
   tCtr(e){const f=tFind(e.dataset.id);if(!f)return;f.c.ctr+=+e.dataset.d;drawTest();tBfSheet(f.c.id)},
