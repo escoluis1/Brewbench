@@ -301,8 +301,9 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.0';
+const VERSION='4.1';
 const NEWS=[
+ ['4.1','Nov 24, 2026',['Setup → Account and sync now shows a short Account ID and where the online copy came from, so you can check two devices are on the same account.']],
  ['4.0','Nov 24, 2026',['Collection export: an Excel file (.xlsx), a CSV, or a simple list like "2 Sol Ring" to copy or save.','Collection import now takes Excel files too, along with scanner CSVs and pasted lists. Quantity, printing, foil and Location columns are read, so an exported sheet you edit imports back exactly.','Choose to add to your collection or replace it when importing.']],
  ['3.9','Nov 24, 2026',['The box you tap now stays in view above the keyboard everywhere: in windows, in Setup, and when moving between boxes with the keyboard arrows. Windows keep one steady size while you type.','Inside the home-screen app on iPhone, Google sign-in is replaced by a note to use email and password, because iPhone blocks Google\'s sign-in window there. Link Google from a computer instead.']],
  ['3.8','Nov 24, 2026',['Typing in a box no longer zooms the iPhone screen in and pushes windows off the edge. Every text box now uses text large enough that iPhone leaves the zoom alone.','With the keyboard up, windows use all the space above it, so the paste box has room.']],
@@ -485,7 +486,8 @@ function cloudBox(){if(!CL.user)return`<p class="muted small" style="margin:0">S
    <div class="row wrapf"><button class="pri" data-act="cloudIn">Sign in</button><button data-act="cloudNew">Create account</button><button class="ghost sm" data-act="cloudReset">Forgot password</button></div>
    ${noGoogle()?`<p class="muted small" style="margin:0">Google sign-in can't finish inside the home-screen app on iPhone, so use email and password here. You can link your Google account later from a computer, then use either one.</p>`:`<button data-act="cloudGoogle">Sign in with Google <span class="muted small">(best on a computer)</span></button>`}`;
   const pv=(CL.user.providerData||[]).map(x=>x.providerId);const hasG=pv.includes('google.com'),hasP=pv.includes('password');
-  return`<div class="secbox" style="padding:12px"><b>Signed in as ${esc(CL.user.email||'you')}</b><br><span class="muted small" id="cloudSt">${esc(cloudStatus())}</span><br><span class="muted small">Changes save online a few seconds after you make them.</span></div>
+  return`<div class="secbox" style="padding:12px"><b>Signed in as ${esc(CL.user.email||'you')}</b><br><span class="muted small" id="cloudSt">${esc(cloudStatus())}</span><br><span class="muted small">Changes save online a few seconds after you make them.</span>
+   <div class="small" style="margin-top:8px;border-top:1px solid var(--b-line,var(--line));padding-top:6px">Account ID <b class="num">${esc(CL.user.uid.slice(0,6))}</b> · ${CL.meta?`online copy from ${esc(CL.meta.dev||'a device')}, ${agoT(CL.meta.at)}, ${(CL.meta.size/1024).toFixed(0)} KB`:'no online copy yet'}<br><span class="muted">Both devices should show the same Account ID. Version ${VERSION} on this ${esc(devName())}.</span></div></div>
    <div class="row wrapf"><button data-act="cloudNow">Sync now</button><button data-act="cloudOut">Sign out</button></div>
    <h3>Ways to sign in</h3>
    <p class="small" style="margin:0">${[hasP&&'Email and password',hasG&&'Google'].filter(Boolean).join(' · ')||'Email'}</p>
