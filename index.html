@@ -374,13 +374,36 @@ html.desk .tc.dragging{opacity:.35}
 .pan.spot{outline:4px solid #f2d49b;outline-offset:-4px;box-shadow:0 0 30px #f2d49b88}
 .pan.first{outline:5px solid #ffd84a;outline-offset:-5px;animation:firstp 1.4s ease-in-out 2}
 @keyframes firstp{50%{box-shadow:0 0 50px #ffd84acc}}
-.pan .crown{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:13px;background:#ffd84a;color:#3a2a00;border-radius:999px;padding:1px 10px;font-weight:700;z-index:2;pointer-events:none}
+.pan .crown{position:absolute;top:34px;left:50%;transform:translateX(-50%);font-size:13px;background:#ffd84a;color:#3a2a00;border-radius:999px;padding:1px 10px;font-weight:700;z-index:2;pointer-events:none}
 .lfirst{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:#0008;padding:20px;animation:fadein .3s}
 .lfirst div{background:#141b1e;border:2px solid #ffd84a;border-radius:16px;padding:20px;max-width:340px;text-align:center;box-shadow:0 10px 40px #000a;animation:popin .35s cubic-bezier(.2,1.6,.4,1)}
 .lfirst button{background:#ffd84a!important;color:#2a1d00!important;border-color:#ffd84a!important;font-weight:700;min-width:120px}
 .lfirst b{display:block;font:700 26px var(--display);color:#ffd84a;margin:4px 0 8px}
 @keyframes fadein{from{opacity:0}}@keyframes popin{from{transform:scale(.6);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pan.gain .life,.pan.hurt .life,.pan.lv-crit::after,.pan.first,.lfirst div{animation:none}}
+
+/* tracker layout: no top bar, a center hub, numbers sized to each panel */
+.lgrid{position:relative;gap:3px;padding:3px}
+.pan{container-type:size;justify-content:center;gap:0}
+.pan .who{position:absolute;top:8px;left:12px;right:12px;text-align:center;font-size:clamp(13px,6cqmin,20px);text-shadow:0 1px 3px #000a;z-index:1;max-width:none}
+.pan .life{font-size:min(44cqh,46cqw,200px);text-shadow:0 2px 12px #0008;line-height:.95}
+.pan .delta{position:absolute;top:50%;left:calc(50% + min(26cqw,140px));transform:translateY(-50%);height:auto;font-size:clamp(16px,9cqmin,34px);text-shadow:0 1px 4px #000}
+.pan .zone{font-size:clamp(26px,14cqmin,56px);color:#ffffff59;padding:0 4%}
+.pan .pbtns{position:absolute;bottom:8px;left:8px;right:8px;justify-content:center;margin:0;flex-wrap:wrap}
+.pan .pbtns button{min-height:32px}
+.pan .cdc{position:absolute;bottom:46px;left:8px;right:8px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;pointer-events:none;z-index:1}
+.pan .cdc span{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid #ffffff80;box-shadow:0 1px 3px #0008}
+.pan .cdc span.lethal{border-color:#ffd84a;box-shadow:0 0 8px #ff3b3b}
+.lhub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;display:flex;gap:4px;align-items:center;background:#0c1113;border-radius:999px;padding:4px;box-shadow:0 0 0 3px #0c1113,0 4px 14px #000c}
+#live .lhub button{min-height:0;border-radius:999px;background:#1d262a;border:1px solid #3c4a54;padding:0}
+.lhub .ht{width:58px;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.lhub .ht b{font:700 22px var(--display)}.lhub .ht small{font-size:10px;color:#b9c6c2;margin-top:2px}
+.lhub .hm{width:38px;height:38px;font-size:20px}
+.lgrid.one .lhub{left:auto;right:10px;transform:translateY(-50%)}
+.lgrid.one .pan .who{text-align:left;right:130px;overflow:hidden;text-overflow:ellipsis}.lgrid.one .pan.rot .who{text-align:right}
+.pan.cL .pbtns,.pan.cL .cdc{justify-content:flex-start}.pan.cR .pbtns,.pan.cR .cdc{justify-content:flex-end}
+.pan.rot.cL .pbtns,.pan.rot.cL .cdc{justify-content:flex-end}.pan.rot.cR .pbtns,.pan.rot.cR .cdc{justify-content:flex-start}
+.lend{position:absolute;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:4;background:#7a1f22!important;border-color:#f2d49b!important;font-weight:700}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
 </head>
@@ -401,8 +424,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.8';
+const VERSION='4.9';
 const NEWS=[
+ ['4.9','Nov 27, 2026',['Rare counters stay out of the way: each panel has one Damage & counters button. Poison, radiation, energy, experience, the Monarch, the Initiative and the City\'s Blessing only appear on a panel once someone has them.','Life counter uses the screen better: the top bar is gone, life totals are about twice as big and fill each panel, and the turn counter sits in a small hub in the middle of the table (tap it for the next turn, ⋯ for the menu).','Commander damage you have taken shows on your panel as chips in the attacker\'s color. The menu has Back to the app and Back one turn.']],
  ['4.8','Nov 27, 2026',['Favorite opponents: tap ☆ next to a name. Favorites stay at the top of the Opponents list and the New game picks, then everyone else is sorted by how many games they\'ve played with you.']],
  ['4.7','Nov 27, 2026',['Life counter: each player has a poison button (☠) that turns green as it builds toward 10.','Partner commanders: commander damage is tracked per commander, split automatically for your partner decks and for opponent decks named like "Kydele + Miara". Tap Has partners? to split any opponent by hand.','Panels shift to amber, orange and a pulsing red as life drops, flash green when you gain life and shake red when you take damage.','Pick who goes first: a spotlight hops around the table and lands on someone, with a very good reason why.']],
  ['4.6','Nov 27, 2026',['Cards to finish later: when the scanner can\'t read a card\'s set, it saves a photo and puts the printing in a To finish list. For a card it can\'t read at all, tap Later to save a photo and keep scanning.','Collection → To finish goes through them all in one pass: type the name for unreadable cards, and tap the matching printing with your photo beside the choices.']],
@@ -1297,14 +1321,14 @@ function resultSheet(players,def,done){RES={players,done};
 function wake(){try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}}
 function drawLive(){const el=$('#live');const L=S.live;if(!L||!UI.liveOpen){el.hidden=true;el.innerHTML='';return}el.hidden=false;
   const ps=L.table?[...L.players.filter(p=>p.pid!=='me'),...L.players.filter(p=>p.pid==='me')]:L.players;const n=ps.length;const alive=L.players.filter(p=>!dead(p));
-  el.innerHTML=`<div class="lbar"><button class="sm" data-act="liveMin">‹ App</button><span class="grow" style="text-align:center">Turn <b class="num">${L.turn}</b></span><button class="sm" data-act="liveTurn">Next turn</button><button class="sm" data-act="liveMenu">Menu</button></div>
-   ${alive.length===1?`<button class="lend" data-act="liveEnd">${esc(pname(alive[0].pid))} is the last one standing. End game</button>`:''}
-   <div class="lgrid" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}">${ps.map((p,i)=>{const d=DELTA[p.pid];const art=artOf(p.pid,p.deck);const cd=Math.max(0,...Object.values(p.cd));
-     return`<div class="pan ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''} ${lvClass(p)} ${FX[p.pid]&&FX[p.pid].until>Date.now()?FX[p.pid].c:''}" data-pan="${p.pid}" style="background:${art?`linear-gradient(#000000a0,#000000a0),url('${esc(art)}') center/cover,`:''}${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
+  el.innerHTML=`${alive.length===1?`<button class="lend" data-act="liveEnd">${esc(pname(alive[0].pid))} is the last one standing. End game</button>`:''}
+   <div class="lgrid ${n>2?'two':'one'}" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}"><div class="lhub" style="top:${(r=>Math.floor(r/2)/r*100)(n>2?Math.ceil(n/2):n)}%"><button class="ht" data-act="liveTurn" aria-label="Turn ${L.turn}. Tap for the next turn"><b>${L.turn}</b><small>turn ›</small></button><button class="hm" data-act="liveMenu" aria-label="Game menu">⋯</button></div>${ps.map((p,i)=>{const d=DELTA[p.pid];const art=artOf(p.pid,p.deck);const cd=Math.max(0,...Object.values(p.cd));
+     const side=n>2&&!(n%2&&i===n-1)?(i%2?'cR':'cL'):'';
+     return`<div class="pan ${side} ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''} ${lvClass(p)} ${FX[p.pid]&&FX[p.pid].until>Date.now()?FX[p.pid].c:''}" data-pan="${p.pid}" style="background:${art?`linear-gradient(#000000a0,#000000a0),url('${esc(art)}') center/cover,`:''}${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
       <button class="zone minus" data-life="-1" data-pid="${p.pid}" aria-label="Lower ${esc(pname(p.pid))}'s life">−</button><button class="zone plus" data-life="1" data-pid="${p.pid}" aria-label="Raise ${esc(pname(p.pid))}'s life">+</button>
       <div class="who">${esc(pname(p.pid))}${p.deck?' · '+esc(p.deck):''}</div><div class="life" id="life-${p.pid}">${p.life}</div><div class="delta" id="delta-${p.pid}">${d&&d.d?(d.d>0?'+':'')+d.d:''}</div>
-      ${L.first===p.pid&&L.turn===1?'<span class="crown">♛ Goes first</span>':''}
-      <div class="pbtns"><button data-act="liveDmg" data-pid="${p.pid}">${dead(p)?'Out · ':''}Cmdr ${cd}</button><button class="po ${p.poison?'on':''} ${p.poison>=7?'hi':''}" data-act="livePoison" data-pid="${p.pid}" aria-label="Poison counters: ${p.poison}">☠ ${p.poison}</button></div></div>`}).join('')}</div>${UI.firstMsg||''}`}
+      ${L.first===p.pid&&L.turn===1?'<span class="crown">♛ Goes first</span>':''}${cdChips(p)}
+      <div class="pbtns"><button data-act="liveDmg" data-pid="${p.pid}">${dead(p)?'Out · ':''}Damage &amp; counters</button></div></div>`}).join('')}</div>${UI.firstMsg||''}`}
 /* who goes first: a spotlight hops between players, slows down and lands on one, then a reason nobody asked for */
 const FIRST_WHY=['the shuffle gods have spoken','they look like they need the head start','they brought the snacks','Mercury is in retrograde','someone has to eat the first Sol Ring','they blinked first','the dice were feeling generous','they have the most sleeves with holograms on them','their deck has been waiting all week for this','they said please (they did not say please)','it is their turn to make questionable keeps','the stack says so','they promised not to Cyclonic Rift turn one','it builds character','they are the least threatening person at the table (for now)','they are closest to the dice','the commander tax office approved it','their playmat is the shiniest','the bird picked them','destiny, and also math','someone has to draw first blood','they will absolutely forget an upkeep trigger','it is canon now','they have the best poker face','fate rolled a d20 and laughed','they just look like a blue player','the table needed a villain','vibes. strictly vibes','their commander demanded it','they won rock paper scissors in a past life'];
 let FIRST_T=null;
@@ -1373,12 +1397,24 @@ function cmdsOf(o){const L=S.live;if(L.partners&&L.partners[o.pid])return L.part
   if(o.pid==='me'){const d=S.decks.find(d=>o.deck&&d.name.toLowerCase()===o.deck.toLowerCase());if(d&&d.cmd.length>1)return d.cmd.map(n=>n.split(',')[0].split(' // ')[0])}
   const parts=(o.deck||'').split(/\s+(?:\+|&|\/|and)\s+/i).map(x=>x.trim()).filter(Boolean);return parts.length===2?parts.map(n=>n.split(',')[0]):null}
 const shortName=n=>n.length>18?n.slice(0,17)+'…':n;
+/* player counters beyond life: only shown once someone has them */
+const PCTR=[['poison','☠','Poison',10,'#1f5a2a'],['rad','☢','Radiation',0,'#5d6b12'],['energy','⚡','Energy',0,'#1d4f7a'],['xp','XP','Experience',0,'#5a3a7a']];
+const PFLAG=[['monarch','♛','The Monarch',true],['initiative','⛫','The Initiative',true],['blessing','✦',"City's Blessing",false]];
+const pval=(p,k)=>k==='poison'?p.poison||0:((p.k||{})[k]||0);
+function cdChips(p){const L=S.live;const out=[];L.players.forEach((o,oi)=>{if(o.pid===p.pid)return;const cs=cmdsOf(o);const keys=cs?cs.map((c,i)=>[o.pid+'#'+i,shortName(c.split(' ')[0])]):[[o.pid,pname(o.pid)]];
+  keys.forEach(([k,label])=>{const v=p.cd[k];if(v)out.push(`<span class="${v>=15?'lethal':''}" style="background:${PCOL[oi%6]}">${esc(cs?label:pname(o.pid).split(' ')[0])} ${v}</span>`)})});
+  PCTR.forEach(([k,ic,nm,lim,col])=>{const v=pval(p,k);if(v)out.push(`<span class="${lim&&v>=lim-3?'lethal':''}" style="background:${col}" title="${nm}">${ic} ${v}</span>`)});
+  PFLAG.forEach(([k,ic,nm])=>{if((p.f||{})[k])out.push(`<span style="background:#6b5414" title="${esc(nm)}">${ic} ${esc(nm.replace(/^The /,''))}</span>`)});
+  return out.length?`<div class="cdc" aria-label="Damage and counters">${out.join('')}</div>`:''}
 function dmgSheet(pid,focus){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
-  const poison=`<div class="secbox" style="padding:10px 12px">${row('☠ Poison counters <span class="muted small">· 10 is out</span>',p.poison,'poDec','poInc','')}</div>`;
+  const poison=`<h3 style="margin:4px 0 0">Counters</h3><div class="secbox" style="padding:10px 12px">${row('☠ Poison <span class="muted small">· 10 is out</span>',p.poison,'poDec','poInc','')}
+    ${PCTR.slice(1).map(([k,ic,nm])=>row(ic+' '+nm,pval(p,k),'kDec','kInc',`data-k="${k}"`)).join('')}</div>
+   <div class="chips">${PFLAG.map(([k,ic,nm])=>`<button class="chip ${(p.f||{})[k]?'on':''}" data-act="fTog" data-pid="${pid}" data-k="${k}">${ic} ${esc(nm)}</button>`).join('')}</div>
+   <p class="muted small" style="margin:-4px 0 0">The Monarch and the Initiative move to this player when you turn them on.</p>`;
   const cmdRows=L.players.filter(o=>o.pid!==pid).map(o=>{const cs=cmdsOf(o);const nm=esc(pname(o.pid));
     const rows=cs?cs.map((c,i)=>row('From '+nm+"'s "+esc(shortName(c)),p.cd[o.pid+'#'+i]||0,'cdDec','cdInc',`data-from="${o.pid}#${i}"`)).join(''):row('From '+nm+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`);
     return`<div class="secbox" style="padding:8px 12px">${rows}<div class="row"><span class="grow muted small">${cs?'Partners: damage is tracked per commander':'One commander'}</span>${!cs?`<button class="sm ghost" data-act="livePartner" data-pid="${pid}" data-o="${o.pid}">Has partners?</button>`:L.partners&&L.partners[o.pid]?`<button class="sm ghost" data-act="livePartner" data-pid="${pid}" data-o="${o.pid}">Make it one</button>`:''}</div></div>`}).join('');
-  sheet(pname(pid),`<p class="muted small" style="margin:0">Commander damage also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
+  sheet(pname(pid),`<h3 style="margin:0">Commander damage</h3><p class="muted small" style="margin:0">Also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
    ${focus==='poison'?poison+cmdRows:cmdRows+poison}`,`<button data-act="liveOut" data-pid="${pid}">${p.out?'Bring back into the game':'Mark as out (conceded)'}</button>`)}
 
 /* ================= actions ================= */
@@ -1618,17 +1654,24 @@ Object.assign(A,{
     S.games.unshift({id:uid(),date:$('#gDate').value||today(),players:RES.players.map(p=>({pid:p.pid,deck:p.deck||''})),winner:w||null,turns:parseInt($('#gTurns').value)||0,notes:$('#gNotes').value.trim()});
     S.games.sort((a,b)=>b.date.localeCompare(a.date));RES.done();RES=null;save();closeSheet();location.hash='play';rerender();toast('Game saved')},
   liveOpen(){UI.liveOpen=true;drawLive();wake()},
-  liveMin(){UI.liveOpen=false;drawLive();location.hash='play';rerender()},
-  liveTurn(){S.live.turn++;save();drawLive()},
+  liveMin(){closeSheet();UI.liveOpen=false;drawLive();location.hash='play';rerender()},
+  liveTurn(){S.live.turn++;save();drawLive();toast('Turn '+S.live.turn)},
+  liveTurnBack(){if(S.live.turn>1)S.live.turn--;save();closeSheet();drawLive()},
   liveDmg(e){dmgSheet(e.dataset.pid)},
   cdInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.cd[e.dataset.from]=(p.cd[e.dataset.from]||0)+1;p.life--;save();dmgSheet(p.pid);drawLive();panFx(p.pid,false)},
   cdDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(!p.cd[e.dataset.from])return;p.cd[e.dataset.from]--;p.life++;save();dmgSheet(p.pid);drawLive()},
   livePoison(e){dmgSheet(e.dataset.pid,'poison')},
+  kInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.k=p.k||{};p.k[e.dataset.k]=(p.k[e.dataset.k]||0)+1;save();dmgSheet(p.pid);drawLive()},
+  kDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.k=p.k||{};if(p.k[e.dataset.k])p.k[e.dataset.k]--;save();dmgSheet(p.pid);drawLive()},
+  fTog(e){const k=e.dataset.k;const ex=(PFLAG.find(f=>f[0]===k)||[])[3];const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.f=p.f||{};const on=!p.f[k];
+    if(on&&ex)S.live.players.forEach(o=>{if(o.f)delete o.f[k]});p.f[k]=on;save();dmgSheet(p.pid);drawLive()},
   livePartner(e){const L=S.live;L.partners=L.partners||{};const o=L.players.find(x=>x.pid===e.dataset.o);if(L.partners[o.pid])delete L.partners[o.pid];else{const g=cmdsOf(o);L.partners[o.pid]=g||['first commander','partner'];}save();dmgSheet(e.dataset.pid);drawLive()},
-  poInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.poison++;save();dmgSheet(p.pid,'poison');drawLive()},
-  poDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(p.poison)p.poison--;save();dmgSheet(p.pid,'poison');drawLive()},
+  poInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.poison++;save();dmgSheet(p.pid);drawLive()},
+  poDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(p.poison)p.poison--;save();dmgSheet(p.pid);drawLive()},
   liveOut(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.out=!p.out;save();closeSheet();drawLive()},
-  liveMenu(){sheet('Game menu',`<div class="list">
+  liveMenu(){sheet('Turn '+S.live.turn,`<div class="list">
+    <button class="item" data-act="liveMin">‹ Back to the app (the game stays open)</button>
+    <button class="item" data-act="liveTurnBack" ${S.live.turn>1?'':'disabled'}>Back one turn</button>
     <button class="item" data-act="liveEnd">End game and save the result</button>
     <button class="item" data-act="liveFirst">Pick who goes first at random</button>
     <button class="item" data-act="liveTable">${S.live.table?'Turn off table layout':'Table layout: flip the far side to face across'}</button>
@@ -1637,7 +1680,7 @@ Object.assign(A,{
   liveFirst(){closeSheet();firstPick()},
   firstOk(){UI.firstMsg='';drawLive()},
   liveTable(){S.live.table=!S.live.table;save();closeSheet();drawLive()},
-  liveReset(){S.live.players.forEach(p=>{p.life=S.live.start||40;p.poison=0;p.cd={};p.out=false});S.live.turn=1;DELTA={};save();closeSheet();drawLive()},
+  liveReset(){S.live.players.forEach(p=>{p.life=S.live.start||40;p.poison=0;p.cd={};p.k={};p.f={};p.out=false});S.live.turn=1;DELTA={};save();closeSheet();drawLive()},
   liveEnd(){const L=S.live;const alive=L.players.filter(p=>!dead(p));resultSheet(L.players,{winner:alive.length===1?alive[0].pid:'',turns:L.turn},()=>{S.live=null;UI.liveOpen=false;drawLive()})},
   liveDiscardAsk(){confirmSheet('Discard game','This throws away the current game. Nothing is added to your game log.','liveDiscard','Discard game')},
   liveDiscard(){S.live=null;UI.liveOpen=false;save();closeSheet();drawLive();rerender()},
