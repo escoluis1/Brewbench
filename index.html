@@ -352,6 +352,33 @@ html.desk .tc.dragging{opacity:.35}
 #scan .sc-list .r:first-child{border-top:0}
 #scan .sc-man{display:flex;gap:8px}
 #scan .sc-man input{flex:1;min-width:0;background:#ffffffe6;color:#111;border:0;border-radius:8px;padding:8px 10px}
+
+/* life counter: colors by life left, flashes on gain and loss, poison, who-goes-first spotlight */
+.pan::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:12px;transition:background .5s,box-shadow .5s}
+.pan.lv-mid::after{background:linear-gradient(#ffb02e00,#ffb02e33);box-shadow:inset 0 0 0 2px #ffb02e66}
+.pan.lv-low::after{background:linear-gradient(#ff6a2e10,#ff6a2e55);box-shadow:inset 0 0 0 3px #ff6a2e99}
+.pan.lv-crit::after{background:linear-gradient(#ff1e2e22,#ff1e2e77);box-shadow:inset 0 0 0 4px #ff3b3bcc;animation:crit 1.2s ease-in-out infinite}
+@keyframes crit{50%{box-shadow:inset 0 0 0 4px #ff3b3b55,inset 0 0 40px #ff1e2e88}}
+.pan.gain .life{animation:gain .6s ease-out}.pan.hurt .life{animation:hurt .45s ease-out}
+.pan.gain::before,.pan.hurt::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:12px;animation:flash .7s ease-out forwards}
+.pan.gain::before{background:radial-gradient(circle,#4cff8a66,#4cff8a00 70%)}.pan.hurt::before{background:radial-gradient(circle,#ff2e3e66,#ff2e3e00 70%)}
+@keyframes flash{from{opacity:1}to{opacity:0}}
+@keyframes gain{30%{transform:scale(1.14);color:#9dffb8;text-shadow:0 0 18px #4cff8a}}
+@keyframes hurt{25%{transform:translateX(-6px);color:#ff9aa2}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+.pan .life{transition:color .4s}.pan.lv-low .life{color:#ffd2b0}.pan.lv-crit .life{color:#ff9aa2}
+.pan .pbtns{position:relative;z-index:1;display:flex;gap:6px;margin-top:4px}
+.pan .pbtns button{background:#00000055;border-color:#ffffff66;font-size:12px;min-height:30px;padding:2px 10px}
+.pan .pbtns .po.on{background:#1f5a2acc;border-color:#7be08a;color:#c9ffd4}.pan .pbtns .po.hi{background:#3c8a2acc;border-color:#b6ff7a;animation:crit 1.2s infinite}
+.pan.spot{outline:4px solid #f2d49b;outline-offset:-4px;box-shadow:0 0 30px #f2d49b88}
+.pan.first{outline:5px solid #ffd84a;outline-offset:-5px;animation:firstp 1.4s ease-in-out 2}
+@keyframes firstp{50%{box-shadow:0 0 50px #ffd84acc}}
+.pan .crown{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:13px;background:#ffd84a;color:#3a2a00;border-radius:999px;padding:1px 10px;font-weight:700;z-index:2;pointer-events:none}
+.lfirst{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:#0008;padding:20px;animation:fadein .3s}
+.lfirst div{background:#141b1e;border:2px solid #ffd84a;border-radius:16px;padding:20px;max-width:340px;text-align:center;box-shadow:0 10px 40px #000a;animation:popin .35s cubic-bezier(.2,1.6,.4,1)}
+.lfirst button{background:#ffd84a!important;color:#2a1d00!important;border-color:#ffd84a!important;font-weight:700;min-width:120px}
+.lfirst b{display:block;font:700 26px var(--display);color:#ffd84a;margin:4px 0 8px}
+@keyframes fadein{from{opacity:0}}@keyframes popin{from{transform:scale(.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pan.gain .life,.pan.hurt .life,.pan.lv-crit::after,.pan.first,.lfirst div{animation:none}}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}.sheet.still{animation:none}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
 </head>
@@ -372,8 +399,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.6';
+const VERSION='4.7';
 const NEWS=[
+ ['4.7','Nov 27, 2026',['Life counter: each player has a poison button (☠) that turns green as it builds toward 10.','Partner commanders: commander damage is tracked per commander, split automatically for your partner decks and for opponent decks named like "Kydele + Miara". Tap Has partners? to split any opponent by hand.','Panels shift to amber, orange and a pulsing red as life drops, flash green when you gain life and shake red when you take damage.','Pick who goes first: a spotlight hops around the table and lands on someone, with a very good reason why.']],
  ['4.6','Nov 27, 2026',['Cards to finish later: when the scanner can\'t read a card\'s set, it saves a photo and puts the printing in a To finish list. For a card it can\'t read at all, tap Later to save a photo and keep scanning.','Collection → To finish goes through them all in one pass: type the name for unreadable cards, and tap the matching printing with your photo beside the choices.']],
  ['4.5','Nov 27, 2026',['The scanner now finds the printing too. Line the whole card up with the frame: after the name, it reads the set code and collector number printed at the bottom left (cards since 2014) and picks the matching printing.','Older cards, or ones it can\'t read: tap Pick printing and choose from pictures of every printing. A Foil switch marks foil copies.']],
  ['4.4','Nov 27, 2026',['Scan cards into a deck too: the Scan button on the Unsorted section, or Menu → Scan cards into this deck. Scanned cards land in Unsorted, ready for Sort. Turn on + Collection to add them to your collection at the same time.','Scan cards with the camera: Collection → Scan. Fit a card\'s name in the box and it is looked up on Scryfall and added to your collection, one copy per scan. Set where they\'re stored at the top.','Auto add can be switched to Ask first. Each scan can be undone, and a list shows everything scanned this time.','For cards the scanner can\'t read, type the name or use iPhone\'s Scan Text in the box at the bottom.']],
@@ -1266,14 +1294,32 @@ function drawLive(){const el=$('#live');const L=S.live;if(!L||!UI.liveOpen){el.h
   el.innerHTML=`<div class="lbar"><button class="sm" data-act="liveMin">‹ App</button><span class="grow" style="text-align:center">Turn <b class="num">${L.turn}</b></span><button class="sm" data-act="liveTurn">Next turn</button><button class="sm" data-act="liveMenu">Menu</button></div>
    ${alive.length===1?`<button class="lend" data-act="liveEnd">${esc(pname(alive[0].pid))} is the last one standing. End game</button>`:''}
    <div class="lgrid" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}">${ps.map((p,i)=>{const d=DELTA[p.pid];const art=artOf(p.pid,p.deck);const cd=Math.max(0,...Object.values(p.cd));
-     return`<div class="pan ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''}" style="background:${art?`linear-gradient(#000000a0,#000000a0),url('${esc(art)}') center/cover,`:''}${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
+     return`<div class="pan ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''} ${lvClass(p)} ${FX[p.pid]&&FX[p.pid].until>Date.now()?FX[p.pid].c:''}" data-pan="${p.pid}" style="background:${art?`linear-gradient(#000000a0,#000000a0),url('${esc(art)}') center/cover,`:''}${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">
       <button class="zone minus" data-life="-1" data-pid="${p.pid}" aria-label="Lower ${esc(pname(p.pid))}'s life">−</button><button class="zone plus" data-life="1" data-pid="${p.pid}" aria-label="Raise ${esc(pname(p.pid))}'s life">+</button>
-      <div class="who">${esc(pname(p.pid))}${p.deck?' · '+esc(p.deck):''}</div><div class="life" id="life-${p.pid}">${p.life}</div><div class="delta" id="delta-${p.pid}">${d?(d.d>0?'+':'')+d.d:''}</div>
-      <button class="more" data-act="liveDmg" data-pid="${p.pid}">${dead(p)?'Out · ':''}Cmdr ${cd}${p.poison?' · Poison '+p.poison:''}</button></div>`}).join('')}</div>`}
+      <div class="who">${esc(pname(p.pid))}${p.deck?' · '+esc(p.deck):''}</div><div class="life" id="life-${p.pid}">${p.life}</div><div class="delta" id="delta-${p.pid}">${d&&d.d?(d.d>0?'+':'')+d.d:''}</div>
+      ${L.first===p.pid&&L.turn===1?'<span class="crown">♛ Goes first</span>':''}
+      <div class="pbtns"><button data-act="liveDmg" data-pid="${p.pid}">${dead(p)?'Out · ':''}Cmdr ${cd}</button><button class="po ${p.poison?'on':''} ${p.poison>=7?'hi':''}" data-act="livePoison" data-pid="${p.pid}" aria-label="Poison counters: ${p.poison}">☠ ${p.poison}</button></div></div>`}).join('')}</div>${UI.firstMsg||''}`}
+/* who goes first: a spotlight hops between players, slows down and lands on one, then a reason nobody asked for */
+const FIRST_WHY=['the shuffle gods have spoken','they look like they need the head start','they brought the snacks','Mercury is in retrograde','someone has to eat the first Sol Ring','they blinked first','the dice were feeling generous','they have the most sleeves with holograms on them','their deck has been waiting all week for this','they said please (they did not say please)','it is their turn to make questionable keeps','the stack says so','they promised not to Cyclonic Rift turn one','it builds character','they are the least threatening person at the table (for now)','they are closest to the dice','the commander tax office approved it','their playmat is the shiniest','the bird picked them','destiny, and also math','someone has to draw first blood','they will absolutely forget an upkeep trigger','it is canon now','they have the best poker face','fate rolled a d20 and laughed','they just look like a blue player','the table needed a villain','vibes. strictly vibes','their commander demanded it','they won rock paper scissors in a past life'];
+let FIRST_T=null;
+function firstPick(){const L=S.live;const ps=L.players.filter(p=>!dead(p));if(ps.length<2)return;clearTimeout(FIRST_T);UI.firstMsg='';L.first=null;drawLive();
+  const win=Math.floor(Math.random()*ps.length);const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hops=reduce?0:ps.length*3+win+ (ps.length>2?2:4);let i=0,delay=70;
+  const step=()=>{document.querySelectorAll('#live .pan').forEach(e=>e.classList.remove('spot'));if(i>=hops){land();return}
+    const pid=ps[(i)%ps.length].pid;const el=document.querySelector('[data-pan="'+pid+'"]');if(el)el.classList.add('spot');i++;delay=delay*1.12+(i>hops-4?60:0);FIRST_T=setTimeout(step,delay)};
+  const land=()=>{const w=ps[reduce?win:(hops-1)%ps.length];L.first=w.pid;save();
+    const why=FIRST_WHY[Math.floor(Math.random()*FIRST_WHY.length)];
+    UI.firstMsg=`<div class="lfirst" data-act="firstOk"><div><span style="font-size:34px">♛</span><b>${esc(pname(w.pid))} goes first</b><span>…because ${esc(why)}.</span><br><br><button class="sm" data-act="firstOk">Let's play</button></div></div>`;
+    drawLive();const el=document.querySelector('[data-pan="'+w.pid+'"]');if(el)el.classList.add('first')};
+  if(reduce)land();else step()}
 /* life changes update in place so a held finger keeps its target */
-function bump(pid,n){const p=S.live&&S.live.players.find(p=>p.pid===pid);if(!p)return;p.life+=n;const d=DELTA[pid]||(DELTA[pid]={d:0});d.d+=n;clearTimeout(d.t);
+const FX={};
+function lvClass(p){const st=(S.live&&S.live.start)||40;const f=p.life/st;return p.life<=0||dead(p)?'':f<=.2?'lv-crit':f<=.4?'lv-low':f<=.6?'lv-mid':''}
+function panFx(pid,up){const el=document.querySelector('[data-pan="'+pid+'"]');const p=S.live&&S.live.players.find(x=>x.pid===pid);if(!el||!p)return;
+  el.classList.remove('lv-mid','lv-low','lv-crit');const c=lvClass(p);if(c)el.classList.add(c);el.classList.remove('gain','hurt');void el.offsetWidth;el.classList.add(up?'gain':'hurt');FX[pid]={c:up?'gain':'hurt',until:Date.now()+700};clearTimeout(el._fx);el._fx=setTimeout(()=>el.classList.remove('gain','hurt'),750)}
+function bump(pid,n){const p=S.live&&S.live.players.find(p=>p.pid===pid);if(!p)return;p.life+=n;panFx(pid,n>0);const d=DELTA[pid]||(DELTA[pid]={d:0});d.d+=n;clearTimeout(d.t);
   d.t=setTimeout(()=>{delete DELTA[pid];const e=$('#delta-'+pid);if(e)e.textContent=''},1800);
-  const l=$('#life-'+pid),e=$('#delta-'+pid);if(l)l.textContent=p.life;if(e)e.textContent=(d.d>0?'+':'')+d.d;save()}
+  const l=$('#life-'+pid),e=$('#delta-'+pid);if(l)l.textContent=p.life;if(e)e.textContent=d.d?(d.d>0?'+':'')+d.d:'';save()}
 document.addEventListener('pointerdown',ev=>{const z=ev.target.closest('[data-life]');if(!z)return;const pid=z.dataset.pid,dir=+z.dataset.life;if(hold)clearInterval(hold.t);
   hold={pid,dir,fired:false};hold.t=setInterval(()=>{hold.fired=true;bump(pid,dir*10)},550)});
 function endHold(ev){if(!hold)return;clearInterval(hold.t);if(!hold.fired&&ev.type==='pointerup')bump(hold.pid,hold.dir);hold=null;drawLive()}
@@ -1315,10 +1361,18 @@ async function convertStd(d){const ns=S.template.map(x=>({...x,id:uid()}));const
   if(tgt&&mass&&inter.length){const res=await matchSections(d,inter);const m=res.find(r=>r.s.id===mass.id),t=res.find(r=>r.s.id===tgt.id);
     inter.forEach(c=>{const isM=m&&m.names.has(c.n),isT=t&&t.names.has(c.n);if(isM&&!isT){c.s=mass.id;c.x=(c.x||[]).filter(i=>i!==mass.id)}else if(isM)shareInto(c,mass.id)})}
   return{kept:keep.map(k=>k.name),split:inter.length}}
-function dmgSheet(pid){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
+/* commanders a player can deal damage with: my partner decks, an opponent deck named like "Kydele + Miara", or a pair turned on by hand */
+function cmdsOf(o){const L=S.live;if(L.partners&&L.partners[o.pid])return L.partners[o.pid];
+  if(o.pid==='me'){const d=S.decks.find(d=>o.deck&&d.name.toLowerCase()===o.deck.toLowerCase());if(d&&d.cmd.length>1)return d.cmd.map(n=>n.split(',')[0].split(' // ')[0])}
+  const parts=(o.deck||'').split(/\s+(?:\+|&|\/|and)\s+/i).map(x=>x.trim()).filter(Boolean);return parts.length===2?parts.map(n=>n.split(',')[0]):null}
+const shortName=n=>n.length>18?n.slice(0,17)+'…':n;
+function dmgSheet(pid,focus){const L=S.live;const p=L.players.find(p=>p.pid===pid);const row=(label,val,dec,inc,extra)=>`<div class="row"><span class="grow">${label}</span><button class="sm" data-act="${dec}" data-pid="${pid}" ${extra} aria-label="One less">−</button><b class="num" style="min-width:26px;text-align:center">${val}</b><button class="sm" data-act="${inc}" data-pid="${pid}" ${extra} aria-label="One more">+</button></div>`;
+  const poison=`<div class="secbox" style="padding:10px 12px">${row('☠ Poison counters <span class="muted small">· 10 is out</span>',p.poison,'poDec','poInc','')}</div>`;
+  const cmdRows=L.players.filter(o=>o.pid!==pid).map(o=>{const cs=cmdsOf(o);const nm=esc(pname(o.pid));
+    const rows=cs?cs.map((c,i)=>row('From '+nm+"'s "+esc(shortName(c)),p.cd[o.pid+'#'+i]||0,'cdDec','cdInc',`data-from="${o.pid}#${i}"`)).join(''):row('From '+nm+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`);
+    return`<div class="secbox" style="padding:8px 12px">${rows}<div class="row"><span class="grow muted small">${cs?'Partners: damage is tracked per commander':'One commander'}</span>${!cs?`<button class="sm ghost" data-act="livePartner" data-pid="${pid}" data-o="${o.pid}">Has partners?</button>`:L.partners&&L.partners[o.pid]?`<button class="sm ghost" data-act="livePartner" data-pid="${pid}" data-o="${o.pid}">Make it one</button>`:''}</div></div>`}).join('');
   sheet(pname(pid),`<p class="muted small" style="margin:0">Commander damage also lowers life. 21 from one commander, 10 poison, or 0 life puts a player out.</p>
-   ${L.players.filter(o=>o.pid!==pid).map(o=>row('From '+esc(pname(o.pid))+"'s commander",p.cd[o.pid]||0,'cdDec','cdInc',`data-from="${o.pid}"`)).join('')}
-   ${row('Poison counters',p.poison,'poDec','poInc','')}`,`<button data-act="liveOut" data-pid="${pid}">${p.out?'Bring back into the game':'Mark as out (conceded)'}</button>`)}
+   ${focus==='poison'?poison+cmdRows:cmdRows+poison}`,`<button data-act="liveOut" data-pid="${pid}">${p.out?'Bring back into the game':'Mark as out (conceded)'}</button>`)}
 
 /* ================= actions ================= */
 const A={
@@ -1560,10 +1614,12 @@ Object.assign(A,{
   liveMin(){UI.liveOpen=false;drawLive();location.hash='play';rerender()},
   liveTurn(){S.live.turn++;save();drawLive()},
   liveDmg(e){dmgSheet(e.dataset.pid)},
-  cdInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.cd[e.dataset.from]=(p.cd[e.dataset.from]||0)+1;p.life--;save();dmgSheet(p.pid);drawLive()},
+  cdInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.cd[e.dataset.from]=(p.cd[e.dataset.from]||0)+1;p.life--;save();dmgSheet(p.pid);drawLive();panFx(p.pid,false)},
   cdDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(!p.cd[e.dataset.from])return;p.cd[e.dataset.from]--;p.life++;save();dmgSheet(p.pid);drawLive()},
-  poInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.poison++;save();dmgSheet(p.pid);drawLive()},
-  poDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(p.poison)p.poison--;save();dmgSheet(p.pid);drawLive()},
+  livePoison(e){dmgSheet(e.dataset.pid,'poison')},
+  livePartner(e){const L=S.live;L.partners=L.partners||{};const o=L.players.find(x=>x.pid===e.dataset.o);if(L.partners[o.pid])delete L.partners[o.pid];else{const g=cmdsOf(o);L.partners[o.pid]=g||['first commander','partner'];}save();dmgSheet(e.dataset.pid);drawLive()},
+  poInc(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.poison++;save();dmgSheet(p.pid,'poison');drawLive()},
+  poDec(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);if(p.poison)p.poison--;save();dmgSheet(p.pid,'poison');drawLive()},
   liveOut(e){const p=S.live.players.find(p=>p.pid===e.dataset.pid);p.out=!p.out;save();closeSheet();drawLive()},
   liveMenu(){sheet('Game menu',`<div class="list">
     <button class="item" data-act="liveEnd">End game and save the result</button>
@@ -1571,7 +1627,8 @@ Object.assign(A,{
     <button class="item" data-act="liveTable">${S.live.table?'Turn off table layout':'Table layout: flip the far side to face across'}</button>
     <button class="item" data-act="liveReset">Reset life totals</button>
     <button class="item danger" data-act="liveDiscardAsk">Discard this game without saving</button></div>`)},
-  liveFirst(){const ps=S.live.players;closeSheet();toast(pname(ps[Math.floor(Math.random()*ps.length)].pid)+' goes first')},
+  liveFirst(){closeSheet();firstPick()},
+  firstOk(){UI.firstMsg='';drawLive()},
   liveTable(){S.live.table=!S.live.table;save();closeSheet();drawLive()},
   liveReset(){S.live.players.forEach(p=>{p.life=S.live.start||40;p.poison=0;p.cd={};p.out=false});S.live.turn=1;DELTA={};save();closeSheet();drawLive()},
   liveEnd(){const L=S.live;const alive=L.players.filter(p=>!dead(p));resultSheet(L.players,{winner:alive.length===1?alive[0].pid:'',turns:L.turn},()=>{S.live=null;UI.liveOpen=false;drawLive()})},
