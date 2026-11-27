@@ -58,6 +58,8 @@ nav.tabs a{flex:1;text-align:center;padding:10px 4px;text-decoration:none;color:
 nav.tabs a b{display:block;font:700 15px var(--display)}
 nav.tabs a.on{color:var(--accent)}
 .list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.opp .star{background:none;border:0;border-radius:0;font-size:22px;min-width:46px;min-height:52px;color:var(--muted);padding:0}.opp .star.on{color:#d8a21a}
+.opp .oppb{flex:1;display:flex;align-items:center;gap:10px;background:none;border:0;border-radius:0;text-align:left;padding:10px 12px 10px 0;min-height:52px;color:inherit}
 .item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--line);min-height:46px;width:100%;text-align:left;background:none;border-radius:0;border-width:1px 0 0}
 .item:first-child{border-top:0}
 .item .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -264,7 +266,7 @@ body.sel{padding-bottom:calc(150px + env(safe-area-inset-bottom,0))}
 :root.bolt :is(.crow,.item,.cb){border-color:var(--line)}
 :root.bolt .stat b{font-family:var(--display);font-weight:400;font-size:20px}
 /* buttons raised, fields sunken */
-:root.bolt button:not(.ghost):not(.ttl):not(.crow):not(.item):not(.cb):not(.info):not(.zone):not(.tc):not(.stat):not(.grid button){border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff8c,inset -1px -1px 0 #00000026}
+:root.bolt button:not(.ghost):not(.ttl):not(.crow):not(.item):not(.cb):not(.info):not(.zone):not(.tc):not(.stat):not(.star):not(.oppb):not(.grid button){border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff8c,inset -1px -1px 0 #00000026}
 :root.bolt button.pri,:root.bolt a.btn.pri,:root.bolt .chip.on{border:1px solid var(--edge);border-radius:3px;box-shadow:inset 1px 1px 0 #ffffff40,inset -1px -1px 0 #00000059}
 :root.bolt .chip{border-radius:3px}
 :root.bolt :is(input,select,textarea){background:var(--field);border:1px solid var(--edge);border-radius:2px;box-shadow:inset 1px 1px 2px #00000040}
@@ -399,8 +401,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.7';
+const VERSION='4.8';
 const NEWS=[
+ ['4.8','Nov 27, 2026',['Favorite opponents: tap ☆ next to a name. Favorites stay at the top of the Opponents list and the New game picks, then everyone else is sorted by how many games they\'ve played with you.']],
  ['4.7','Nov 27, 2026',['Life counter: each player has a poison button (☠) that turns green as it builds toward 10.','Partner commanders: commander damage is tracked per commander, split automatically for your partner decks and for opponent decks named like "Kydele + Miara". Tap Has partners? to split any opponent by hand.','Panels shift to amber, orange and a pulsing red as life drops, flash green when you gain life and shake red when you take damage.','Pick who goes first: a spotlight hops around the table and lands on someone, with a very good reason why.']],
  ['4.6','Nov 27, 2026',['Cards to finish later: when the scanner can\'t read a card\'s set, it saves a photo and puts the printing in a To finish list. For a card it can\'t read at all, tap Later to save a photo and keep scanning.','Collection → To finish goes through them all in one pass: type the name for unreadable cards, and tap the matching printing with your photo beside the choices.']],
  ['4.5','Nov 27, 2026',['The scanner now finds the printing too. Line the whole card up with the frame: after the name, it reads the set code and collector number printed at the bottom left (cards since 2014) and picks the matching printing.','Older cards, or ones it can\'t read: tap Pick printing and choose from pictures of every printing. A Foil switch marks foil copies.']],
@@ -1256,18 +1259,21 @@ function deckOpts(i,name){const ds=deckNames(i,name)||[...new Set(S.players.filt
 /* commander art for a player's deck: my decks use their commander, opponents' decks match a card name */
 const artOf=(pid,deck)=>{if(!deck)return'';let c;if(pid==='me'){const d=S.decks.find(d=>d.name.toLowerCase()===deck.toLowerCase());c=d&&d.cmd[0]&&CARDS[d.cmd[0]]}c=c||CARDS[deck];return c&&c.img?img(c,'art_crop'):''};
 const dead=p=>p.out||p.life<=0||p.poison>=10||Object.values(p.cd).some(v=>v>=21);
+const vsMe=id=>S.games.filter(g=>g.players.some(x=>x.pid==='me')&&g.players.some(x=>x.pid===id)).length;
+const oppSort=(a,b)=>(!!b.fav-!!a.fav)||(vsMe(b.id)-vsMe(a.id))||a.name.localeCompare(b.name);
 function vPlay(){
   const mine=S.games.filter(g=>g.players.some(p=>p.pid==='me'));const dec=mine.filter(g=>g.winner);const wins=dec.filter(g=>g.winner==='me').length;
   const dk={};dec.forEach(g=>{const k=g.players.find(p=>p.pid==='me').deck||'Deck not recorded';dk[k]=dk[k]||{n:0,w:0};dk[k].n++;if(g.winner==='me')dk[k].w++});
   const pl=S.players.filter(p=>p.id!=='me').map(p=>{const gs=S.games.filter(g=>g.winner&&g.players.some(x=>x.pid===p.id));const wm=gs.filter(g=>g.players.some(x=>x.pid==='me'));
-    return{p,n:gs.length,tw:gs.filter(g=>g.winner===p.id).length,mn:wm.length,mw:wm.filter(g=>g.winner==='me').length}}).sort((a,b)=>b.n-a.n);
+    return{p,n:gs.length,tw:gs.filter(g=>g.winner===p.id).length,mn:wm.length,mw:wm.filter(g=>g.winner==='me').length}}).sort((a,b)=>oppSort(a.p,b.p));
   page('<h1>Play</h1>',S.live?'<button class="pri" data-act="liveOpen">Resume game</button>':'<button data-act="gameLog">Log a game</button><button class="pri" data-act="gameNew">New game</button>',`
    ${S.live?`<div class="empty">A game is in progress on turn ${S.live.turn}. Tap <b>Resume game</b> to go back to the life counter.</div>`:''}
    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${mine.length}</b><span>Games</span></div><div class="stat"><b class="num">${wins}</b><span>Wins</span></div><div class="stat"><b class="num">${pct(wins,dec.length)}</b><span>Win rate</span></div></div>
    ${S.games.length?'':`<div class="empty">No games logged yet. <b>New game</b> opens a life counter for the table and saves the result when you finish. <b>Log a game</b> records one you already played.</div>`}
    ${Object.keys(dk).length?`<h2>My decks</h2><div class="list">${Object.entries(dk).sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="num muted">${v.w}–${v.n-v.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(v.w,v.n)}</b></div>`).join('')}</div>`:''}
    <div class="row"><h2 class="grow">Opponents</h2><button class="sm" data-act="playerNew">Add opponent</button></div>
-   ${pl.length?`<div class="list">${pl.map(x=>`<button class="item" data-act="playerSheet" data-id="${x.p.id}"><span class="name" style="white-space:normal"><b>${esc(x.p.name)}</b>${TAGS[x.p.tag]?` <span class="muted small">${TAGS[x.p.tag][0]} ${TAGS[x.p.tag][1]}</span>`:''}<br><span class="muted small">${(k=>k+' deck'+(k===1?'':'s'))(Object.keys(pdecks(x.p)).filter(k=>k!==NODECK).length)} · ${x.n} game${x.n===1?'':'s'} · they win ${pct(x.tw,x.n)} · you win ${pct(x.mw,x.mn)} at their table</span></span><span class="muted">›</span></button>`).join('')}</div>`:'<div class="empty">No opponents yet. Add the people you play with and the decks they bring. They are also added automatically when you start or log a game.</div>'}
+   ${pl.length>1&&!pl.some(x=>x.p.fav)?'<p class="muted small" style="margin:-6px 0 0">Tap ☆ to keep someone at the top. The rest are sorted by games played with you.</p>':''}
+   ${pl.length?`<div class="list">${pl.map(x=>`<div class="item opp" style="padding:0 0 0 0"><button class="star ${x.p.fav?'on':''}" data-act="playerFav" data-id="${x.p.id}" aria-pressed="${!!x.p.fav}" aria-label="${x.p.fav?'Remove '+esc(x.p.name)+' from favorites':'Add '+esc(x.p.name)+' to favorites'}">${x.p.fav?'★':'☆'}</button><button class="oppb" data-act="playerSheet" data-id="${x.p.id}"><span class="name" style="white-space:normal"><b>${esc(x.p.name)}</b>${TAGS[x.p.tag]?` <span class="muted small">${TAGS[x.p.tag][0]} ${TAGS[x.p.tag][1]}</span>`:''}<br><span class="muted small">${(k=>k+' deck'+(k===1?'':'s'))(Object.keys(pdecks(x.p)).filter(k=>k!==NODECK).length)} · ${x.n} game${x.n===1?'':'s'} · they win ${pct(x.tw,x.n)} · you win ${pct(x.mw,x.mn)} at their table</span></span><span class="muted">›</span></button></div>`).join('')}</div>`:'<div class="empty">No opponents yet. Add the people you play with and the decks they bring. They are also added automatically when you start or log a game.</div>'}
    ${S.games.length?`<h2>Games</h2><div class="list">${S.games.map(g=>`<button class="item" data-act="gameSheet" data-id="${g.id}"><span class="name"><b>${g.winner?esc(pname(g.winner))+' won':'No winner'}</b><br><span class="muted small">${esc(g.date)} · ${g.players.map(p=>esc(pname(p.pid))).join(', ')}</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}`);
 }
 let GS=null,RES=null,DELTA={},hold=null;
@@ -1276,7 +1282,7 @@ function gameSetup(mode){const last=S.games[0];const me=S.players.find(p=>p.id==
   GS={mode,life:40,rows:[{name:me.name,deck:''},...others]};if(GS.rows.length<2)GS.rows.push({name:'',deck:''});drawGS()}
 function readGS(){document.querySelectorAll('.gsrow').forEach((r,i)=>{GS.rows[i].name=$('.gn',r).value.trim();GS.rows[i].deck=$('.gd',r).value.trim()});if($('#gLife'))GS.life=parseInt($('#gLife').value)||40}
 function drawGS(){const live=GS.mode==='live';const sb=$('#sheet .body');const top=sb?sb.scrollTop:0;const opps=S.players.filter(p=>p.id!=='me');const inGame=p=>GS.rows.some((r,i)=>i>0&&r.name.toLowerCase()===p.name.toLowerCase());const dn=[...new Set([...S.decks.map(d=>d.name),...S.games.flatMap(g=>g.players.map(p=>p.deck)).filter(Boolean)])];
-  sheet(live?'New game':'Log a past game',`${opps.length?`<label style="margin-top:0">Tap who is playing</label><div class="chips">${opps.map(p=>`<button class="chip ${inGame(p)?'on':''}" data-act="gsPick" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>`:''}
+  sheet(live?'New game':'Log a past game',`${opps.length?`<label style="margin-top:0">Tap who is playing</label><div class="chips">${opps.slice().sort(oppSort).map(p=>`<button class="chip ${inGame(p)?'on':''}" data-act="gsPick" data-id="${p.id}">${p.fav?'★ ':''}${esc(p.name)}</button>`).join('')}</div>`:''}
    <p class="muted small" style="margin:0">The first player is you. Type a name to add someone new, then tap one of their decks or type one.</p>
    ${GS.rows.map((r,i)=>`<div class="secbox gsrow"><div class="secrow" style="grid-template-columns:1fr 38px"><input class="gn" list="${i?'plist':''}" value="${esc(r.name)}" placeholder="${i?'Player name':'Your name'}" aria-label="Player ${i+1} name" autocomplete="off">${i>1?`<button class="sm danger" data-act="gsDel" data-i="${i}" aria-label="Remove player">✕</button>`:'<span></span>'}<input class="gd q" style="font-size:16px" list="dl${i}" value="${esc(r.deck)}" placeholder="${i?'Their commander or deck (optional)':'Your deck'}" aria-label="Player ${i+1} deck" autocomplete="off"><datalist id="dl${i}">${deckOpts(i,r.name)}</datalist>${(ds=>ds.length?`<div class="chips" style="grid-column:1/-1">${ds.slice(0,8).map(k=>`<button class="chip ${r.deck===k?'on':''}" data-act="gsDeck" data-i="${i}" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div>`:'')(deckNames(i,r.name)||[])}</div></div>`).join('')}
    <datalist id="plist">${S.players.filter(p=>p.id!=='me').map(p=>`<option value="${esc(p.name)}"></option>`).join('')}</datalist>
@@ -1328,7 +1334,8 @@ document.addEventListener('contextmenu',ev=>{if(ev.target.closest('#live,#test')
 function readPlayer(id){const p=S.players.find(p=>p.id===id);p.name=$('#plN').value.trim()||p.name;p.notes=$('#plNotes').value.trim();const d=$('#plD').value.trim();
   if(d&&!p.decks.some(x=>x.toLowerCase()===d.toLowerCase()))p.decks.push(d);return p}
 function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.filter(g=>g.players.some(x=>x.pid===id));const dk=pdecks(p);const dec=gs.filter(g=>g.winner);
-  sheet(p.name,`<label for="plN">Name</label><input id="plN" value="${esc(p.name)}" autocomplete="off">
+  sheet(p.name,`<button class="${p.fav?'pri':''}" data-act="playerFav" data-id="${id}" data-in="1">${p.fav?'★ Favorite':'☆ Add to favorites'}</button>
+   <label for="plN">Name</label><input id="plN" value="${esc(p.name)}" autocomplete="off">
    ${gs.length?`<p class="muted small" style="margin:0">${gs.length} game${gs.length===1?'':'s'} logged together. They won ${dec.filter(g=>g.winner===id).length}, you won ${dec.filter(g=>g.winner==='me').length}.</p>`:''}
    <label>Private tag</label><div class="chips">${Object.entries(TAGS).map(([k,[e,l]])=>`<button class="chip ${p.tag===k?'on':''}" data-act="playerTag" data-id="${id}" data-k="${k}">${e} ${l}</button>`).join('')}</div>
    <p class="muted small" style="margin:0">Only shown here and on your opponents list. It never appears in game setup or on the life counter.</p>
@@ -1640,6 +1647,7 @@ Object.assign(A,{
   playerSheet(e){openPlayer(e.dataset.id)},
   playerDeckAdd(e){const p=readPlayer(e.dataset.id);if(!$('#plD').value.trim())toast('Type a deck or commander name');save();openPlayer(p.id)},
   playerDeckSearch(e){const p=readPlayer(e.dataset.id);save();openSearch({k:'opp',pid:p.id},p.name+"'s commander")},
+  playerFav(e){const p=S.players.find(p=>p.id===e.dataset.id);if(!p)return;if(e.dataset.in)readPlayer(p.id);p.fav=!p.fav;save();if(e.dataset.in)openPlayer(p.id);rerender()},
   playerTag(e){const p=readPlayer(e.dataset.id);p.tag=p.tag===e.dataset.k?'':e.dataset.k;save();openPlayer(p.id)},
   playerDeckDel(e){const p=readPlayer(e.dataset.id);p.decks=p.decks.filter(d=>d!==e.dataset.k);save();openPlayer(p.id)},
   playerSave(e){readPlayer(e.dataset.id);save();closeSheet();rerender()},
