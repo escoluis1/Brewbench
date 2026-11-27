@@ -449,8 +449,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='5.2';
+const VERSION='5.3';
 const NEWS=[
+ ['5.3','Nov 27, 2026',['Friends: Play → Your code shares your name and your decks\' commanders under a friend code and QR code. Play → Add friend scans their QR or takes their code, then adds them as an opponent with all their decks and commander art. Update decks pulls their newest ones later.','Only your name and decks\' commanders are shared, and only while sharing is on. Needs you both signed in.']],
  ['5.2','Nov 27, 2026',['Set your name in Setup so games show it instead of "Me". Signing in with Google fills it in, and changing the first name in a new game updates it too.','Life counter art: soft edges now work on iPhone, and the player\'s color tints the background instead of an outline that looked like a stuck highlight.']],
  ['5.1','Nov 27, 2026',['Commander art in the life counter now always shows whole, centered behind the life total, in any panel shape and in landscape. Panels with art get a dark base and an outline in the player\'s color, so the red damage flash no longer looks green.']],
  ['5.0','Nov 27, 2026',['Pick the bracket when you set up or log a game (1 Exhibition to 5 cEDH). The Play tab shows your win rate and average game length for each bracket, plus average, fastest and longest games overall.','Life counter look: commander art shows whole at the top of the panel over a soft blurred copy, life totals use a classic carved font, the turn counter is a gold-trimmed plate, and names keep clear of it.']],
@@ -617,7 +618,7 @@ function cloudPayload(){const o={};for(const k in S)if(!LOCAL_ONLY.includes(k))o
 async function cloudPush(){const{fs}=CL.fb;const str=cloudPayload();const N=600000;const parts=[];for(let i=0;i<str.length;i+=N)parts.push(str.slice(i,i+N));
   const old=CL.meta?CL.meta.n||0:0;const at=Date.now();const b=fs.writeBatch(CL.fb.D);
   parts.forEach((p,i)=>b.set(partRef(i),{s:p}));for(let i=parts.length;i<old;i++)b.delete(partRef(i));
-  const meta={n:parts.length,at,dev:devName(),size:str.length};b.set(metaRef(),meta);await b.commit();CL.meta=meta;S.syncAt=at;save(false);writeNow()}
+  const meta={n:parts.length,at,dev:devName(),size:str.length};b.set(metaRef(),meta);await b.commit();CL.meta=meta;S.syncAt=at;save(false);writeNow();if(S.share)friendPublish().catch(()=>{})}
 async function cloudPull(meta){const{fs}=CL.fb;let str='';for(let i=0;i<meta.n;i++){const d=await fs.getDoc(partRef(i));if(!d.exists())throw new Error('Part of the online copy is missing. Try Sync now.');str+=d.data().s}
   const j=JSON.parse(str);const keep={};LOCAL_ONLY.forEach(k=>{if(S[k]!==undefined)keep[k]=S[k]});S=Object.assign(j,keep);norm();S.cards=CARDS;S.syncAt=meta.at;S.changed=meta.at;CL.meta=meta;
   save(false);writeNow();applyLook&&applyLook();if($('#sheet').hidden)rerender();hydrate()}
@@ -1312,7 +1313,7 @@ function deckNames(i,name){let ds;if(!i)ds=[...S.decks.map(d=>d.name),...S.games
   return[...new Set(ds.filter(d=>d&&d!==NODECK))]}
 function deckOpts(i,name){const ds=deckNames(i,name)||[...new Set(S.players.filter(p=>p.id!=='me').flatMap(p=>p.decks))];return ds.map(d=>`<option value="${esc(d)}"></option>`).join('')}
 /* commander art for a player's deck: my decks use their commander, opponents' decks match a card name */
-const artOf=(pid,deck)=>{if(!deck)return'';let c;if(pid==='me'){const d=S.decks.find(d=>d.name.toLowerCase()===deck.toLowerCase());c=d&&d.cmd[0]&&CARDS[d.cmd[0]]}c=c||CARDS[deck];return c&&c.img?img(c,'art_crop'):''};
+const artOf=(pid,deck)=>{if(!deck)return'';let c;if(pid==='me'){const d=S.decks.find(d=>d.name.toLowerCase()===deck.toLowerCase());c=d&&d.cmd[0]&&CARDS[d.cmd[0]]}c=c||CARDS[deck]||CARDS[deck.split(/\s+(?:\+|&|\/)\s+/)[0]];return c&&c.img?img(c,'art_crop'):''};
 const dead=p=>p.out||p.life<=0||p.poison>=10||Object.values(p.cd).some(v=>v>=21);
 const vsMe=id=>S.games.filter(g=>g.players.some(x=>x.pid==='me')&&g.players.some(x=>x.pid===id)).length;
 const oppSort=(a,b)=>(!!b.fav-!!a.fav)||(vsMe(b.id)-vsMe(a.id))||a.name.localeCompare(b.name);
@@ -1329,7 +1330,7 @@ function vPlay(){
      return by.length?`<h2>By bracket</h2><div class="list">${by.map(x=>`<div class="item"><span class="name"><b>${x.b} · ${BRACKETS[x.b]}</b><br><span class="muted small">${x.n} game${x.n===1?'':'s'} · avg ${x.t} turns</span></span><span class="num muted">${x.w}–${x.d-x.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(x.w,x.d)}</b></div>`).join('')}</div>`:''})()}
    ${S.games.length?'':`<div class="empty">No games logged yet. <b>New game</b> opens a life counter for the table and saves the result when you finish. <b>Log a game</b> records one you already played.</div>`}
    ${Object.keys(dk).length?`<h2>My decks</h2><div class="list">${Object.entries(dk).sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="num muted">${v.w}–${v.n-v.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(v.w,v.n)}</b></div>`).join('')}</div>`:''}
-   <div class="row"><h2 class="grow">Opponents</h2><button class="sm" data-act="playerNew">Add opponent</button></div>
+   <div class="row"><h2 class="grow">Opponents</h2><button class="sm" data-act="myCode">Your code</button><button class="sm" data-act="addFriend">Add friend</button><button class="sm" data-act="playerNew">Add</button></div>
    ${pl.length>1&&!pl.some(x=>x.p.fav)?'<p class="muted small" style="margin:-6px 0 0">Tap ☆ to keep someone at the top. The rest are sorted by games played with you.</p>':''}
    ${pl.length?`<div class="list">${pl.map(x=>`<div class="item opp" style="padding:0 0 0 0"><button class="star ${x.p.fav?'on':''}" data-act="playerFav" data-id="${x.p.id}" aria-pressed="${!!x.p.fav}" aria-label="${x.p.fav?'Remove '+esc(x.p.name)+' from favorites':'Add '+esc(x.p.name)+' to favorites'}">${x.p.fav?'★':'☆'}</button><button class="oppb" data-act="playerSheet" data-id="${x.p.id}"><span class="name" style="white-space:normal"><b>${esc(x.p.name)}</b>${TAGS[x.p.tag]?` <span class="muted small">${TAGS[x.p.tag][0]} ${TAGS[x.p.tag][1]}</span>`:''}<br><span class="muted small">${(k=>k+' deck'+(k===1?'':'s'))(Object.keys(pdecks(x.p)).filter(k=>k!==NODECK).length)} · ${x.n} game${x.n===1?'':'s'} · they win ${pct(x.tw,x.n)} · you win ${pct(x.mw,x.mn)} at their table</span></span><span class="muted">›</span></button></div>`).join('')}</div>`:'<div class="empty">No opponents yet. Add the people you play with and the decks they bring. They are also added automatically when you start or log a game.</div>'}
    ${S.games.length?`<h2>Games</h2><div class="list">${S.games.map(g=>`<button class="item" data-act="gameSheet" data-id="${g.id}"><span class="name"><b>${g.winner?esc(pname(g.winner))+' won':'No winner'}</b><br><span class="muted small">${esc(g.date)}${g.bracket?' · B'+g.bracket:''}${g.turns?' · '+g.turns+' turns':''} · ${g.players.map(p=>esc(pname(p.pid))).join(', ')}</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}`);
@@ -1399,6 +1400,7 @@ function openPlayer(id){const p=S.players.find(p=>p.id===id);const gs=S.games.fi
    ${gs.length?`<p class="muted small" style="margin:0">${gs.length} game${gs.length===1?'':'s'} logged together. They won ${dec.filter(g=>g.winner===id).length}, you won ${dec.filter(g=>g.winner==='me').length}.</p>`:''}
    <label>Private tag</label><div class="chips">${Object.entries(TAGS).map(([k,[e,l]])=>`<button class="chip ${p.tag===k?'on':''}" data-act="playerTag" data-id="${id}" data-k="${k}">${e} ${l}</button>`).join('')}</div>
    <p class="muted small" style="margin:0">Only shown here and on your opponents list. It never appears in game setup or on the life counter.</p>
+   ${p.friend?`<div class="secbox" style="padding:10px 12px;display:flex;gap:8px;align-items:center"><span class="grow small">Friend · code <b class="num">${esc(p.friend.code)}</b><br><span class="muted">Their decks come from their app.</span></span><button class="sm" data-act="frUpdate" data-id="${id}">Update decks</button></div>`:''}
    <label for="plD">Decks they play</label>
    ${Object.keys(dk).length?`<div class="list">${Object.entries(dk).map(([k,v])=>{const a=artOf(id,k);return`<div class="item" style="min-height:66px;${a?`background:linear-gradient(90deg,var(--surface) 42%,transparent),url('${esc(a)}') right center/58% auto no-repeat`:''}"><span class="name"><b>${esc(k)}</b><br><span class="muted small num">${v.n?v.n+' game'+(v.n===1?'':'s')+' · '+v.w+' win'+(v.w===1?'':'s'):'No games yet'}</span></span>${v.saved&&!v.n?`<button class="sm danger" data-act="playerDeckDel" data-id="${id}" data-k="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`:''}</div>`}).join('')}</div>`:''}
    <button class="pri" data-act="playerDeckSearch" data-id="${id}">Find their commander on Scryfall</button>
@@ -1874,6 +1876,67 @@ Object.assign(A,{
 });
 document.addEventListener('change',ev=>{if(ev.target&&ev.target.id==='setMe'){const me=S.players.find(p=>p.id==='me');const v=ev.target.value.trim();if(me&&v){me.name=v;save();toast('Saved. You show up as '+v)}}});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target&&ev.target.id==='tdQ'){ev.preventDefault();A.todoFind()}});
+/* ---- Friends: a small public card (name + deck commanders) under a friend code, readable by signed-in users who have the code ---- */
+const FCODE_CH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function newCode(){let c='';crypto.getRandomValues(new Uint8Array(6)).forEach(x=>c+=FCODE_CH[x%FCODE_CH.length]);return c}
+function myCode(){if(!S.fcode){S.fcode=newCode();save()}return S.fcode}
+const deckLabel=d=>d.cmd.map(n=>n.split(' // ')[0]).join(' + ');
+function friendCard(){const me=S.players.find(p=>p.id==='me');return{uid:CL.user.uid,name:(me&&me.name&&me.name!=='Me'?me.name:'')||'A friend',decks:S.decks.filter(d=>d.cmd.length).map(d=>({label:deckLabel(d),name:d.name,cmd:d.cmd})).slice(0,80),at:Date.now()}}
+async function friendPublish(force){if(!S.share||!CL.user||!CL.fb)return;const card=friendCard();const sig=JSON.stringify([card.name,card.decks]);if(!force&&sig===S.shareSig)return;const{fs}=CL.fb;
+  try{await fs.setDoc(fs.doc(CL.fb.D,'profiles',myCode()),card)}catch(e){if(/permission/i.test((e&&e.code)||'')&&!force){S.fcode=newCode();await fs.setDoc(fs.doc(CL.fb.D,'profiles',S.fcode),card)}else throw e}
+  S.shareSig=sig;save(false)}
+async function friendUnpublish(){if(!CL.user||!CL.fb||!S.fcode)return;const{fs}=CL.fb;try{await fs.deleteDoc(fs.doc(CL.fb.D,'profiles',S.fcode))}catch(e){}S.shareSig=''}
+async function friendFetch(code){const fb=CL.fb;const d=await fb.fs.getDoc(fb.fs.doc(fb.D,'profiles',code));return d.exists()?d.data():null}
+const friendLink=c=>location.origin+location.pathname+'#friend='+c;
+const needSignIn=()=>`<p style="margin:0">Friend codes need an account, so sign in first in Setup → Account and sync. It's free.</p><button class="pri" data-act="goSetup">Go to Setup</button>`;
+async function qrSvg(text){await loadScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js');const q=qrcode(0,'M');q.addData(text);q.make();return q.createSvgTag({cellSize:6,margin:3,scalable:true})}
+async function myCodeSheet(){if(!CL.user){sheet('Your friend code',needSignIn());return}
+  if(!S.share){sheet('Your friend code',`<p style="margin:0">Turn on sharing to get a code friends can use to add you and your decks.</p>
+    <p class="muted small" style="margin:0">Shared: your name and each deck's name and commanders. Not shared: your collection, decks' cards, games, opponents or tags. Anyone you give the code to can see it while sharing is on.</p>
+    <button class="pri" data-act="shareOn">Share my decks</button>`);return}
+  const c=myCode();sheet('Your friend code',`<div style="text-align:center"><div style="font:700 34px var(--display);letter-spacing:.18em;font-variant-numeric:lining-nums">${c}</div>
+    <div id="qrBox" style="width:min(240px,70vw);margin:8px auto;background:#fff;border-radius:10px;padding:4px"><div class="empty">Making the QR code…</div></div></div>
+   <p class="muted small" style="margin:0">Have your friend open Bolt the Bird → Play → Add friend, then scan this or type the code. Your ${S.decks.filter(d=>d.cmd.length).length} decks with a commander are shared and update when you change them.</p>
+   <div class="row wrapf"><button data-act="codeCopy">Copy code</button><button data-act="codeShare">Send link</button><button class="danger" data-act="shareOff">Stop sharing</button></div>`);
+  try{await friendPublish()}catch(e){toast(cloudErr(e))}
+  try{const svg=await qrSvg(friendLink(c));const b=$('#qrBox');if(b)b.innerHTML=svg}catch(e){const b=$('#qrBox');if(b)b.innerHTML='<div class="empty">The QR code could not load. Use the code above.</div>'}}
+function addFriendSheet(code){if(!CL.user){sheet('Add a friend',needSignIn());return}
+  sheet('Add a friend',`<p class="muted small" style="margin:0">Ask your friend for their code: Play → Your code in their app.</p>
+   <div class="row"><input id="frC" class="grow" value="${esc(code||'')}" placeholder="Friend code" autocapitalize="characters" autocomplete="off" maxlength="12" style="text-transform:uppercase;letter-spacing:.12em" aria-label="Friend code"><button class="pri" data-act="frFind">Find</button></div>
+   <button data-act="frScan">Scan their QR code</button><div id="frOut"></div>`);if(code)A.frFind()}
+async function frShow(code){const out=$('#frOut');out.innerHTML='<div class="empty">Looking up…</div>';let card=null;try{card=await friendFetch(code)}catch(e){out.innerHTML=`<div class="empty">${esc(cloudErr(e))}</div>`;return}
+  if(!card){out.innerHTML='<div class="empty">No one is sharing with that code. Check it, or ask them to turn on sharing.</div>';return}
+  if(card.uid===CL.user.uid){out.innerHTML='<div class="empty">That\'s your own code.</div>';return}
+  UI.frCard={...card,code};const same=S.players.find(p=>p.id!=='me'&&(p.friend&&p.friend.uid===card.uid||p.name.toLowerCase()===card.name.toLowerCase()));
+  out.innerHTML=`<div class="secbox" style="padding:12px;display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">${esc(card.name)}</b><span class="muted small">${card.decks.length} deck${card.decks.length===1?'':'s'}</span>
+   <div class="chips">${card.decks.map(d=>`<span class="chip" style="cursor:default">${esc(d.label)}</span>`).join('')}</div>
+   ${same?`<button class="pri" data-act="frAdd" data-into="${same.id}">Link to your opponent ${esc(same.name)}</button><button data-act="frAdd">Add as a new opponent</button>`:`<button class="pri" data-act="frAdd">Add ${esc(card.name)}</button>`}</div>`}
+async function frMerge(p,card){p.friend={code:card.code,uid:card.uid,at:Date.now()};card.decks.forEach(d=>{if(!p.decks.some(x=>x.toLowerCase()===d.label.toLowerCase()))p.decks.push(d.label)});
+  save();try{await byNames([...new Set(card.decks.flatMap(d=>d.cmd))])}catch(e){}}
+/* QR scanning inside the app (the iPhone camera app would open Safari, which keeps separate data) */
+const FRQ={stream:null,t:null};
+async function frScanStart(){sheet('Scan a friend code',`<video id="frV" playsinline muted autoplay style="width:100%;border-radius:10px;background:#000;aspect-ratio:1;object-fit:cover"></video><p class="muted small" id="frS" style="margin:0">Point the camera at their QR code.</p>`,`<button data-act="frScanStop">Cancel</button>`);
+  try{await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js');FRQ.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});const v=$('#frV');v.srcObject=FRQ.stream;await v.play().catch(()=>{});
+    const c=document.createElement('canvas'),x=c.getContext('2d',{willReadFrequently:true});
+    FRQ.t=setInterval(()=>{const v=$('#frV');if(!v||!v.videoWidth){if(!v)frScanStop();return}const w=480,h=Math.round(v.videoHeight*w/v.videoWidth);c.width=w;c.height=h;x.drawImage(v,0,0,w,h);const r=jsQR(x.getImageData(0,0,w,h).data,w,h);
+      if(r&&r.data){const m=/friend=([A-Z0-9]{6})/i.exec(r.data)||/^([A-Z0-9]{6})$/i.exec(r.data.trim());if(m){frScanStop();addFriendSheet(m[1].toUpperCase())}}},300)}
+  catch(e){const s=$('#frS');if(s)s.textContent='The camera or QR reader is not available. Type the code instead.'}}
+function frScanStop(){clearInterval(FRQ.t);FRQ.t=null;if(FRQ.stream){FRQ.stream.getTracks().forEach(t=>t.stop());FRQ.stream=null}}
+Object.assign(A,{
+  myCode(){myCodeSheet()},addFriend(){addFriendSheet('')},goSetup(){closeSheet();location.hash='setup'},
+  async shareOn(){S.share=true;save();try{await friendPublish(true)}catch(e){toast(cloudErr(e))}myCodeSheet()},
+  async shareOff(){S.share=false;await friendUnpublish();save();closeSheet();toast('Stopped sharing your decks')},
+  codeCopy(){copyNow(myCode());toast('Code copied')},
+  async codeShare(){const t='Add me on Bolt the Bird: friend code '+myCode()+'\n'+friendLink(myCode());try{if(navigator.share){await navigator.share({text:t});return}}catch(e){if(e&&e.name==='AbortError')return}copyNow(t);toast('Copied, paste it in a message')},
+  frFind(){const c=($('#frC').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(c.length<6){toast('Friend codes have 6 letters and numbers');return}$('#frC').value=c;frShow(c)},
+  frScan(){frScanStart()},frScanStop(){frScanStop();addFriendSheet('')},
+  async frAdd(e){const card=UI.frCard;if(!card)return;let p=e.dataset.into?S.players.find(x=>x.id===e.dataset.into):null;if(!p){p={id:uid(),name:card.name,decks:[],notes:''};S.players.push(p)}
+    await frMerge(p,card);toast(card.name+' added with '+card.decks.length+' deck'+(card.decks.length===1?'':'s'));rerender();openPlayer(p.id)},
+  async frUpdate(e){const p=S.players.find(x=>x.id===e.dataset.id);if(!p||!p.friend)return;if(!CL.user){toast('Sign in first');return}let card=null;try{card=await friendFetch(p.friend.code)}catch(err){toast(cloudErr(err));return}
+    if(!card||card.uid!==p.friend.uid){toast(p.name+' stopped sharing, or changed their code');return}const before=p.decks.length;await frMerge(p,{...card,code:p.friend.code});toast(p.decks.length>before?(p.decks.length-before)+' new deck'+(p.decks.length-before===1?'':'s'):'Already up to date');openPlayer(p.id)}
+});
+const _sheetClose=closeSheet;closeSheet=function(){frScanStop();return _sheetClose.apply(this,arguments)};
+window.addEventListener('hashchange',()=>{const m=/#friend=([A-Z0-9]{6})/i.exec(location.hash);if(m){history.replaceState(null,'',location.pathname+'#play');rerender();setTimeout(()=>addFriendSheet(m[1].toUpperCase()),300)}});
 /* ================= deck tester ================= */
 let T=null;const TOK={};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
@@ -2198,7 +2261,7 @@ document.addEventListener('focusout',e=>{if(!isField(e.target))return;setTimeout
 function fitVV(){const v=window.visualViewport;if(!v)return;const r=document.documentElement.style;r.setProperty('--vh',v.height+'px');r.setProperty('--vt',v.offsetTop+'px')}
 try{if(window.visualViewport){visualViewport.addEventListener('scroll',fitVV);fitVV()}}catch(e){}
 try{if(window.visualViewport)visualViewport.addEventListener('resize',()=>{fitVV();const open=visualViewport.height<window.innerHeight*.8;document.body.classList.toggle('kb',open&&isField(document.activeElement));if(open)setTimeout(()=>keepInView(document.activeElement),30);if(!open)window.scrollTo(window.scrollX,window.scrollY)})}catch(e){}
-load().then(()=>{route();hydrate();if(S.cloudUser){CL.state='loading';fbLoad().catch(e=>{CL.state='error';CL.err=cloudErr({code:'unavailable'});cloudRefresh()})}try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
+load().then(()=>{if(/#friend=/i.test(location.hash))setTimeout(()=>window.dispatchEvent(new HashChangeEvent('hashchange')),600);route();hydrate();if(S.cloudUser){CL.state='loading';fbLoad().catch(e=>{CL.state='error';CL.err=cloudErr({code:'unavailable'});cloudRefresh()})}try{if(hasData()&&navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}});
 </script>
 </body>
 </html>
