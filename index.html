@@ -408,11 +408,14 @@ html.desk .tc.dragging{opacity:.35}
 /* tracker look */
 .pan .pbg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(16px) brightness(.42) saturate(1.1);pointer-events:none}
 .pan .part{position:absolute;inset:0;background-size:contain;background-repeat:no-repeat;background-position:center;pointer-events:none;
-  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 9%,#000 91%,transparent),linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);-webkit-mask-composite:source-in;
-  mask-image:linear-gradient(to bottom,transparent,#000 9%,#000 91%,transparent),linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);mask-composite:intersect}
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,transparent calc(50% - 36.5cqw),#000 calc(50% - 26cqw),#000 calc(50% + 26cqw),transparent calc(50% + 36.5cqw),transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,transparent calc(50% - 36.5cqw),#000 calc(50% - 26cqw),#000 calc(50% + 26cqw),transparent calc(50% + 36.5cqw),transparent 100%)}
+@container (min-aspect-ratio:137/100){.pan .part{
+  -webkit-mask-image:linear-gradient(to right,transparent 0,transparent calc(50% - 68cqh),#000 calc(50% - 54cqh),#000 calc(50% + 54cqh),transparent calc(50% + 68cqh),transparent 100%);
+  mask-image:linear-gradient(to right,transparent 0,transparent calc(50% - 68cqh),#000 calc(50% - 54cqh),#000 calc(50% + 54cqh),transparent calc(50% + 68cqh),transparent 100%)}}
+.pan .ptint{position:absolute;inset:0;background:var(--pc);opacity:.38;pointer-events:none}
 .pan.hasart{background:#0b0e0f!important}
-.pan .pring{position:absolute;inset:0;border:3px solid var(--pc);border-radius:12px;pointer-events:none;z-index:2}
-.pan.spot .pring,.pan.first .pring{border-color:#ffd84a}
+
 .pan.hasart .pbg{inset:-40px;filter:blur(18px) brightness(.5) saturate(1.1)}
 .pan.hasart .who{text-shadow:0 1px 2px #000,0 0 10px #000}
 .pan .life{font-family:"Cinzel","Trajan Pro",Georgia,serif!important;font-weight:700;letter-spacing:-.02em;font-variant-numeric:lining-nums tabular-nums;text-shadow:0 2px 3px #000c,0 0 24px #000a;position:relative;z-index:1}
@@ -446,8 +449,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='5.1';
+const VERSION='5.2';
 const NEWS=[
+ ['5.2','Nov 27, 2026',['Set your name in Setup so games show it instead of "Me". Signing in with Google fills it in, and changing the first name in a new game updates it too.','Life counter art: soft edges now work on iPhone, and the player\'s color tints the background instead of an outline that looked like a stuck highlight.']],
  ['5.1','Nov 27, 2026',['Commander art in the life counter now always shows whole, centered behind the life total, in any panel shape and in landscape. Panels with art get a dark base and an outline in the player\'s color, so the red damage flash no longer looks green.']],
  ['5.0','Nov 27, 2026',['Pick the bracket when you set up or log a game (1 Exhibition to 5 cEDH). The Play tab shows your win rate and average game length for each bracket, plus average, fastest and longest games overall.','Life counter look: commander art shows whole at the top of the panel over a soft blurred copy, life totals use a classic carved font, the turn counter is a gold-trimmed plate, and names keep clear of it.']],
  ['4.9','Nov 27, 2026',['Rare counters stay out of the way: each panel has one Damage & counters button. Poison, radiation, energy, experience, the Monarch, the Initiative and the City\'s Blessing only appear on a panel once someone has them.','Life counter uses the screen better: the top bar is gone, life totals are about twice as big and fill each panel, and the turn counter sits in a small hub in the middle of the table (tap it for the next turn, ⋯ for the menu).','Commander damage you have taken shows on your panel as chips in the attacker\'s color. The menu has Back to the app and Back one turn.']],
@@ -603,7 +607,7 @@ async function fbLoad(){if(CL.fb)return CL.fb;const u='https://www.gstatic.com/f
   const [app,auth,fs]=await Promise.all([import(u+'firebase-app.js'),import(u+'firebase-auth.js'),import(u+'firebase-firestore.js')]);
   const a=app.initializeApp(FB_CFG);CL.fb={auth,fs,A:auth.getAuth(a),D:fs.getFirestore(a)};
   auth.onAuthStateChanged(CL.fb.A,u=>{const was=CL.user&&CL.user.uid;CL.user=u||null;if(CL.unsub){CL.unsub();CL.unsub=null}
-    if(u){S.cloudUser=u.email||'signed in';save(false);CL.unsub=fs.onSnapshot(metaRef(),snap=>{const m=snap.exists()?snap.data():null;if(m&&m.at>(S.syncAt||0)&&!CL.busy)cloudCheck('remote')},()=>{});if(was!==u.uid)cloudCheck('start')}
+    if(u){S.cloudUser=u.email||'signed in';const me=S.players.find(p=>p.id==='me');if(me&&(!me.name||me.name==='Me')&&u.displayName){me.name=u.displayName.split(' ')[0];save()}save(false);CL.unsub=fs.onSnapshot(metaRef(),snap=>{const m=snap.exists()?snap.data():null;if(m&&m.at>(S.syncAt||0)&&!CL.busy)cloudCheck('remote')},()=>{});if(was!==u.uid)cloudCheck('start')}
     else{CL.state='off';CL.meta=null;if(S.cloudUser){S.cloudUser='';save(false)}}
     cloudRefresh()});
   return CL.fb}
@@ -1052,6 +1056,7 @@ function vSetup(){storageInfo().then(o=>{const e=$('#stInfo');if(!e)return;const
    <div class="secbox" style="padding:12px">${newsHtml(NEWS.slice(0,1))}</div>
    <div class="row"><h2 class="grow">Default sections</h2><button class="sm" data-act="editTemplate">Edit</button></div>
    <p class="muted small" style="margin:0">Every new deck starts with these: ${S.template.map(x=>esc(x.name)+' '+(x.flex?'about ':'')+x.target).join(' · ')}.</p>
+   <label for="setMe" style="margin-top:0">Your name <span class="muted small">· shown in games and the life counter</span></label><input id="setMe" value="${esc((S.players.find(p=>p.id==='me')||{}).name||'')}" placeholder="Your name" autocomplete="given-name">
    <h2>Look</h2>
    <p class="muted small" style="margin:0">Old card frames in each color, or the original plain look.</p>
    <div class="chips">${Object.entries(LOOKS).map(([k,l])=>`<button class="chip ${(LOOKS[S.look]?S.look:S.look==='plain'?'':'R')===k?'on':''}" data-act="look" data-v="${k}"><span class="pip ${k}" style="margin-right:6px">${k}</span>${l}</button>`).join('')}<button class="chip ${S.look==='plain'?'on':''}" data-act="look" data-v="plain">Original</button></div>
@@ -1355,7 +1360,7 @@ function drawLive(){const el=$('#live');const L=S.live;if(!L||!UI.liveOpen){el.h
   el.innerHTML=`${alive.length===1?`<button class="lend" data-act="liveEnd">${esc(pname(alive[0].pid))} is the last one standing. End game</button>`:''}
    <div class="lgrid ${n>2?'two':'one'}" style="grid-template-columns:${n>2?'1fr 1fr':'1fr'}"><div class="lhub" style="top:${(r=>Math.floor(r/2)/r*100)(n>2?Math.ceil(n/2):n)}%"><button class="ht" data-act="liveTurn" aria-label="Turn ${L.turn}. Tap for the next turn"><small>Turn</small><b>${L.turn}</b><i>›</i></button><button class="hm" data-act="liveMenu" aria-label="Game menu">⋯</button></div>${ps.map((p,i)=>{const d=DELTA[p.pid];const art=artOf(p.pid,p.deck);const cd=Math.max(0,...Object.values(p.cd));
      const side=n>2&&!(n%2&&i===n-1)?(i%2?'cR':'cL'):'';
-     return`<div class="pan ${side} ${art?'hasart':''} ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''} ${lvClass(p)} ${FX[p.pid]&&FX[p.pid].until>Date.now()?FX[p.pid].c:''}" data-pan="${p.pid}" style="--pc:${PCOL[L.players.indexOf(p)%6]};background:${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">${art?`<div class="pbg" style="background-image:url('${esc(art)}')"></div><div class="part" style="background-image:url('${esc(art)}')"></div><div class="pring"></div>`:''}
+     return`<div class="pan ${side} ${art?'hasart':''} ${L.table&&i<Math.floor(n/2)?'rot':''} ${dead(p)?'out':''} ${lvClass(p)} ${FX[p.pid]&&FX[p.pid].until>Date.now()?FX[p.pid].c:''}" data-pan="${p.pid}" style="--pc:${PCOL[L.players.indexOf(p)%6]};background:${PCOL[L.players.indexOf(p)%6]};${n>2&&n%2&&i===n-1?'grid-column:1/-1':''}">${art?`<div class="pbg" style="background-image:url('${esc(art)}')"></div><div class="ptint"></div><div class="part" style="background-image:url('${esc(art)}')"></div>`:''}
       <button class="zone minus" data-life="-1" data-pid="${p.pid}" aria-label="Lower ${esc(pname(p.pid))}'s life">−</button><button class="zone plus" data-life="1" data-pid="${p.pid}" aria-label="Raise ${esc(pname(p.pid))}'s life">+</button>
       <div class="who">${esc(pname(p.pid))}${p.deck?' · '+esc(p.deck):''}</div><div class="life" id="life-${p.pid}">${p.life}</div><div class="delta" id="delta-${p.pid}">${d&&d.d?(d.d>0?'+':'')+d.d:''}</div>
       ${L.first===p.pid&&L.turn===1?'<span class="crown">♛ Goes first</span>':''}${cdChips(p)}
@@ -1679,6 +1684,7 @@ Object.assign(A,{
   gsGo(){readGS();const rows=GS.rows.filter((r,i)=>i===0||r.name);if(rows.length<2){toast('Add at least one other player');return}
     const low=rows.map(r=>r.name.toLowerCase());if(new Set(low).size<low.length){toast('Two players have the same name');return}
     const me=S.players.find(p=>p.id==='me');if(rows[0].name)me.name=rows[0].name;
+    {const me=S.players.find(p=>p.id==='me'),v=(rows[0].name||'').trim();if(me&&v&&v!==me.name)me.name=v}
     const players=rows.map((r,i)=>{if(!i)return{pid:'me',deck:r.deck};let p=S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===r.name.toLowerCase());if(!p){p={id:uid(),name:r.name,decks:[],notes:''};S.players.push(p)}return{pid:p.id,deck:r.deck}});learnDecks(players);
     save();
     S.lastBracket=GS.bracket||0;
@@ -1866,6 +1872,7 @@ Object.assign(A,{
   todoPick(e){const t=(S.todo||[]).find(x=>x.id===UI.tdId);const p=(UI.tdPrints||[])[+e.dataset.i];if(!t||!p)return;if(owned(t.n))S.prt[t.n]={...p,foil:!!t.foil&&!!(p.pf||!p.p)};todoRemove(t.id);todoNext()},
   todoAny(){todoRemove(UI.tdId);todoNext()}
 });
+document.addEventListener('change',ev=>{if(ev.target&&ev.target.id==='setMe'){const me=S.players.find(p=>p.id==='me');const v=ev.target.value.trim();if(me&&v){me.name=v;save();toast('Saved. You show up as '+v)}}});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target&&ev.target.id==='tdQ'){ev.preventDefault();A.todoFind()}});
 /* ================= deck tester ================= */
 let T=null;const TOK={};
