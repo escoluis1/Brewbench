@@ -344,7 +344,8 @@ html.desk .tc.dragging{opacity:.35}
 #scan.has-res .sc-tip{display:none}
 .pgrid button{aspect-ratio:auto}.pgrid img{height:auto;aspect-ratio:488/680}
 #scan .sc-bot{position:absolute;left:0;right:0;bottom:0;max-height:36%;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 10px);background:linear-gradient(#0000,#000e 18%)}
-#scan .sc-res{display:flex;gap:10px;align-items:center;background:#141b1ef0;border-radius:12px;padding:8px}
+#scan .sc-res{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;background:#141b1ef0;border-radius:12px;padding:8px}
+#scan .sc-res>.grow{flex:1 1 60%}#scan .sc-res>button{flex:0 0 auto}
 #scan .sc-res img{width:58px;border-radius:5px}
 #scan .sc-list{overflow:auto;background:#141b1ef0;border-radius:12px}
 #scan .sc-list .r{display:flex;align-items:center;gap:8px;padding:6px 10px;border-top:1px solid #ffffff1a}
@@ -371,8 +372,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.5';
+const VERSION='4.6';
 const NEWS=[
+ ['4.6','Nov 27, 2026',['Cards to finish later: when the scanner can\'t read a card\'s set, it saves a photo and puts the printing in a To finish list. For a card it can\'t read at all, tap Later to save a photo and keep scanning.','Collection → To finish goes through them all in one pass: type the name for unreadable cards, and tap the matching printing with your photo beside the choices.']],
  ['4.5','Nov 27, 2026',['The scanner now finds the printing too. Line the whole card up with the frame: after the name, it reads the set code and collector number printed at the bottom left (cards since 2014) and picks the matching printing.','Older cards, or ones it can\'t read: tap Pick printing and choose from pictures of every printing. A Foil switch marks foil copies.']],
  ['4.4','Nov 27, 2026',['Scan cards into a deck too: the Scan button on the Unsorted section, or Menu → Scan cards into this deck. Scanned cards land in Unsorted, ready for Sort. Turn on + Collection to add them to your collection at the same time.','Scan cards with the camera: Collection → Scan. Fit a card\'s name in the box and it is looked up on Scryfall and added to your collection, one copy per scan. Set where they\'re stored at the top.','Auto add can be switched to Ask first. Each scan can be undone, and a list shows everything scanned this time.','For cards the scanner can\'t read, type the name or use iPhone\'s Scan Text in the box at the bottom.']],
  ['4.3','Nov 25, 2026',['Computer layout: on a computer with a mouse the app shows a sidebar, wider pages, deck sections side by side, and windows in the middle of the screen. Hover over a card name to see the card.','Deck tester on a computer: bigger cards, drag cards between hand, battlefield, graveyard, exile and library, right-click a card for options, double-click a card in hand to play it, and keys D draw, U untap, N next turn.','Setup → Look → Screen picks Automatic, Phone or Computer for each device. The phone layout is unchanged.']],
@@ -952,6 +954,7 @@ function collShown(){const q=UI.collQ.toLowerCase();return Object.keys(S.coll).s
 function vColl(){
   const names=Object.keys(S.coll);const tot=names.reduce((a,n)=>a+S.coll[n],0);const val=names.reduce((a,n)=>a+ownPrice(n)*S.coll[n],0);
   page('<h1>Collection</h1>','<button class="sm" data-act="collImport">Import</button><button class="sm" data-act="collExport">Export</button><button class="sm" data-act="collAdd">Add</button><button class="sm pri" data-act="scan">Scan</button>',`
+   ${(S.todo||[]).length?`<button class="secbox todo" data-act="todoOpen" style="text-align:left;padding:12px;display:flex;gap:10px;align-items:center;width:100%"><span class="grow"><b>To finish · ${S.todo.length}</b><br><span class="muted small">${[todoN('name')&&todoN('name')+' card'+(todoN('name')>1?'s':'')+' to identify',todoN('print')&&todoN('print')+' printing'+(todoN('print')>1?'s':'')+' to pick'].filter(Boolean).join(' · ')}</span></span><span class="muted">›</span></button>`:''}
    <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${names.length}</b><span>Unique</span></div><div class="stat"><b class="num">${tot}</b><span>Cards</span></div><div class="stat"><b class="num">${money(val)}</b><span>Value</span></div></div>
    ${names.length?`<input id="collQ" type="search" placeholder="Find a card you own" value="${esc(UI.collQ)}" aria-label="Find a card you own">
    <div class="chips"><button class="chip ${UI.collColor?'':'on'}" data-act="collColor" data-c="">All</button>${COLORS.map(c=>`<button class="chip ${UI.collColor===c?'on':''}" data-act="collColor" data-c="${c}">${c}</button>`).join('')}</div>
@@ -1604,10 +1607,11 @@ function scDraw(){const el=$('#scan');if(!SC.on){el.hidden=true;el.innerHTML='';
   const locV=(($('#scLoc')||{}).value);if(locV!=null)UI.lastLoc=locV;if(!$('#scLoc')||SC.topKey!==SC.to+SC.alsoColl+SC.auto+SC.foil){SC.topKey=SC.to+SC.alsoColl+SC.auto+SC.foil;$('#scTop').classList.toggle('deck',SC.to!=='coll');$('#scTop').innerHTML=`<button class="sm" data-act="scDone">Done</button>${SC.to==='coll'?'':`<b class="grow" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px #000">Into ${esc((scDeck()||{}).name||'deck')}</b><button class="sm" data-act="scColl" aria-pressed="${SC.alsoColl}">${SC.alsoColl?'+ Collection: on':'+ Collection: off'}</button>`}
      ${SC.to==='coll'||SC.alsoColl?`<input id="scLoc" placeholder="Where are these stored? (optional)" value="${esc(UI.lastLoc||'')}" aria-label="Location for scanned cards">`:''}<button class="sm" data-act="scFoil" aria-pressed="${!!SC.foil}">${SC.foil?'Foil ✓':'Foil'}</button><button class="sm" data-act="scAuto" aria-pressed="${SC.auto}">${SC.auto?'Auto add':'Ask first'}</button>`}
   const tot=SC.list.reduce((a,x)=>a+x.q,0);const r=SC.res;el.classList.toggle('has-res',!!(r||SC.list.length));
-  $('#scBot').innerHTML=`${r?`<div class="sc-res">${card(r).img?`<img alt="" src="${esc(img(card(r),'small'))}">`:''}<div class="grow" style="min-width:0"><b>${esc(r)}</b><div class="small" style="color:#bbb">${SC.resAdded&&!SC.resDup?(SC.prt?`<b style="color:#f2d49b">${esc(SC.prt.s.toUpperCase())} #${esc(SC.prt.cn)}</b> ${esc(SC.prt.sn)}${SC.foil?' · foil':''} · `:SC.prtState==='reading'?'Reading the set… · ':''):''}${SC.resDup?'Already in this deck':SC.resAdded?(SC.to==='coll'?'Added · you own '+owned(r):'Added to Unsorted'+(SC.alsoColl?' and your collection':'')):'Found'}</div></div>
-     ${SC.resDup?`<button class="sm" data-act="scSkip">OK</button>`:SC.resAdded?`${SC.prtState&&SC.prtState!=='reading'?`<button class="sm" data-act="scPick">${SC.prt?'Change':'Pick printing'}</button>`:''}${SC.to==='coll'||isBasic(r)?'<button class="sm" data-act="scMore">+1 more</button>':''}<button class="sm" data-act="scUndo">Undo</button>`:`<button class="sm go" data-act="scAdd">Add</button><button class="sm" data-act="scSkip">Skip</button>`}</div>`:''}
+  $('#scBot').innerHTML=`${r?`<div class="sc-res">${card(r).img?`<img alt="" src="${esc(img(card(r),'small'))}">`:''}<div class="grow" style="min-width:0"><b>${esc(r)}</b><div class="small" style="color:#bbb">${SC.resAdded&&!SC.resDup?(SC.prt?`<b style="color:#f2d49b">${esc(SC.prt.s.toUpperCase())} #${esc(SC.prt.cn)}</b> ${esc(SC.prt.sn)}${SC.foil?' · foil':''} · `:SC.prtState==='reading'?'Reading the set… · ':SC.prtState==='later'?'Printing saved for later · ':''):''}${SC.resDup?'Already in this deck':SC.resAdded?(SC.to==='coll'?'Added · you own '+owned(r):'Added to Unsorted'+(SC.alsoColl?' and your collection':'')):'Found'}</div></div>
+     ${SC.resDup?`<button class="sm" data-act="scSkip">OK</button>`:SC.resAdded?`${SC.prtState&&SC.prtState!=='reading'?`<button class="sm" data-act="scPick">${SC.prt?'Change':'Pick now'}</button>`:''}${SC.to==='coll'||isBasic(r)?'<button class="sm" data-act="scMore">+1 more</button>':''}<button class="sm" data-act="scUndo">Undo</button>`:`<button class="sm go" data-act="scAdd">Add</button><button class="sm" data-act="scSkip">Skip</button>`}</div>`:''}
    ${SC.list.length?`<div class="sc-list"><div class="r"><b class="grow">Scanned this time · ${tot}</b></div>${SC.list.slice().reverse().map(x=>`<div class="r"><span class="grow">${x.q>1?x.q+'× ':''}${esc(x.n)}</span><button class="sm" data-act="scMinus" data-n="${esc(x.n)}" aria-label="Remove one ${esc(x.n)}">−</button></div>`).join('')}</div>`:''}
-   <div class="sc-man"><input id="scT" type="text" autocomplete="off" autocapitalize="words" placeholder="Type a name, or use iPhone Scan Text" aria-label="Card name"><button class="sm" data-act="scLook">Find</button></div>`}
+   <div class="sc-man"><input id="scT" type="text" autocomplete="off" autocapitalize="words" placeholder="Type a name, or use iPhone Scan Text" aria-label="Card name"><button class="sm" data-act="scLook">Find</button><button class="sm" data-act="scLater" title="Save a photo of this card to identify later">Later</button></div>
+   ${(S.todo||[]).length?`<div class="small" style="text-align:center;color:#ccc">${S.todo.length} saved to finish later in Collection → To finish</div>`:''}`}
 const scDeck=()=>SC.to==='coll'?null:S.decks.find(d=>d.id===SC.to);
 async function scOpen(to){if(SC.on)return;SC.to=to||'coll';SC.topKey='';SC.on=true;SC.list=[];SC.res=null;SC.cand='';SC.last='';closeSheet();scDraw();
   ocrWorker().then(()=>{if(SC.on&&SC.stream)scStatus('Point at a card')}).catch(()=>{scStatus('The text reader could not load. Type names below, or use iPhone Scan Text.')});
@@ -1649,10 +1653,15 @@ async function scReadPrinting(n){const prints=await scPrints(n);if(!SC.on||print
   try{for(let i=0;i<4&&SC.on;i++){const c=scGrab('.sz',150);if(c){const r=await SC.worker.recognize(c);const p=scParse(r.data.text,prints);if(p)return p}await wait(250)}}
   finally{await SC.worker.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',- "})}
   return null}
-function scSetPrinting(n,p){SC.prt=p;if(scDeck()&&!SC.alsoColl)return;if(!owned(n))return;S.prt[n]={...p,foil:!!SC.foil&&!!(p.pf||!p.p)};save()}
+function scSnap(){const v=$('#scV'),bar=$('#scan .sc-bar');if(!v||!bar||!v.videoWidth)return'';const vw=v.videoWidth,vh=v.videoHeight,cw=v.clientWidth,ch=v.clientHeight;const sc=Math.max(cw/vw,ch/vh),ox=(vw*sc-cw)/2,oy=(vh*sc-ch)/2;
+  const r=bar.getBoundingClientRect(),vr=v.getBoundingClientRect();const sx=(r.left-vr.left+ox)/sc,sy=(r.top-vr.top+oy)/sc,sw=r.width/sc,sh=r.height/sc;const W=260,H=Math.round(W*sh/sw);
+  const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(v,sx,sy,sw,sh,0,0,W,H);try{return c.toDataURL('image/jpeg',.6)}catch(e){return''}}
+function todoAdd(t){S.todo=S.todo||[];S.todo.push({id:uid(),at:Date.now(),...t});save()}
+function todoDrop(kind,n){if(!S.todo)return;S.todo=S.todo.filter(t=>!(t.kind===kind&&t.n===n));save()}
+function scSetPrinting(n,p){SC.prt=p;todoDrop('print',n);if(scDeck()&&!SC.alsoColl)return;if(!owned(n))return;S.prt[n]={...p,foil:!!SC.foil&&!!(p.pf||!p.p)};save()}
 function scFound(n){SC.res=n;SC.resAdded=false;SC.resDup=false;SC.prt=null;SC.prtState='';scStatus(n,true);const d=scDeck();if(d&&!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.resDup=true;scDraw();return}if(SC.auto)scAddOne(n);else{scBeep();scDraw()}}
 async function scFindPrinting(n){if(!SC.worker||SC.prtState)return;SC.prtState='reading';scDraw();SC.prtBusy=true;let p=null;try{p=await scReadPrinting(n)}catch(e){}finally{SC.prtBusy=false}
-  if(SC.res!==n)return;SC.prtState=p?'auto':'unknown';if(p)scSetPrinting(n,p);scDraw()}
+  if(SC.res!==n)return;SC.prtState=p?'auto':'unknown';if(p)scSetPrinting(n,p);else if(!scDeck()||SC.alsoColl){todoDrop('print',n);todoAdd({kind:'print',n,foil:!!SC.foil,img:scSnap()});SC.prtState='later'}scDraw()}
 function scAddOne(n){const d=scDeck();if(d){if(!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.res=n;SC.resDup=true;scDraw();return}addCard(d,n,'u')}
   if(!d||SC.alsoColl){const loc=(($('#scLoc')||{}).value||'').trim();UI.lastLoc=loc;S.coll[n]=owned(n)+1;if(loc)S.loc[n]=loc}save();SC.resDup=false;
   const e=SC.list.find(x=>x.n===n);if(e)e.q++;else SC.list.push({n,q:1});const same=SC.res===n&&SC.prt;SC.res=n;SC.resAdded=true;scBeep();if(same){scSetPrinting(n,SC.prt);scDraw()}else{SC.prt=null;SC.prtState='';scDraw();scFindPrinting(n)}}
@@ -1661,6 +1670,8 @@ function scRemoveOne(n){const d=scDeck();if(d){const e=d.cards.find(c=>c.n===n);
 Object.assign(A,{
   scan(e){scOpen(e&&e.dataset&&e.dataset.deck||'coll')},scDone(){scClose()},
   scColl(){SC.alsoColl=!SC.alsoColl;scDraw()},
+  scLater(){const img=scSnap();if(!img){toast('The camera isn\'t ready yet');return}const loc=(($('#scLoc')||{}).value||'').trim();
+    todoAdd({kind:'name',img,loc,foil:!!SC.foil,to:SC.to,alsoColl:SC.alsoColl});scBeep();scStatus('Photo saved for later. Next card');scDraw()},
   scFoil(){SC.foil=!SC.foil;if(SC.res&&SC.prt)scSetPrinting(SC.res,SC.prt);scDraw()},
   async scPick(){const n=SC.res;if(!n)return;sheet('Which printing?','<div class="empty">Loading printings…</div>');const list=await scPrints(n);if(SC.res!==n)return;
     sheet('Which printing of '+n+'?',`<p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Tap the one you have.</p>
@@ -1669,12 +1680,51 @@ Object.assign(A,{
   scAuto(){SC.auto=!SC.auto;scDraw()},
   scAdd(){if(SC.res)scAddOne(SC.res)},scMore(){if(SC.res)scAddOne(SC.res)},
   scSkip(){SC.res=null;scDraw();scStatus('Point at a card')},
-  scUndo(){if(SC.res){scRemoveOne(SC.res);SC.res=null;SC.last='';scDraw();scStatus('Removed. Point at a card')}},
+  scUndo(){if(SC.res){scRemoveOne(SC.res);if(!owned(SC.res))todoDrop('print',SC.res);SC.res=null;SC.last='';scDraw();scStatus('Removed. Point at a card')}},
   scMinus(e){scRemoveOne(e.dataset.n);if(SC.res===e.dataset.n&&!SC.list.some(x=>x.n===e.dataset.n))SC.res=null;scDraw()},
   async scLook(){const i=$('#scT');const q=(i&&i.value||'').trim();if(!q)return;scStatus('Looking up '+q+'…');const n=await scLookup(q);if(!n){scStatus('No card matches "'+q+'"');return}i.value='';i.blur();scFound(n)}
 });
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target&&ev.target.id==='scT'){ev.preventDefault();A.scLook()}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&SC.on)scClose()});
+/* ---- To finish: cards the scanner saved for later (unreadable names, unknown printings), done in one pass ---- */
+const todoN=k=>(S.todo||[]).filter(t=>t.kind===k).length;
+function todoDest(t){if(t.to&&t.to!=='coll'){const d=S.decks.find(x=>x.id===t.to);return d?'Deck: '+d.name+(t.alsoColl?' + collection':''):'Collection'}return'Collection'+(t.loc?' · '+t.loc:'')}
+function todoList(){const L=S.todo||[];if(!L.length){sheet('To finish','<div class="empty">All done. Nothing left to finish.</div>');return}
+  sheet('To finish · '+L.length,`<p class="muted small" style="margin:0">Cards the scanner saved for later. Go through them in one pass, or one at a time.</p>
+   <div class="row wrapf">${todoN('name')?`<button class="pri" data-act="todoRun" data-k="name">Identify ${todoN('name')} card${todoN('name')>1?'s':''}</button>`:''}${todoN('print')?`<button class="${todoN('name')?'':'pri'}" data-act="todoRun" data-k="print">Pick ${todoN('print')} printing${todoN('print')>1?'s':''}</button>`:''}</div>
+   <div class="list">${L.map(t=>`<div class="item">${t.img?`<img src="${t.img}" alt="" style="width:44px;border-radius:4px">`:''}<span class="name grow">${t.kind==='name'?'<b>Unreadable card</b>':esc(t.n)}<br><span class="muted small">${t.kind==='name'?esc(todoDest(t)):'Printing to pick'}</span></span><button class="sm" data-act="todoGo" data-id="${t.id}">Do it</button><button class="sm ghost" data-act="todoDel" data-id="${t.id}" aria-label="Remove from the list">✕</button></div>`).join('')}</div>`)}
+async function todoStep(t,kind){const L=S.todo||[];const left=kind?L.filter(x=>x.kind===kind).length:1;const head=kind?`<p class="muted small" style="margin:0">${left} left · <button class="ghost sm" data-act="todoOpen">Back to the list</button></p>`:'';
+  UI.tdId=t.id;UI.tdKind=kind||'';
+  if(t.kind==='name'){
+    sheet('Which card is this?',`${head}${t.img?`<img src="${t.img}" alt="Photo of the card" style="width:min(100%,260px);display:block;margin:0 auto;border-radius:8px">`:''}
+     <p class="muted small" style="margin:0">Type the name. On iPhone you can also press and hold the photo to copy its text. Goes to: ${esc(todoDest(t))}${t.foil?' · foil':''}.</p>
+     <div class="row"><input id="tdQ" type="text" autocomplete="off" autocapitalize="words" placeholder="Card name" aria-label="Card name" class="grow"><button class="pri" data-act="todoFind">Find</button></div><div id="tdRes"></div>`,
+     `<div class="row"><button data-act="todoSkip">Skip for now</button><button class="danger grow" data-act="todoDel" data-id="${t.id}" data-next="1">Not a card, remove</button></div>`);return}
+  sheet('Printing of '+t.n,'<div class="empty">Loading printings…</div>');const list=await scPrints(t.n);UI.tdPrints=list;
+  sheet('Which printing of '+t.n+'?',`${head}${t.img?`<img src="${t.img}" alt="Photo of your copy" style="width:150px;display:block;margin:0 auto;border-radius:8px">`:''}
+   <p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Tap the one that matches your card.</p>
+   <div class="grid pgrid">${list.map((x,i)=>`<button data-act="todoPick" data-i="${i}" title="${esc(x.sn)}">${x.img?`<img loading="lazy" alt="${esc(x.sn)}" src="${esc(x.img.replace('/normal/','/small/'))}">`:''}<span class="small" style="display:block;line-height:1.2;padding:3px 2px">${esc(x.s.toUpperCase())} #${esc(x.cn)}${x.yr?' · '+x.yr:''}</span></button>`).join('')}</div>`,
+   `<div class="row"><button data-act="todoSkip">Skip for now</button><button class="grow" data-act="todoAny">Any printing is fine</button></div>`)}
+function todoNext(){const k=UI.tdKind;const skipped=UI.tdSkip||new Set();const t=(S.todo||[]).find(x=>(!k||x.kind===k)&&!skipped.has(x.id));
+  if(!k||!t){UI.tdSkip=null;rerender();if((S.todo||[]).length)todoList();else{closeSheet();toast('All done')}return}todoStep(t,k)}
+function todoRemove(id){S.todo=(S.todo||[]).filter(t=>t.id!==id);save()}
+Object.assign(A,{
+  todoOpen(){UI.tdSkip=null;UI.tdKind='';todoList()},
+  todoRun(e){UI.tdKind=e.dataset.k;UI.tdSkip=new Set();todoNext()},
+  todoGo(e){const t=(S.todo||[]).find(x=>x.id===e.dataset.id);if(t)todoStep(t,'')},
+  todoDel(e){todoRemove(e.dataset.id);if(e.dataset.next)todoNext();else{rerender();todoList()}},
+  todoSkip(){(UI.tdSkip=UI.tdSkip||new Set()).add(UI.tdId);todoNext()},
+  async todoFind(){const q=($('#tdQ').value||'').trim();if(!q)return;$('#tdRes').innerHTML='<div class="empty">Looking up…</div>';const n=await scLookup(q);
+    $('#tdRes').innerHTML=n?`<div class="item">${card(n).img?`<img src="${esc(img(card(n),'small'))}" alt="" style="width:50px;border-radius:4px">`:''}<span class="name grow"><b>${esc(n)}</b></span><button class="pri" data-act="todoAddIt" data-n="${esc(n)}">Add</button></div>`:`<div class="empty">No card matches "${esc(q)}". Check the spelling.</div>`},
+  async todoAddIt(e){const t=(S.todo||[]).find(x=>x.id===UI.tdId);if(!t)return;const n=e.dataset.n;const d=t.to&&t.to!=='coll'?S.decks.find(x=>x.id===t.to):null;
+    if(d&&(isBasic(n)||!inDeck(d,n)))addCard(d,n,'u');
+    if(!d||t.alsoColl){S.coll[n]=owned(n)+1;if(t.loc)S.loc[n]=t.loc;
+      const pr=await scPrints(n);if(pr.length===1)S.prt[n]={...pr[0],foil:!!t.foil};else if(pr.length>1){t.kind='print';t.n=n;save();toast(n+' added. Pick its printing too');todoStep(t,UI.tdKind);return}}
+    todoRemove(t.id);toast(n+' added');todoNext()},
+  todoPick(e){const t=(S.todo||[]).find(x=>x.id===UI.tdId);const p=(UI.tdPrints||[])[+e.dataset.i];if(!t||!p)return;if(owned(t.n))S.prt[t.n]={...p,foil:!!t.foil&&!!(p.pf||!p.p)};todoRemove(t.id);todoNext()},
+  todoAny(){todoRemove(UI.tdId);todoNext()}
+});
+document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target&&ev.target.id==='tdQ'){ev.preventDefault();A.todoFind()}});
 /* ================= deck tester ================= */
 let T=null;const TOK={};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
