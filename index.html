@@ -332,6 +332,7 @@ html.desk .tc.dragging{opacity:.35}
 #scan .sc-bar.hit{border-color:#7be08a}
 #scan .sc-tip{position:absolute;left:0;right:0;top:calc(24% + min(86vw,560px)*.15 + 10px);text-align:center;font-size:14px;color:#ddd;padding:0 16px;text-shadow:0 1px 3px #000}
 #scan .sc-top{position:absolute;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px;display:flex;gap:8px;align-items:center;background:linear-gradient(#000c,#0000)}
+#scan .sc-top.deck input{flex-basis:100%;order:5}
 #scan .sc-top input{flex:1;min-width:0;background:#ffffffe6;color:#111;border-radius:8px;padding:8px 10px;border:0}
 #scan button{color:#fff;background:#1d262acc;border:1px solid #ffffff40}
 #scan button.go{background:#7a1f22;border-color:#f2d49b}
@@ -366,7 +367,7 @@ const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
 const VERSION='4.4';
 const NEWS=[
- ['4.4','Nov 27, 2026',['Scan cards with the camera: Collection → Scan. Fit a card\'s name in the box and it is looked up on Scryfall and added to your collection, one copy per scan. Set where they\'re stored at the top.','Auto add can be switched to Ask first. Each scan can be undone, and a list shows everything scanned this time.','For cards the scanner can\'t read, type the name or use iPhone\'s Scan Text in the box at the bottom.']],
+ ['4.4','Nov 27, 2026',['Scan cards into a deck too: the Scan button on the Unsorted section, or Menu → Scan cards into this deck. Scanned cards land in Unsorted, ready for Sort. Turn on + Collection to add them to your collection at the same time.','Scan cards with the camera: Collection → Scan. Fit a card\'s name in the box and it is looked up on Scryfall and added to your collection, one copy per scan. Set where they\'re stored at the top.','Auto add can be switched to Ask first. Each scan can be undone, and a list shows everything scanned this time.','For cards the scanner can\'t read, type the name or use iPhone\'s Scan Text in the box at the bottom.']],
  ['4.3','Nov 25, 2026',['Computer layout: on a computer with a mouse the app shows a sidebar, wider pages, deck sections side by side, and windows in the middle of the screen. Hover over a card name to see the card.','Deck tester on a computer: bigger cards, drag cards between hand, battlefield, graveyard, exile and library, right-click a card for options, double-click a card in hand to play it, and keys D draw, U untap, N next turn.','Setup → Look → Screen picks Automatic, Phone or Computer for each device. The phone layout is unchanged.']],
  ['4.2','Nov 24, 2026',['Sync errors now show their technical details, to make problems easier to fix.']],
  ['4.1','Nov 24, 2026',['Setup → Account and sync now shows a short Account ID and where the online copy came from, so you can check two devices are on the same account.']],
@@ -869,7 +870,7 @@ function secHtml(d,s){
    :cs.map(c=>`<button class="crow" data-act="${UI.sel?'selTog':'cardSheet'}" data-n="${esc(c.n)}" ${UI.sel?`aria-pressed="${UI.sel.has(c.n)}"`:''}>${UI.sel?`<span class="ck ${UI.sel.has(c.n)?'on':''}">✓</span>`:`<span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span>`}<span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${costOrMana(card(c.n))}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
     <span class="pill num ${cls}">${special?n:s.flex?n+' · about '+s.target:n+'/'+s.target}</span>
-    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${s.id==='u'?`<button class="sm" data-act="pasteOpen" data-sid="u">Paste</button>${n?'<button class="sm pri" data-act="autoSort" aria-label="Auto-sort into sections">Sort</button>':''}`:''}${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
+    <button class="sm" data-act="addSearch" data-sid="${s.id}">Search</button>${s.id==='u'?`<button class="sm" data-act="scan" data-deck="${d.id}">Scan</button><button class="sm" data-act="pasteOpen" data-sid="u">Paste</button>${n?'<button class="sm pri" data-act="autoSort" aria-label="Auto-sort into sections">Sort</button>':''}`:''}${special?'':`<button class="sm pri" data-act="fill" data-sid="${s.id}">Fill</button>`}</header>
     ${special?'':`<div class="bar"><i style="width:${Math.min(100,s.target?n/s.target*100:0)}%"></i></div>`}
     ${s.id==='u'&&n>1&&!UI.sel?'<button class="ghost small" style="padding:4px 12px 10px" data-act="selStart" data-u="1">Select several to assign</button>':''}${closed?'':(cs.length?rows:s.id==='u'?'<p class="muted small" style="margin:0;padding:0 12px 10px">Add cards here without choosing a section. Tap Sort when you want them filed into sections, or tap a card to place it yourself.</p>':'')}</section>`;
 }
@@ -1405,6 +1406,7 @@ const A={
     <button class="item" data-act="editSecs">Edit sections and targets</button>
     <button class="item" data-act="themes">Edit Plan themes</button>
     ${newStd(d)?'':'<button class="item" data-act="convertAsk">Switch to the new sections</button>'}
+    <button class="item" data-act="scan" data-deck="${d.id}">Scan cards into this deck</button>
     <button class="item" data-act="afAsk">Autofill deck to 100</button>
     <button class="item" data-act="basics">Add basic lands</button>
     <button class="item" data-act="importDeck">Import a card list</button>
@@ -1581,7 +1583,7 @@ Object.assign(A,{
   gameDel(e){S.games=S.games.filter(g=>g.id!==e.dataset.id);save();closeSheet();rerender();toast('Game deleted')}
 });
 /* ================= card scanner: the camera reads the card name (Tesseract.js, open source), Scryfall's fuzzy name search turns it into a card ================= */
-const SC={on:false,stream:null,worker:null,busy:false,timer:null,cand:'',last:'',list:[],auto:true,cache:new Map(),miss:0};
+const SC={to:'coll',alsoColl:false,on:false,stream:null,worker:null,busy:false,timer:null,cand:'',last:'',list:[],auto:true,cache:new Map(),miss:0};
 function loadScript(src){return new Promise((ok,no)=>{if([...document.scripts].some(x=>x.src===src))return ok();const e=document.createElement('script');e.src=src;e.onload=()=>ok();e.onerror=()=>no(new Error('Could not load '+src));document.head.appendChild(e)})}
 async function ocrWorker(){if(SC.worker)return SC.worker;await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
   const w=await Tesseract.createWorker('eng',1);await w.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',- ",preserve_interword_spaces:'1'});SC.worker=w;return w}
@@ -1590,21 +1592,24 @@ function scBeep(){try{const a=SC.ac||(SC.ac=new (window.AudioContext||window.web
 function scDraw(){const el=$('#scan');if(!SC.on){el.hidden=true;el.innerHTML='';return}el.hidden=false;
   if(!$('#scV'))el.innerHTML=`<video id="scV" playsinline muted autoplay></video><div class="sc-bar"></div><div class="sc-st" id="scSt">Starting the camera…</div>
    <div class="sc-tip">Fit the card's <b>name</b> inside the box. Hold steady in good light.</div>
-   <div class="sc-top"><button class="sm" data-act="scDone">Done</button><input id="scLoc" placeholder="Where are these stored? (optional)" value="${esc(UI.lastLoc||'')}" aria-label="Location for scanned cards"><button class="sm" data-act="scAuto" aria-pressed="${SC.auto}">${SC.auto?'Auto add':'Ask first'}</button></div>
+   <div class="sc-top" id="scTop" style="flex-wrap:wrap"></div>
    <div class="sc-bot" id="scBot"></div>`;
+  const locV=(($('#scLoc')||{}).value);if(locV!=null)UI.lastLoc=locV;if(!$('#scLoc')||SC.topKey!==SC.to+SC.alsoColl+SC.auto){SC.topKey=SC.to+SC.alsoColl+SC.auto;$('#scTop').classList.toggle('deck',SC.to!=='coll');$('#scTop').innerHTML=`<button class="sm" data-act="scDone">Done</button>${SC.to==='coll'?'':`<b class="grow" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px #000">Into ${esc((scDeck()||{}).name||'deck')}</b><button class="sm" data-act="scColl" aria-pressed="${SC.alsoColl}">${SC.alsoColl?'+ Collection: on':'+ Collection: off'}</button>`}
+     ${SC.to==='coll'||SC.alsoColl?`<input id="scLoc" placeholder="Where are these stored? (optional)" value="${esc(UI.lastLoc||'')}" aria-label="Location for scanned cards">`:''}<button class="sm" data-act="scAuto" aria-pressed="${SC.auto}">${SC.auto?'Auto add':'Ask first'}</button>`}
   const tot=SC.list.reduce((a,x)=>a+x.q,0);const r=SC.res;
-  $('#scBot').innerHTML=`${r?`<div class="sc-res">${card(r).img?`<img alt="" src="${esc(img(card(r),'small'))}">`:''}<div class="grow" style="min-width:0"><b>${esc(r)}</b><div class="small" style="color:#bbb">${SC.resAdded?'Added · you own '+owned(r):'Found'}</div></div>
-     ${SC.resAdded?`<button class="sm" data-act="scMore">+1 more</button><button class="sm" data-act="scUndo">Undo</button>`:`<button class="sm go" data-act="scAdd">Add</button><button class="sm" data-act="scSkip">Skip</button>`}</div>`:''}
+  $('#scBot').innerHTML=`${r?`<div class="sc-res">${card(r).img?`<img alt="" src="${esc(img(card(r),'small'))}">`:''}<div class="grow" style="min-width:0"><b>${esc(r)}</b><div class="small" style="color:#bbb">${SC.resDup?'Already in this deck':SC.resAdded?(SC.to==='coll'?'Added · you own '+owned(r):'Added to Unsorted'+(SC.alsoColl?' and your collection':'')):'Found'}</div></div>
+     ${SC.resDup?`<button class="sm" data-act="scSkip">OK</button>`:SC.resAdded?`${SC.to==='coll'||isBasic(r)?'<button class="sm" data-act="scMore">+1 more</button>':''}<button class="sm" data-act="scUndo">Undo</button>`:`<button class="sm go" data-act="scAdd">Add</button><button class="sm" data-act="scSkip">Skip</button>`}</div>`:''}
    ${SC.list.length?`<div class="sc-list"><div class="r"><b class="grow">Scanned this time · ${tot}</b></div>${SC.list.slice().reverse().map(x=>`<div class="r"><span class="grow">${x.q>1?x.q+'× ':''}${esc(x.n)}</span><button class="sm" data-act="scMinus" data-n="${esc(x.n)}" aria-label="Remove one ${esc(x.n)}">−</button></div>`).join('')}</div>`:''}
    <div class="sc-man"><input id="scT" type="text" autocomplete="off" autocapitalize="words" placeholder="Type a name, or use iPhone Scan Text" aria-label="Card name"><button class="sm" data-act="scLook">Find</button></div>`}
-async function scOpen(){if(SC.on)return;SC.on=true;SC.list=[];SC.res=null;SC.cand='';SC.last='';closeSheet();scDraw();
+const scDeck=()=>SC.to==='coll'?null:S.decks.find(d=>d.id===SC.to);
+async function scOpen(to){if(SC.on)return;SC.to=to||'coll';SC.topKey='';SC.on=true;SC.list=[];SC.res=null;SC.cand='';SC.last='';closeSheet();scDraw();
   ocrWorker().then(()=>{if(SC.on&&SC.stream)scStatus('Point at a card')}).catch(()=>{scStatus('The text reader could not load. Type names below, or use iPhone Scan Text.')});
   try{SC.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
     const v=$('#scV');v.srcObject=SC.stream;await v.play().catch(()=>{});scStatus(SC.worker?'Point at a card':'Loading the text reader… (first time takes a moment)');
     SC.timer=setInterval(scTick,650)}
   catch(e){scStatus('The camera is not available. Allow camera access in Settings, or type names below.')}}
 function scClose(){SC.on=false;clearInterval(SC.timer);SC.timer=null;if(SC.stream){SC.stream.getTracks().forEach(t=>t.stop());SC.stream=null}scDraw();rerender();
-  const n=SC.list.reduce((a,x)=>a+x.q,0);if(n)toast('Added '+n+' card'+(n===1?'':'s')+' to your collection')}
+  const n=SC.list.reduce((a,x)=>a+x.q,0);const d=scDeck();if(n)toast('Added '+n+' card'+(n===1?'':'s')+(d?' to '+d.name+(SC.alsoColl?' and your collection':'')+'. Tap Sort to file them.':' to your collection'))}
 function scGrab(){const v=$('#scV'),bar=$('#scan .sc-bar');if(!v||!bar||!v.videoWidth)return null;const vw=v.videoWidth,vh=v.videoHeight,cw=v.clientWidth,ch=v.clientHeight;
   const sc=Math.max(cw/vw,ch/vh),ox=(vw*sc-cw)/2,oy=(vh*sc-ch)/2;const r=bar.getBoundingClientRect(),vr=v.getBoundingClientRect();
   const sx=(r.left-vr.left+ox)/sc,sy=(r.top-vr.top+oy)/sc,sw=r.width/sc,sh=r.height/sc;const H=96,W=Math.round(sw*H/sh);
@@ -1624,13 +1629,16 @@ async function scTick(){if(!SC.on||SC.busy||!SC.worker||!$('#sheet').hidden)retu
     if(n!==SC.cand){SC.cand=n;scStatus('Checking: '+n);return}
     if(n===SC.last)return;SC.last=n;scFound(n)}
   catch(e){}finally{SC.busy=false}}
-function scFound(n){SC.res=n;SC.resAdded=false;scStatus(n,true);if(SC.auto)scAddOne(n);else{scBeep();scDraw()}}
-function scAddOne(n){const loc=(($('#scLoc')||{}).value||'').trim();UI.lastLoc=loc;S.coll[n]=owned(n)+1;if(loc)S.loc[n]=loc;save();
+function scFound(n){SC.res=n;SC.resAdded=false;SC.resDup=false;scStatus(n,true);const d=scDeck();if(d&&!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.resDup=true;scDraw();return}if(SC.auto)scAddOne(n);else{scBeep();scDraw()}}
+function scAddOne(n){const d=scDeck();if(d){if(!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.res=n;SC.resDup=true;scDraw();return}addCard(d,n,'u')}
+  if(!d||SC.alsoColl){const loc=(($('#scLoc')||{}).value||'').trim();UI.lastLoc=loc;S.coll[n]=owned(n)+1;if(loc)S.loc[n]=loc}save();SC.resDup=false;
   const e=SC.list.find(x=>x.n===n);if(e)e.q++;else SC.list.push({n,q:1});SC.res=n;SC.resAdded=true;scBeep();scDraw()}
-function scRemoveOne(n){if(!owned(n))return;S.coll[n]=owned(n)-1;if(S.coll[n]<=0)delete S.coll[n];save();const e=SC.list.find(x=>x.n===n);if(e){e.q--;if(e.q<=0)SC.list=SC.list.filter(x=>x!==e)}}
+function scRemoveOne(n){const d=scDeck();if(d){const e=d.cards.find(c=>c.n===n);if(e){if(e.q>1)e.q--;else d.cards=d.cards.filter(c=>c!==e)}}
+  if((!d||SC.alsoColl)&&owned(n)){S.coll[n]=owned(n)-1;if(S.coll[n]<=0)delete S.coll[n]}save();const e=SC.list.find(x=>x.n===n);if(e){e.q--;if(e.q<=0)SC.list=SC.list.filter(x=>x!==e)}}
 Object.assign(A,{
-  scan(){scOpen()},scDone(){scClose()},
-  scAuto(){SC.auto=!SC.auto;const b=$('#scan [data-act=scAuto]');if(b){b.textContent=SC.auto?'Auto add':'Ask first';b.setAttribute('aria-pressed',SC.auto)}},
+  scan(e){scOpen(e&&e.dataset&&e.dataset.deck||'coll')},scDone(){scClose()},
+  scColl(){SC.alsoColl=!SC.alsoColl;scDraw()},
+  scAuto(){SC.auto=!SC.auto;scDraw()},
   scAdd(){if(SC.res)scAddOne(SC.res)},scMore(){if(SC.res)scAddOne(SC.res)},
   scSkip(){SC.res=null;scDraw();scStatus('Point at a card')},
   scUndo(){if(SC.res){scRemoveOne(SC.res);SC.res=null;SC.last='';scDraw();scStatus('Removed. Point at a card')}},
