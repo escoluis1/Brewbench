@@ -454,8 +454,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.4.0';
+const VERSION='5.5.0';
 const NEWS=[
+ ['5.5.0','Nov 27',['Shared games. When you save a game with a friend you added by friend code, they get a copy. It shows on their Play tab under Games your friends logged, with Add to my games or Skip, and is added from their side: you become their opponent with the deck you played. The other players are matched to their opponents by name, or added. Your game notes are not sent.']],
  ['5.4.0','Nov 27',['Release notes now follow the Site Map Builder style: three-part version numbers (major.minor.patch), a version tag next to the app name in Setup, and one short paragraph per release with its date. Setup → What\'s new opens to show every release.']],
  ['5.3.1','Nov 27',['The random first-player highlight now shows the same on every player, art or not.']],
  ['5.3.0','Nov 27',['Friends: Play → Your code shares your name and your decks\' commanders under a friend code and QR code. Play → Add friend scans their QR or takes their code, then adds them as an opponent with all their decks and commander art. Update decks pulls their newest ones later.','Only your name and decks\' commanders are shared, and only while sharing is on. Needs you both signed in.']],
@@ -615,7 +616,7 @@ async function fbLoad(){if(CL.fb)return CL.fb;const u='https://www.gstatic.com/f
   const [app,auth,fs]=await Promise.all([import(u+'firebase-app.js'),import(u+'firebase-auth.js'),import(u+'firebase-firestore.js')]);
   const a=app.initializeApp(FB_CFG);CL.fb={auth,fs,A:auth.getAuth(a),D:fs.getFirestore(a)};
   auth.onAuthStateChanged(CL.fb.A,u=>{const was=CL.user&&CL.user.uid;CL.user=u||null;if(CL.unsub){CL.unsub();CL.unsub=null}
-    if(u){S.cloudUser=u.email||'signed in';const me=S.players.find(p=>p.id==='me');if(me&&(!me.name||me.name==='Me')&&u.displayName){me.name=u.displayName.split(' ')[0];save()}save(false);CL.unsub=fs.onSnapshot(metaRef(),snap=>{const m=snap.exists()?snap.data():null;if(m&&m.at>(S.syncAt||0)&&!CL.busy)cloudCheck('remote')},()=>{});if(was!==u.uid)cloudCheck('start')}
+    if(u){S.cloudUser=u.email||'signed in';const me=S.players.find(p=>p.id==='me');if(me&&(!me.name||me.name==='Me')&&u.displayName){me.name=u.displayName.split(' ')[0];save()}save(false);CL.unsub=fs.onSnapshot(metaRef(),snap=>{const m=snap.exists()?snap.data():null;if(m&&m.at>(S.syncAt||0)&&!CL.busy)cloudCheck('remote')},()=>{});if(was!==u.uid){cloudCheck('start');inboxCheck(true)}}
     else{CL.state='off';CL.meta=null;if(S.cloudUser){S.cloudUser='';save(false)}}
     cloudRefresh()});
   return CL.fb}
@@ -1334,6 +1335,7 @@ function vPlay(){
    ${(()=>{const tg=mine.filter(g=>g.turns);if(!tg.length)return'';const t=tg.map(g=>g.turns);return`<div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b class="num">${(t.reduce((a,b)=>a+b,0)/t.length).toFixed(1)}</b><span>Avg turns</span></div><div class="stat"><b class="num">${Math.min(...t)}</b><span>Fastest</span></div><div class="stat"><b class="num">${Math.max(...t)}</b><span>Longest</span></div></div>`})()}
    ${(()=>{const by=[1,2,3,4,5].map(b=>{const gs=mine.filter(g=>g.bracket===b);const dd=gs.filter(g=>g.winner);const tg=gs.filter(g=>g.turns);return{b,n:gs.length,w:dd.filter(g=>g.winner==='me').length,d:dd.length,t:tg.length?(tg.reduce((a,g)=>a+g.turns,0)/tg.length).toFixed(1):'–'}}).filter(x=>x.n);
      return by.length?`<h2>By bracket</h2><div class="list">${by.map(x=>`<div class="item"><span class="name"><b>${x.b} · ${BRACKETS[x.b]}</b><br><span class="muted small">${x.n} game${x.n===1?'':'s'} · avg ${x.t} turns</span></span><span class="num muted">${x.w}–${x.d-x.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(x.w,x.d)}</b></div>`).join('')}</div>`:''})()}
+   ${(inboxCheck(),inboxHtml())}
    ${S.games.length?'':`<div class="empty">No games logged yet. <b>New game</b> opens a life counter for the table and saves the result when you finish. <b>Log a game</b> records one you already played.</div>`}
    ${Object.keys(dk).length?`<h2>My decks</h2><div class="list">${Object.entries(dk).sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>`<div class="item"><span class="name">${esc(k)}</span><span class="num muted">${v.w}–${v.n-v.w}</span><b class="num" style="min-width:44px;text-align:right">${pct(v.w,v.n)}</b></div>`).join('')}</div>`:''}
    <div class="row"><h2 class="grow">Opponents</h2><button class="sm" data-act="myCode">Your code</button><button class="sm" data-act="addFriend">Add friend</button><button class="sm" data-act="playerNew">Add</button></div>
@@ -1699,8 +1701,9 @@ Object.assign(A,{
     if(GS.mode==='live'){S.live={turn:1,table:false,start:GS.life,bracket:GS.bracket||0,players:players.map(p=>({...p,life:GS.life,poison:0,cd:{},out:false}))};DELTA={};UI.liveOpen=true;save();closeSheet();rerender();drawLive();wake()}
     else resultSheet(players,{bracket:GS.bracket||0},()=>{})},
   resSave(){const w=$('#gWin').value;if(w==='?'){toast('Choose the winner, or pick No winner');return}
-    S.games.unshift({id:uid(),date:$('#gDate').value||today(),players:RES.players.map(p=>({pid:p.pid,deck:p.deck||''})),winner:w||null,turns:parseInt($('#gTurns').value)||0,bracket:RES.bracket||0,notes:$('#gNotes').value.trim()});
-    S.games.sort((a,b)=>b.date.localeCompare(a.date));RES.done();RES=null;save();closeSheet();location.hash='play';rerender();toast('Game saved')},
+    const ng={id:uid(),date:$('#gDate').value||today(),players:RES.players.map(p=>({pid:p.pid,deck:p.deck||''})),winner:w||null,turns:parseInt($('#gTurns').value)||0,bracket:RES.bracket||0,notes:$('#gNotes').value.trim()};S.games.unshift(ng);
+    S.games.sort((a,b)=>b.date.localeCompare(a.date));RES.done();RES=null;save();closeSheet();location.hash='play';rerender();toast('Game saved');
+    gameSend(ng).then(n=>{if(n)toast('Game saved and sent to '+n+' friend'+(n===1?'':'s'))})},
   liveOpen(){UI.liveOpen=true;drawLive();wake()},
   liveMin(){closeSheet();UI.liveOpen=false;drawLive();location.hash='play';rerender()},
   liveTurn(){S.live.turn++;save();drawLive();toast('Turn '+S.live.turn)},
@@ -1943,6 +1946,37 @@ Object.assign(A,{
 });
 const _sheetClose=closeSheet;closeSheet=function(){frScanStop();return _sheetClose.apply(this,arguments)};
 window.addEventListener('hashchange',()=>{const m=/#friend=([A-Z0-9]{6})/i.exec(location.hash);if(m){history.replaceState(null,'',location.pathname+'#play');rerender();setTimeout(()=>addFriendSheet(m[1].toUpperCase()),300)}});
+/* ---- Shared games: saving a game with linked friends drops a copy in each friend's inbox; they choose to add it or skip it ---- */
+const INB={items:[],at:0,busy:false};
+async function gameSend(g){if(!CL.user||!CL.fb)return 0;const fu=p=>p&&(p.friend&&p.friend.uid||p.fuid);const fr=g.players.map(x=>S.players.find(p=>p.id===x.pid)).filter(fu);if(!fr.length)return 0;
+  const key=pid=>{if(pid==='me')return'u:'+CL.user.uid;const p=S.players.find(p=>p.id===pid);return fu(p)?'u:'+fu(p):'n:'+((p&&p.name)||'Player')};
+  const nm=pid=>pid==='me'?((S.players.find(p=>p.id==='me')||{}).name||'A friend'):pname(pid);
+  const body={from:CL.user.uid,fromName:nm('me'),fromCode:S.share&&S.fcode?S.fcode:'',at:Date.now(),
+    game:{id:g.id,date:g.date,turns:g.turns||0,bracket:g.bracket||0,winner:g.winner?key(g.winner):'',players:g.players.map(x=>({key:key(x.pid),name:nm(x.pid),deck:x.deck||''}))}};
+  const{fs}=CL.fb;let n=0;for(const p of fr){try{await fs.setDoc(fs.doc(CL.fb.D,'inbox',fu(p),'items',g.id+'_'+CL.user.uid.slice(0,8)),body);n++}catch(e){}}return n}
+async function inboxCheck(force){if(!CL.user||!CL.fb||INB.busy)return;if(!force&&Date.now()-INB.at<60000)return;INB.busy=true;INB.at=Date.now();
+  try{const{fs}=CL.fb;const q=await fs.getDocs(fs.collection(CL.fb.D,'inbox',CL.user.uid,'items'));const had=INB.items.length;
+    INB.items=q.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.game&&Array.isArray(x.game.players)).sort((a,b)=>b.at-a.at);
+    if(INB.items.length!==had&&location.hash.replace('#','')==='play')rerender()}catch(e){}finally{INB.busy=false}}
+function inboxPid(key,name,it){if(key==='u:'+CL.user.uid)return'me';const u=key.startsWith('u:')?key.slice(2):'';
+  let p=u&&S.players.find(p=>p.id!=='me'&&(p.fuid===u||p.friend&&p.friend.uid===u));p=p||S.players.find(p=>p.id!=='me'&&p.name.toLowerCase()===(name||'').toLowerCase());
+  if(!p){p={id:uid(),name:name||'Player',decks:[],notes:''};S.players.push(p)}
+  if(u)p.fuid=u;if(u&&!p.friend&&u===it.from&&it.fromCode)p.friend={code:it.fromCode,uid:u,at:Date.now()};return p.id}
+function inboxHtml(){if(!INB.items.length)return'';return`<h2>Games your friends logged</h2><div style="display:flex;flex-direction:column;gap:8px">${INB.items.map(it=>{const g=it.game;const w=g.winner?(g.players.find(p=>p.key===g.winner)||{}).name:'';
+  const isMe=g.winner==='u:'+CL.user.uid;return`<div class="secbox" style="padding:12px;display:flex;flex-direction:column;gap:8px"><span style="line-height:1.4"><b>${esc(it.fromName)} logged a game with you</b><br><span class="muted small">${esc(g.date)} · ${g.players.length} players${g.turns?' · '+g.turns+' turns':''}${g.bracket?' · bracket '+g.bracket:''} · ${w?(isMe?'you won':esc(w)+' won'):'no winner'}</span><br><span class="small">${g.players.map(p=>esc(p.key==='u:'+CL.user.uid?'You':p.name)+(p.deck?' <span class="muted">('+esc(p.deck)+')</span>':'')).join(' · ')}</span></span>
+   <span class="row" style="justify-content:flex-end"><button class="sm" data-act="inbSkip" data-id="${esc(it.id)}">Skip</button><button class="sm pri" data-act="inbAdd" data-id="${esc(it.id)}">Add to my games</button></span></div>`}).join('')}</div>`}
+async function inboxDrop(id){INB.items=INB.items.filter(x=>x.id!==id);try{const{fs}=CL.fb;await fs.deleteDoc(fs.doc(CL.fb.D,'inbox',CL.user.uid,'items',id))}catch(e){}}
+Object.assign(A,{
+  async inbAdd(e){const it=INB.items.find(x=>x.id===e.dataset.id);if(!it)return;const g=it.game;const gid='f_'+it.id;
+    if(S.games.some(x=>x.id===gid||x.id===g.id)){await inboxDrop(it.id);toast('Already in your games');rerender();return}
+    const map={};const players=g.players.map(p=>{const pid=inboxPid(p.key,p.name,it);map[p.key]=pid;return{pid,deck:p.deck||''}});
+    if(!players.some(p=>p.pid==='me')){toast('You are not in that game');return}
+    const mine=players.find(p=>p.pid==='me');if(!mine.deck){const d=g.players.find(p=>p.key==='u:'+CL.user.uid);mine.deck=d&&d.deck||''}
+    learnDecks(players);S.games.unshift({id:gid,date:g.date||today(),players,winner:g.winner?map[g.winner]||null:null,turns:g.turns||0,bracket:g.bracket||0,notes:'Logged by '+it.fromName});
+    S.games.sort((a,b)=>b.date.localeCompare(a.date));save();await inboxDrop(it.id);rerender();toast('Game added')},
+  async inbSkip(e){await inboxDrop(e.dataset.id);rerender();toast('Skipped')}
+});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')inboxCheck()});
 /* ================= deck tester ================= */
 let T=null;const TOK={};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
