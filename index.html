@@ -371,9 +371,10 @@ html.desk .tc.dragging{opacity:.35}
 .pan .pbtns{position:relative;z-index:1;display:flex;gap:6px;margin-top:4px}
 .pan .pbtns button{background:#00000055;border-color:#ffffff66;font-size:12px;min-height:30px;padding:2px 10px}
 .pan .pbtns .po.on{background:#1f5a2acc;border-color:#7be08a;color:#c9ffd4}.pan .pbtns .po.hi{background:#3c8a2acc;border-color:#b6ff7a;animation:crit 1.2s infinite}
-.pan.spot{outline:4px solid #f2d49b;outline-offset:-4px;box-shadow:0 0 30px #f2d49b88}
-.pan.first{outline:5px solid #ffd84a;outline-offset:-5px;animation:firstp 1.4s ease-in-out 2}
-@keyframes firstp{50%{box-shadow:0 0 50px #ffd84acc}}
+.pan::before{content:"";position:absolute;inset:0;z-index:6;pointer-events:none;border-radius:12px;border:0 solid transparent}
+.pan.spot::before{border:5px solid #f2d49b;box-shadow:inset 0 0 34px #f2d49bcc;background:#f2d49b22}
+.pan.first::before{border:6px solid #ffd84a;box-shadow:inset 0 0 40px #ffd84acc;animation:firstp 1.4s ease-in-out 2}
+@keyframes firstp{50%{box-shadow:inset 0 0 70px #ffd84a;background:#ffd84a33}}
 .pan .crown{position:absolute;top:34px;left:50%;transform:translateX(-50%);font-size:13px;background:#ffd84a;color:#3a2a00;border-radius:999px;padding:1px 10px;font-weight:700;z-index:2;pointer-events:none}
 .lfirst{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:#0008;padding:20px;animation:fadein .3s}
 .lfirst div{background:#141b1e;border:2px solid #ffd84a;border-radius:16px;padding:20px;max-width:340px;text-align:center;box-shadow:0 10px 40px #000a;animation:popin .35s cubic-bezier(.2,1.6,.4,1)}
@@ -394,7 +395,7 @@ html.desk .tc.dragging{opacity:.35}
 .pan .cdc{position:absolute;bottom:46px;left:8px;right:8px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;pointer-events:none;z-index:1}
 .pan .cdc span{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid #ffffff80;box-shadow:0 1px 3px #0008}
 .pan .cdc span.lethal{border-color:#ffd84a;box-shadow:0 0 8px #ff3b3b}
-.lhub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;display:flex;gap:4px;align-items:center;background:#0c1113;border-radius:999px;padding:4px;box-shadow:0 0 0 3px #0c1113,0 4px 14px #000c}
+.lhub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;display:flex;gap:4px;align-items:center;background:#0c1113;border-radius:999px;padding:4px;box-shadow:0 0 0 3px #0c1113,0 4px 14px #000c}
 #live .lhub button{min-height:0;border-radius:999px;background:#1d262a;border:1px solid #3c4a54;padding:0}
 .lhub .ht{width:58px;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
 .lhub .ht b{font:700 22px var(--display)}.lhub .ht small{font-size:10px;color:#b9c6c2;margin-top:2px}
@@ -449,8 +450,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='5.3';
+const VERSION='5.3.1';
 const NEWS=[
+ ['5.3.1','Nov 27, 2026',['The random first-player highlight now shows the same on every player, art or not.']],
  ['5.3','Nov 27, 2026',['Friends: Play → Your code shares your name and your decks\' commanders under a friend code and QR code. Play → Add friend scans their QR or takes their code, then adds them as an opponent with all their decks and commander art. Update decks pulls their newest ones later.','Only your name and decks\' commanders are shared, and only while sharing is on. Needs you both signed in.']],
  ['5.2','Nov 27, 2026',['Set your name in Setup so games show it instead of "Me". Signing in with Google fills it in, and changing the first name in a new game updates it too.','Life counter art: soft edges now work on iPhone, and the player\'s color tints the background instead of an outline that looked like a stuck highlight.']],
  ['5.1','Nov 27, 2026',['Commander art in the life counter now always shows whole, centered behind the life total, in any panel shape and in landscape. Panels with art get a dark base and an outline in the player\'s color, so the red damage flash no longer looks green.']],
