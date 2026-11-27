@@ -328,16 +328,22 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= card scanner ================= */
 #scan{position:fixed;inset:0;z-index:16;background:#000;color:#fff;overflow:hidden}
 #scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#scan .sc-bar{position:absolute;left:50%;transform:translateX(-50%);top:24%;width:min(86vw,560px);height:calc(min(86vw,560px)*.15);border:3px solid #f2d49b;border-radius:10px;box-shadow:0 0 0 100vmax #0009;pointer-events:none}
+#scan .sc-bar{position:absolute;left:50%;transform:translateX(-50%);top:13%;width:min(60vw,34vh,360px);aspect-ratio:63/88;border:3px solid #f2d49b;border-radius:14px;box-shadow:0 0 0 100vmax #0009;pointer-events:none}
 #scan .sc-bar.hit{border-color:#7be08a}
-#scan .sc-tip{position:absolute;left:0;right:0;top:calc(24% + min(86vw,560px)*.15 + 10px);text-align:center;font-size:14px;color:#ddd;padding:0 16px;text-shadow:0 1px 3px #000}
+#scan .sc-bar .nz,#scan .sc-bar .sz{position:absolute;border:2px dashed #f2d49bcc;border-radius:6px}
+#scan .sc-bar .nz{left:4%;right:4%;top:3%;height:9%}
+#scan .sc-bar .sz{left:3%;width:56%;top:88%;height:9.5%}
+#scan .sc-bar.hit .nz,#scan .sc-bar.hit .sz{border-color:#7be08acc}
+#scan .sc-tip{position:absolute;left:0;right:0;top:calc(13% + min(60vw,34vh,360px)*88/63 + 8px);text-align:center;font-size:14px;color:#ddd;padding:0 16px;text-shadow:0 1px 3px #000}
 #scan .sc-top{position:absolute;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px;display:flex;gap:8px;align-items:center;background:linear-gradient(#000c,#0000)}
 #scan .sc-top.deck input{flex-basis:100%;order:5}
 #scan .sc-top input{flex:1;min-width:0;background:#ffffffe6;color:#111;border-radius:8px;padding:8px 10px;border:0}
 #scan button{color:#fff;background:#1d262acc;border:1px solid #ffffff40}
 #scan button.go{background:#7a1f22;border-color:#f2d49b}
-#scan .sc-st{position:absolute;left:0;right:0;top:calc(24% - 44px);text-align:center;font-weight:600;text-shadow:0 1px 3px #000}
-#scan .sc-bot{position:absolute;left:0;right:0;bottom:0;max-height:46%;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 10px);background:linear-gradient(#0000,#000e 18%)}
+#scan .sc-st{position:absolute;left:0;right:0;top:calc(13% - 30px);text-align:center;font-weight:600;text-shadow:0 1px 3px #000}
+#scan.has-res .sc-tip{display:none}
+.pgrid button{aspect-ratio:auto}.pgrid img{height:auto;aspect-ratio:488/680}
+#scan .sc-bot{position:absolute;left:0;right:0;bottom:0;max-height:36%;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 10px);background:linear-gradient(#0000,#000e 18%)}
 #scan .sc-res{display:flex;gap:10px;align-items:center;background:#141b1ef0;border-radius:12px;padding:8px}
 #scan .sc-res img{width:58px;border-radius:5px}
 #scan .sc-list{overflow:auto;background:#141b1ef0;border-radius:12px}
@@ -365,8 +371,9 @@ html.desk .tc.dragging{opacity:.35}
 /* ================= state ================= */
 const KEY='brewbench.v1';
 /* Bump VERSION and add an entry at the top of NEWS with every change. */
-const VERSION='4.4';
+const VERSION='4.5';
 const NEWS=[
+ ['4.5','Nov 27, 2026',['The scanner now finds the printing too. Line the whole card up with the frame: after the name, it reads the set code and collector number printed at the bottom left (cards since 2014) and picks the matching printing.','Older cards, or ones it can\'t read: tap Pick printing and choose from pictures of every printing. A Foil switch marks foil copies.']],
  ['4.4','Nov 27, 2026',['Scan cards into a deck too: the Scan button on the Unsorted section, or Menu → Scan cards into this deck. Scanned cards land in Unsorted, ready for Sort. Turn on + Collection to add them to your collection at the same time.','Scan cards with the camera: Collection → Scan. Fit a card\'s name in the box and it is looked up on Scryfall and added to your collection, one copy per scan. Set where they\'re stored at the top.','Auto add can be switched to Ask first. Each scan can be undone, and a list shows everything scanned this time.','For cards the scanner can\'t read, type the name or use iPhone\'s Scan Text in the box at the bottom.']],
  ['4.3','Nov 25, 2026',['Computer layout: on a computer with a mouse the app shows a sidebar, wider pages, deck sections side by side, and windows in the middle of the screen. Hover over a card name to see the card.','Deck tester on a computer: bigger cards, drag cards between hand, battlefield, graveyard, exile and library, right-click a card for options, double-click a card in hand to play it, and keys D draw, U untap, N next turn.','Setup → Look → Screen picks Automatic, Phone or Computer for each device. The phone layout is unchanged.']],
  ['4.2','Nov 24, 2026',['Sync errors now show their technical details, to make problems easier to fix.']],
@@ -1590,29 +1597,29 @@ async function ocrWorker(){if(SC.worker)return SC.worker;await loadScript('https
 function scStatus(t,hit){const e=$('#scSt');if(e)e.textContent=t;const b=$('#scan .sc-bar');if(b)b.classList.toggle('hit',!!hit)}
 function scBeep(){try{const a=SC.ac||(SC.ac=new (window.AudioContext||window.webkitAudioContext)());const o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=.06;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.09)}catch(e){}}
 function scDraw(){const el=$('#scan');if(!SC.on){el.hidden=true;el.innerHTML='';return}el.hidden=false;
-  if(!$('#scV'))el.innerHTML=`<video id="scV" playsinline muted autoplay></video><div class="sc-bar"></div><div class="sc-st" id="scSt">Starting the camera…</div>
-   <div class="sc-tip">Fit the card's <b>name</b> inside the box. Hold steady in good light.</div>
+  if(!$('#scV'))el.innerHTML=`<video id="scV" playsinline muted autoplay></video><div class="sc-bar"><div class="nz"></div><div class="sz"></div></div><div class="sc-st" id="scSt">Starting the camera…</div>
+   <div class="sc-tip">Line the card up with the frame. The name goes in the top box, the set code in the bottom one.</div>
    <div class="sc-top" id="scTop" style="flex-wrap:wrap"></div>
    <div class="sc-bot" id="scBot"></div>`;
-  const locV=(($('#scLoc')||{}).value);if(locV!=null)UI.lastLoc=locV;if(!$('#scLoc')||SC.topKey!==SC.to+SC.alsoColl+SC.auto){SC.topKey=SC.to+SC.alsoColl+SC.auto;$('#scTop').classList.toggle('deck',SC.to!=='coll');$('#scTop').innerHTML=`<button class="sm" data-act="scDone">Done</button>${SC.to==='coll'?'':`<b class="grow" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px #000">Into ${esc((scDeck()||{}).name||'deck')}</b><button class="sm" data-act="scColl" aria-pressed="${SC.alsoColl}">${SC.alsoColl?'+ Collection: on':'+ Collection: off'}</button>`}
-     ${SC.to==='coll'||SC.alsoColl?`<input id="scLoc" placeholder="Where are these stored? (optional)" value="${esc(UI.lastLoc||'')}" aria-label="Location for scanned cards">`:''}<button class="sm" data-act="scAuto" aria-pressed="${SC.auto}">${SC.auto?'Auto add':'Ask first'}</button>`}
-  const tot=SC.list.reduce((a,x)=>a+x.q,0);const r=SC.res;
-  $('#scBot').innerHTML=`${r?`<div class="sc-res">${card(r).img?`<img alt="" src="${esc(img(card(r),'small'))}">`:''}<div class="grow" style="min-width:0"><b>${esc(r)}</b><div class="small" style="color:#bbb">${SC.resDup?'Already in this deck':SC.resAdded?(SC.to==='coll'?'Added · you own '+owned(r):'Added to Unsorted'+(SC.alsoColl?' and your collection':'')):'Found'}</div></div>
-     ${SC.resDup?`<button class="sm" data-act="scSkip">OK</button>`:SC.resAdded?`${SC.to==='coll'||isBasic(r)?'<button class="sm" data-act="scMore">+1 more</button>':''}<button class="sm" data-act="scUndo">Undo</button>`:`<button class="sm go" data-act="scAdd">Add</button><button class="sm" data-act="scSkip">Skip</button>`}</div>`:''}
+  const locV=(($('#scLoc')||{}).value);if(locV!=null)UI.lastLoc=locV;if(!$('#scLoc')||SC.topKey!==SC.to+SC.alsoColl+SC.auto+SC.foil){SC.topKey=SC.to+SC.alsoColl+SC.auto+SC.foil;$('#scTop').classList.toggle('deck',SC.to!=='coll');$('#scTop').innerHTML=`<button class="sm" data-act="scDone">Done</button>${SC.to==='coll'?'':`<b class="grow" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px #000">Into ${esc((scDeck()||{}).name||'deck')}</b><button class="sm" data-act="scColl" aria-pressed="${SC.alsoColl}">${SC.alsoColl?'+ Collection: on':'+ Collection: off'}</button>`}
+     ${SC.to==='coll'||SC.alsoColl?`<input id="scLoc" placeholder="Where are these stored? (optional)" value="${esc(UI.lastLoc||'')}" aria-label="Location for scanned cards">`:''}<button class="sm" data-act="scFoil" aria-pressed="${!!SC.foil}">${SC.foil?'Foil ✓':'Foil'}</button><button class="sm" data-act="scAuto" aria-pressed="${SC.auto}">${SC.auto?'Auto add':'Ask first'}</button>`}
+  const tot=SC.list.reduce((a,x)=>a+x.q,0);const r=SC.res;el.classList.toggle('has-res',!!(r||SC.list.length));
+  $('#scBot').innerHTML=`${r?`<div class="sc-res">${card(r).img?`<img alt="" src="${esc(img(card(r),'small'))}">`:''}<div class="grow" style="min-width:0"><b>${esc(r)}</b><div class="small" style="color:#bbb">${SC.resAdded&&!SC.resDup?(SC.prt?`<b style="color:#f2d49b">${esc(SC.prt.s.toUpperCase())} #${esc(SC.prt.cn)}</b> ${esc(SC.prt.sn)}${SC.foil?' · foil':''} · `:SC.prtState==='reading'?'Reading the set… · ':''):''}${SC.resDup?'Already in this deck':SC.resAdded?(SC.to==='coll'?'Added · you own '+owned(r):'Added to Unsorted'+(SC.alsoColl?' and your collection':'')):'Found'}</div></div>
+     ${SC.resDup?`<button class="sm" data-act="scSkip">OK</button>`:SC.resAdded?`${SC.prtState&&SC.prtState!=='reading'?`<button class="sm" data-act="scPick">${SC.prt?'Change':'Pick printing'}</button>`:''}${SC.to==='coll'||isBasic(r)?'<button class="sm" data-act="scMore">+1 more</button>':''}<button class="sm" data-act="scUndo">Undo</button>`:`<button class="sm go" data-act="scAdd">Add</button><button class="sm" data-act="scSkip">Skip</button>`}</div>`:''}
    ${SC.list.length?`<div class="sc-list"><div class="r"><b class="grow">Scanned this time · ${tot}</b></div>${SC.list.slice().reverse().map(x=>`<div class="r"><span class="grow">${x.q>1?x.q+'× ':''}${esc(x.n)}</span><button class="sm" data-act="scMinus" data-n="${esc(x.n)}" aria-label="Remove one ${esc(x.n)}">−</button></div>`).join('')}</div>`:''}
    <div class="sc-man"><input id="scT" type="text" autocomplete="off" autocapitalize="words" placeholder="Type a name, or use iPhone Scan Text" aria-label="Card name"><button class="sm" data-act="scLook">Find</button></div>`}
 const scDeck=()=>SC.to==='coll'?null:S.decks.find(d=>d.id===SC.to);
 async function scOpen(to){if(SC.on)return;SC.to=to||'coll';SC.topKey='';SC.on=true;SC.list=[];SC.res=null;SC.cand='';SC.last='';closeSheet();scDraw();
   ocrWorker().then(()=>{if(SC.on&&SC.stream)scStatus('Point at a card')}).catch(()=>{scStatus('The text reader could not load. Type names below, or use iPhone Scan Text.')});
-  try{SC.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  try{SC.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}},audio:false});
     const v=$('#scV');v.srcObject=SC.stream;await v.play().catch(()=>{});scStatus(SC.worker?'Point at a card':'Loading the text reader… (first time takes a moment)');
     SC.timer=setInterval(scTick,650)}
   catch(e){scStatus('The camera is not available. Allow camera access in Settings, or type names below.')}}
 function scClose(){SC.on=false;clearInterval(SC.timer);SC.timer=null;if(SC.stream){SC.stream.getTracks().forEach(t=>t.stop());SC.stream=null}scDraw();rerender();
   const n=SC.list.reduce((a,x)=>a+x.q,0);const d=scDeck();if(n)toast('Added '+n+' card'+(n===1?'':'s')+(d?' to '+d.name+(SC.alsoColl?' and your collection':'')+'. Tap Sort to file them.':' to your collection'))}
-function scGrab(){const v=$('#scV'),bar=$('#scan .sc-bar');if(!v||!bar||!v.videoWidth)return null;const vw=v.videoWidth,vh=v.videoHeight,cw=v.clientWidth,ch=v.clientHeight;
+function scGrab(zone,H){zone=zone||'.nz';H=H||96;const v=$('#scV'),bar=$('#scan .sc-bar '+zone);if(!v||!bar||!v.videoWidth)return null;const vw=v.videoWidth,vh=v.videoHeight,cw=v.clientWidth,ch=v.clientHeight;
   const sc=Math.max(cw/vw,ch/vh),ox=(vw*sc-cw)/2,oy=(vh*sc-ch)/2;const r=bar.getBoundingClientRect(),vr=v.getBoundingClientRect();
-  const sx=(r.left-vr.left+ox)/sc,sy=(r.top-vr.top+oy)/sc,sw=r.width/sc,sh=r.height/sc;const H=96,W=Math.round(sw*H/sh);
+  const sx=(r.left-vr.left+ox)/sc,sy=(r.top-vr.top+oy)/sc,sw=r.width/sc,sh=r.height/sc;const W=Math.round(sw*H/sh);
   const c=SC.cv||(SC.cv=document.createElement('canvas'));c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(v,sx,sy,sw,sh,0,0,W,H);
   const im=x.getImageData(0,0,W,H),d=im.data;let lo=255,hi=0,sum=0;const g=new Uint8ClampedArray(W*H);
   for(let i=0,j=0;i<d.length;i+=4,j++){const y=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)|0;g[j]=y;sum+=y}
@@ -1621,7 +1628,7 @@ function scGrab(){const v=$('#scV'),bar=$('#scan .sc-bar');if(!v||!bar||!v.video
   x.putImageData(im,0,0);return c}
 function scClean(t){t=(t||'').replace(/[^A-Za-z',\- ]+/g,' ').replace(/\s+/g,' ').trim();const w=t.split(' ');while(w.length&&w[0].length<3&&!/^(of|to|an|a)$/i.test(w[0]))w.shift();while(w.length&&w[w.length-1].length<3&&!/^(of|to|an)$/i.test(w[w.length-1]))w.pop();return w.join(' ')}
 async function scLookup(q){const k=q.toLowerCase();if(SC.cache.has(k))return SC.cache.get(k);let n=null;try{const j=await sf('/cards/named?fuzzy='+encodeURIComponent(q));if(j&&j.name){slim(j);n=j.name}}catch(e){}SC.cache.set(k,n);return n}
-async function scTick(){if(!SC.on||SC.busy||!SC.worker||!$('#sheet').hidden)return;const c=scGrab();if(!c)return;SC.busy=true;
+async function scTick(){if(!SC.on||SC.busy||SC.prtBusy||!SC.worker||!$('#sheet').hidden)return;const c=scGrab();if(!c)return;SC.busy=true;
   try{const r=await SC.worker.recognize(c);const q=scClean(r.data.text);const ok=q.length>=3&&(r.data.confidence||0)>=40;
     if(!ok){SC.miss++;if(SC.miss>=2){SC.cand='';SC.last=''}if(!SC.res)scStatus('Point at a card');return}
     scStatus('Reading: '+q);const n=await scLookup(q);if(!SC.on)return;
@@ -1629,15 +1636,36 @@ async function scTick(){if(!SC.on||SC.busy||!SC.worker||!$('#sheet').hidden)retu
     if(n!==SC.cand){SC.cand=n;scStatus('Checking: '+n);return}
     if(n===SC.last)return;SC.last=n;scFound(n)}
   catch(e){}finally{SC.busy=false}}
-function scFound(n){SC.res=n;SC.resAdded=false;SC.resDup=false;scStatus(n,true);const d=scDeck();if(d&&!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.resDup=true;scDraw();return}if(SC.auto)scAddOne(n);else{scBeep();scDraw()}}
+/* printing: read the set code and collector number printed bottom left (cards since 2014), match them to the card's printings on Scryfall */
+const SCP=new Map();
+async function scPrints(n){if(SCP.has(n))return SCP.get(n);let list=[];try{const j=await sf('/cards/search?unique=prints&order=released&q='+encodeURIComponent('!"'+n.split(' // ')[0]+'" game:paper'));list=(j.data||[]).map(prtFrom)}catch(e){}SCP.set(n,list);return list}
+const toL=t=>t.replace(/0/g,'O').replace(/1/g,'I').replace(/5/g,'S').replace(/8/g,'B'),toD=t=>t.replace(/[OQD]/g,'0').replace(/[IL|]/g,'1').replace(/S/g,'5').replace(/B/g,'8').replace(/Z/g,'2');
+function scParse(text,prints){const T=(text||'').toUpperCase();const toks=T.split(/[^A-Z0-9\/]+/).filter(Boolean);
+  const nums=new Set(),sets=new Set();toks.forEach(t=>{const n=toD(t.split('/')[0]);if(/^\d{1,4}[A-Z]?$/.test(n)||/^\d{1,4}$/.test(n.replace(/[A-Z]$/,'')))nums.add(n.replace(/^0+(?=\d)/,''));if(/^[A-Z0-9]{3,5}$/.test(t)&&/[A-Z]/.test(t)&&!/^(EN|TM|LLC)$/.test(t))sets.add(toL(t))});
+  let best=null,bs=0;prints.forEach(p=>{const sc=(sets.has(toL(p.s.toUpperCase()))?2:0)+(nums.has(String(p.cn).toUpperCase().replace(/^0+(?=\d)/,''))?1:0);if(sc>bs){bs=sc;best=p}});
+  if(bs>=2)return best;if(bs===1&&prints.filter(p=>nums.has(String(p.cn).toUpperCase().replace(/^0+(?=\d)/,''))).length===1)return best;return null}
+async function scReadPrinting(n){const prints=await scPrints(n);if(!SC.on||prints.length===0)return null;if(prints.length===1)return prints[0];
+  await SC.worker.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/. '});
+  try{for(let i=0;i<4&&SC.on;i++){const c=scGrab('.sz',150);if(c){const r=await SC.worker.recognize(c);const p=scParse(r.data.text,prints);if(p)return p}await wait(250)}}
+  finally{await SC.worker.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',- "})}
+  return null}
+function scSetPrinting(n,p){SC.prt=p;if(scDeck()&&!SC.alsoColl)return;if(!owned(n))return;S.prt[n]={...p,foil:!!SC.foil&&!!(p.pf||!p.p)};save()}
+function scFound(n){SC.res=n;SC.resAdded=false;SC.resDup=false;SC.prt=null;SC.prtState='';scStatus(n,true);const d=scDeck();if(d&&!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.resDup=true;scDraw();return}if(SC.auto)scAddOne(n);else{scBeep();scDraw()}}
+async function scFindPrinting(n){if(!SC.worker||SC.prtState)return;SC.prtState='reading';scDraw();SC.prtBusy=true;let p=null;try{p=await scReadPrinting(n)}catch(e){}finally{SC.prtBusy=false}
+  if(SC.res!==n)return;SC.prtState=p?'auto':'unknown';if(p)scSetPrinting(n,p);scDraw()}
 function scAddOne(n){const d=scDeck();if(d){if(!isBasic(n)&&(inDeck(d,n)||d.cmd.includes(n))){SC.res=n;SC.resDup=true;scDraw();return}addCard(d,n,'u')}
   if(!d||SC.alsoColl){const loc=(($('#scLoc')||{}).value||'').trim();UI.lastLoc=loc;S.coll[n]=owned(n)+1;if(loc)S.loc[n]=loc}save();SC.resDup=false;
-  const e=SC.list.find(x=>x.n===n);if(e)e.q++;else SC.list.push({n,q:1});SC.res=n;SC.resAdded=true;scBeep();scDraw()}
+  const e=SC.list.find(x=>x.n===n);if(e)e.q++;else SC.list.push({n,q:1});const same=SC.res===n&&SC.prt;SC.res=n;SC.resAdded=true;scBeep();if(same){scSetPrinting(n,SC.prt);scDraw()}else{SC.prt=null;SC.prtState='';scDraw();scFindPrinting(n)}}
 function scRemoveOne(n){const d=scDeck();if(d){const e=d.cards.find(c=>c.n===n);if(e){if(e.q>1)e.q--;else d.cards=d.cards.filter(c=>c!==e)}}
   if((!d||SC.alsoColl)&&owned(n)){S.coll[n]=owned(n)-1;if(S.coll[n]<=0)delete S.coll[n]}save();const e=SC.list.find(x=>x.n===n);if(e){e.q--;if(e.q<=0)SC.list=SC.list.filter(x=>x!==e)}}
 Object.assign(A,{
   scan(e){scOpen(e&&e.dataset&&e.dataset.deck||'coll')},scDone(){scClose()},
   scColl(){SC.alsoColl=!SC.alsoColl;scDraw()},
+  scFoil(){SC.foil=!SC.foil;if(SC.res&&SC.prt)scSetPrinting(SC.res,SC.prt);scDraw()},
+  async scPick(){const n=SC.res;if(!n)return;sheet('Which printing?','<div class="empty">Loading printings…</div>');const list=await scPrints(n);if(SC.res!==n)return;
+    sheet('Which printing of '+n+'?',`<p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Tap the one you have.</p>
+     <div class="grid pgrid">${list.map((x,i)=>`<button data-act="scPickGo" data-i="${i}" title="${esc(x.sn)}">${x.img?`<img loading="lazy" alt="${esc(x.sn)}" src="${esc(x.img.replace('/normal/','/small/'))}">`:''}<span class="small" style="display:block;line-height:1.2;padding:3px 2px">${esc(x.s.toUpperCase())} #${esc(x.cn)}${x.yr?' · '+x.yr:''}</span></button>`).join('')}</div>`)},
+  scPickGo(e){const n=SC.res;const p=(SCP.get(n)||[])[+e.dataset.i];if(!p)return;SC.prtState='picked';scSetPrinting(n,p);closeSheet();scDraw()},
   scAuto(){SC.auto=!SC.auto;scDraw()},
   scAdd(){if(SC.res)scAddOne(SC.res)},scMore(){if(SC.res)scAddOne(SC.res)},
   scSkip(){SC.res=null;scDraw();scStatus('Point at a card')},
