@@ -454,8 +454,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.6.0';
+const VERSION='5.7.0';
 const NEWS=[
+ ['5.7.0','Nov 27',['Change printing: tap a card in a deck, then Change printing to pick any paper printing from Scryfall, with pictures and prices. The deck shows that art, and a commander\'s printing is also used as its art in the life counter. It only changes that deck. Cards you own in a set printing show that printing until you pick another.']],
  ['5.6.0','Nov 27',['New Ramp section on the Packages tab with 1-mana, 2-mana, 3-mana and 4-mana ramp packages. Each is a live Scryfall search for nonland ramp at that mana value, filtered to your commander\'s colors when you Fill a deck section with it. Packages now have an optional Section field, so you can group your own packages the same way. Cheap ramp and Mana rocks moved into the Ramp section too.']],
  ['5.5.0','Nov 27',['Shared games. When you save a game with a friend you added by friend code, they get a copy. It shows on their Play tab under Games your friends logged, with Add to my games or Skip, and is added from their side: you become their opponent with the deck you played. The other players are matched to their opponents by name, or added. Your game notes are not sent.']],
  ['5.4.0','Nov 27',['Release notes now follow the Site Map Builder style: three-part version numbers (major.minor.patch), a version tag next to the app name in Setup, and one short paragraph per release with its date. Setup → What\'s new opens to show every release.']],
@@ -725,7 +726,7 @@ const prtOf=n=>(S.prt||{})[n]||null;
 const ownPrice=n=>{const x=prtOf(n);return x?(x.foil?(x.pf||x.p):(x.p||x.pf))||0:card(n).p};
 const ownImg=n=>{const x=prtOf(n);return(x&&x.img)||card(n).img};
 const prtLabel=x=>x?`${x.s.toUpperCase()} #${x.cn}${x.foil?' foil':''}`:'';
-const prtFrom=c=>{const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};return{s:c.set||'',sn:c.set_name||'',cn:c.collector_number||'',img:iu.normal||'',p:+(pr.usd||0),pf:+(pr.usd_foil||pr.usd_etched||0),yr:(c.released_at||'').slice(0,4)}};
+const prtFrom=c=>{const f=(c.card_faces&&c.card_faces[0])||{};const iu=c.image_uris||f.image_uris||{};const pr=c.prices||{};return{s:c.set||'',sn:c.set_name||'',cn:c.collector_number||'',img:iu.normal||'',i2:(c.card_faces&&c.card_faces[1]&&c.card_faces[1].image_uris||{}).normal||'',p:+(pr.usd||0),pf:+(pr.usd_foil||pr.usd_etched||0),yr:(c.released_at||'').slice(0,4)}};
 const isBasic=n=>/^Basic/.test(card(n).t);
 const secOf=(d,sid)=>d.sections.find(s=>s.id===sid);
 const inSec=(d,sid)=>d.cards.filter(c=>c.s===sid||(c.x||[]).includes(sid));
@@ -745,6 +746,9 @@ function makesInline(c){const pm=c.pm||[];if(!c.mc||!pm.length)return'';const d=
   if(id){const use=show.filter(x=>x==='C'||id.includes(x));if(use.length)show=use}
   return' · makes <span class="pips sm" style="vertical-align:-2px">'+show.map(x=>`<span class="pip ${x==='C'?'':x}">${x}</span>`).join('')+'</span>'}
 const img=(c,size)=>c.img?c.img.replace('/normal/','/'+size+'/'):'';
+/* the printing a deck shows for a card: the one picked in that deck, else the one you own, else Scryfall's usual image */
+const deckPrt=(d,n)=>{const e=d&&d.cards.find(k=>k.n===n);return(e&&e.prt)||(d&&d.cmdPrt&&d.cmdPrt[n])||prtOf(n)||null};
+const dImg=(d,n,size)=>{const p=deckPrt(d,n);return p&&p.img?p.img.replace('/normal/','/'+size+'/'):img(card(n),size)};
 const money=v=>'$'+v.toFixed(2);
 
 /* ================= views ================= */
@@ -934,7 +938,7 @@ function vDeck(){
   const gc=m.filter(c=>card(c.n).gc).length+d.cmd.filter(n=>card(n).gc).length;
   const non=m.filter(c=>!/Land/.test(card(c.n).t));const tot=Math.round(non.reduce((a,c)=>a+card(c.n).cmc*c.q,0)*10)/10;const curve=Array(8).fill(0);non.forEach(c=>curve[Math.min(7,Math.floor(card(c.n).cmc))]+=c.q);
   const mx=Math.max(1,...curve);const avg=cnt(non)?(non.reduce((a,c)=>a+card(c.n).cmc*c.q,0)/cnt(non)).toFixed(2):'0';
-  const cmdHtml=d.cmd.length?d.cmd.map(n=>`<button class="art" data-act="cardSheet" data-n="${esc(n)}" style="background-image:linear-gradient(#0000 45%,#000c),url('${esc(img(card(n),'art_crop'))}')">${esc(n)}</button>`).join(''):`<div class="art none">No commander set</div>`;
+  const cmdHtml=d.cmd.length?d.cmd.map(n=>`<button class="art" data-act="cardSheet" data-n="${esc(n)}" style="background-image:linear-gradient(#0000 45%,#000c),url('${esc(dImg(d,n,'art_crop'))}')">${esc(n)}</button>`).join(''):`<div class="art none">No commander set</div>`;
   const secs=[{id:'u',name:'Unsorted',target:0,q:''},...d.sections,{id:'m',name:'Maybeboard',target:0,q:''}];
   page(`<button class="ghost" data-act="back" aria-label="Back to decks">‹ Decks</button><h1>${esc(d.name)}</h1>`,`<button data-act="deckMenu" aria-label="Deck menu">Menu</button>`,`
    <div class="cmd">${cmdHtml}</div>
@@ -962,7 +966,7 @@ const typeOf=n=>{const t=frontOf(card(n).t);return /Land/.test(t)?'Land':/Creatu
 function typeHtml(d){const m=main(d);if(!m.length)return`<div class="empty">No cards yet. Pick a type below to add some.</div><div class="row wrapf">${TYPES.map(t=>`<button class="sm" data-act="tyFill" data-t="${t}">+ ${t==='Sorcery'?'Sorceries':t+'s'}</button>`).join('')}</div>`;const secName=c=>c.s==='u'?'Unsorted':(secOf(d,c.s)||{}).name||'';
   return[...TYPES,'Other'].map(t=>{const cs=m.filter(c=>typeOf(c.n)===t).sort((a,b)=>a.n.localeCompare(b.n));if(!cs.length)return'';const closed=UI.closed[d.id+'t'+t];
     const rows=UI.view==='grid'
-     ?`<div class="grid">${cs.map(c=>`<button data-act="${UI.sel?'selTog':'cardSheet'}" class="${UI.sel&&UI.sel.has(c.n)?'on':''}" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
+     ?`<div class="grid">${cs.map(c=>`<button data-act="${UI.sel?'selTog':'cardSheet'}" class="${UI.sel&&UI.sel.has(c.n)?'on':''}" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(dImg(d,c.n,'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
      :cs.map(c=>`<button class="crow" data-act="${UI.sel?'selTog':'cardSheet'}" data-n="${esc(c.n)}" ${UI.sel?`aria-pressed="${UI.sel.has(c.n)}"`:''}>${UI.sel?`<span class="ck ${UI.sel.has(c.n)?'on':''}">✓</span>`:`<span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span>`}<span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}<br><span class="muted small">${esc(secName(c))}</span></span>${costOrMana(card(c.n))}</button>`).join('');
     return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="t${t}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${t==='Sorcery'?'Sorceries':t==='Other'?'Other':t+'s'}</button><span class="pill num plain">${cnt(cs)}</span>${t==='Other'?'':`<button class="sm" data-act="tySearch" data-t="${t}">Search</button><button class="sm pri" data-act="tyFill" data-t="${t}">Fill</button>`}</header>${closed?'':rows}</section>`}).join('')+`
     <div class="row wrapf">${[...TYPES].filter(t=>!m.some(c=>typeOf(c.n)===t)).map(t=>`<button class="sm" data-act="tyFill" data-t="${t}">+ ${t==='Sorcery'?'Sorceries':t+'s'}</button>`).join('')}</div>`}
@@ -970,7 +974,7 @@ function secHtml(d,s){
   const cs=inSec(d,s.id).sort((a,b)=>a.n.localeCompare(b.n));const n=cnt(cs);const special=s.id==='u'||s.id==='m';
   const cls=special||s.flex?'plain':n<s.target?'under':n===s.target?'ok':'over';const closed=UI.closed[d.id+s.id];
   const rows=UI.view==='grid'
-   ?`<div class="grid">${cs.map(c=>`<button data-act="${UI.sel?'selTog':'cardSheet'}" class="${UI.sel&&UI.sel.has(c.n)?'on':''}" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(card(c.n),'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
+   ?`<div class="grid">${cs.map(c=>`<button data-act="${UI.sel?'selTog':'cardSheet'}" class="${UI.sel&&UI.sel.has(c.n)?'on':''}" data-n="${esc(c.n)}" title="${esc(c.n)}">${card(c.n).img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(dImg(d,c.n,'small'))}">`:esc(c.n)}${c.q>1?`<span class="q">×${c.q}</span>`:''}</button>`).join('')}</div>`
    :cs.map(c=>`<button class="crow" data-act="${UI.sel?'selTog':'cardSheet'}" data-n="${esc(c.n)}" ${UI.sel?`aria-pressed="${UI.sel.has(c.n)}"`:''}>${UI.sel?`<span class="ck ${UI.sel.has(c.n)?'on':''}">✓</span>`:`<span class="dot ${owned(c.n)?'own':''}" title="${owned(c.n)?'Owned':'Not owned'}"></span>`}<span class="name">${c.q>1?c.q+'× ':''}${esc(c.n)}</span>${c.s!==s.id?'<span class="pill plain" style="font-size:11px">shared</span>':''}${costOrMana(card(c.n))}</button>`).join('');
   return`<section class="sec"><header><button class="ttl" data-act="toggle" data-sid="${s.id}" aria-expanded="${!closed}">${closed?'▸':'▾'} ${esc(s.name)}</button>
     <span class="pill num ${cls}">${special?n:s.flex?n+' · about '+s.target:n+'/'+s.target}</span>
@@ -1250,10 +1254,11 @@ function pick(n){const x=R.ctx;const d=deck();
 }
 
 function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n===n);const custom=S.packages.filter(p=>p.type==='custom');
-  const opts=[{id:'u',name:'Unsorted'},...d.sections,{id:'m',name:'Maybeboard'}];
-  sheet(n,`${c.img?`<img class="cardimg" alt="${esc(n)}" src="${esc(c.img)}">`:''}
-   ${flipBtn(c)}
-   <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${c.p?`<span class="muted num">${money(c.p)}</span>`:''}</div>
+  const opts=[{id:'u',name:'Unsorted'},...d.sections,{id:'m',name:'Maybeboard'}];const pr=deckPrt(d,n);const mine=(e&&e.prt)||(d.cmdPrt&&d.cmdPrt[n]);const price=pr&&pr.p?pr.p:c.p;
+  sheet(n,`${c.img?`<img class="cardimg" alt="${esc(n)}" src="${esc(dImg(d,n,'normal'))}">`:''}
+   ${pr&&pr.img?(pr.i2?`<button data-act="flipImg" data-a="${esc(pr.img)}" data-b="${esc(pr.i2)}">Show other side</button>`:''):flipBtn(c)}
+   <div class="row wrapf"><b class="grow">${esc(c.t)}</b>${pips(c.mc)}${price?`<span class="muted num">${money(price)}</span>`:''}</div>
+   ${isBasic(n)&&!pr?'':`<div class="row wrapf"><span class="grow small">${pr?`<b>${esc(pr.sn||pr.s.toUpperCase())}</b> <span class="muted">${esc((pr.s||'').toUpperCase())} #${esc(pr.cn)}${pr.yr?' · '+pr.yr:''}${mine?'':' · the one you own'}</span>`:'<span class="muted">Scryfall\'s usual printing</span>'}</span><button class="sm" data-act="dPrtOpen" data-n="${esc(n)}">Change printing</button></div>`}
    ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
    <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
    ${(c.pm||[]).length?`<div class="row"><span class="muted small">Makes</span>${prodPips(c)}</div>`:''}
@@ -1326,7 +1331,7 @@ function deckNames(i,name){let ds;if(!i)ds=[...S.decks.map(d=>d.name),...S.games
   return[...new Set(ds.filter(d=>d&&d!==NODECK))]}
 function deckOpts(i,name){const ds=deckNames(i,name)||[...new Set(S.players.filter(p=>p.id!=='me').flatMap(p=>p.decks))];return ds.map(d=>`<option value="${esc(d)}"></option>`).join('')}
 /* commander art for a player's deck: my decks use their commander, opponents' decks match a card name */
-const artOf=(pid,deck)=>{if(!deck)return'';let c;if(pid==='me'){const d=S.decks.find(d=>d.name.toLowerCase()===deck.toLowerCase());c=d&&d.cmd[0]&&CARDS[d.cmd[0]]}c=c||CARDS[deck]||CARDS[deck.split(/\s+(?:\+|&|\/)\s+/)[0]];return c&&c.img?img(c,'art_crop'):''};
+const artOf=(pid,deck)=>{if(!deck)return'';let c;if(pid==='me'){const d=S.decks.find(d=>d.name.toLowerCase()===deck.toLowerCase());const pc=d&&d.cmd[0]&&d.cmdPrt&&d.cmdPrt[d.cmd[0]];if(pc&&pc.img)return pc.img.replace('/normal/','/art_crop/');c=d&&d.cmd[0]&&CARDS[d.cmd[0]]}c=c||CARDS[deck]||CARDS[deck.split(/\s+(?:\+|&|\/)\s+/)[0]];return c&&c.img?img(c,'art_crop'):''};
 const dead=p=>p.out||p.life<=0||p.poison>=10||Object.values(p.cd).some(v=>v>=21);
 const vsMe=id=>S.games.filter(g=>g.players.some(x=>x.pid==='me')&&g.players.some(x=>x.pid===id)).length;
 const oppSort=(a,b)=>(!!b.fav-!!a.fav)||(vsMe(b.id)-vsMe(a.id))||a.name.localeCompare(b.name);
@@ -1651,6 +1656,15 @@ const A={
     sheet('Printings of '+n,`<p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Prices are regular, then foil.</p>
      <div class="list"><button class="item" data-act="prtPick" data-i="-1"><span class="name">Any printing</span><span class="muted small">typical price</span></button>
      ${list.map((x,i)=>`<button class="item" data-act="prtPick" data-i="${i}"><span class="name" style="white-space:normal"><b>${esc(x.sn)}</b>${cur&&cur.s===x.s&&cur.cn===x.cn?' <span class="pill ok">Yours</span>':''}<br><span class="muted small">${esc(x.s.toUpperCase())} #${esc(x.cn)}${x.yr?' · '+x.yr:''}</span></span><span class="muted small num" style="text-align:right">${x.p?money(x.p):'–'}<br>${x.pf?money(x.pf):'–'}</span></button>`).join('')}</div>`)},
+  async dPrtOpen(e){const n=e.dataset.n;const d=deck();sheet('Printings of '+n,'<div class="empty">Loading printings from Scryfall…</div>');const list=await scPrints(n);
+    if(!list.length){sheet('Printings of '+n,'<div class="empty">Could not load printings. Check your connection and try again.</div>',`<button data-act="cardSheet" data-n="${esc(n)}">Back</button>`);return}
+    UI.dPrints=list;UI.dPrtFor=n;const cur=deckPrt(d,n);
+    sheet('Printings of '+n,`<p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Changes only how it looks in this deck.</p>
+     <div class="list"><button class="item" data-act="dPrtPick" data-i="-1"><span class="name">${prtOf(n)?'The one you own':'Scryfall\'s usual printing'}</span></button>
+     ${list.map((x,i)=>`<button class="item" data-act="dPrtPick" data-i="${i}" style="gap:10px">${x.img?`<img loading="lazy" src="${esc(x.img.replace('/normal/','/small/'))}" alt="" style="width:46px;border-radius:3px;flex:none">`:''}<span class="name" style="white-space:normal"><b>${esc(x.sn)}</b>${cur&&cur.s===x.s&&cur.cn===x.cn?' <span class="pill ok">Showing</span>':''}${prtOf(n)&&prtOf(n).s===x.s&&prtOf(n).cn===x.cn?' <span class="pill">Yours</span>':''}<br><span class="muted small">${esc(x.s.toUpperCase())} #${esc(x.cn)}${x.yr?' · '+x.yr:''}</span></span><span class="muted small num">${x.p?money(x.p):'–'}</span></button>`).join('')}</div>`,
+     `<button data-act="cardSheet" data-n="${esc(n)}">Back</button>`)},
+  dPrtPick(e){const d=deck();const n=UI.dPrtFor;const i=+e.dataset.i;const p=i<0?null:UI.dPrints[i];const c=d.cards.find(k=>k.n===n);
+    if(c){if(p)c.prt=p;else delete c.prt}else{d.cmdPrt=d.cmdPrt||{};if(p)d.cmdPrt[n]=p;else delete d.cmdPrt[n]}save();rerender();cardSheet(n)},
   prtPick(e){const n=UI.printsFor;const i=+e.dataset.i;if(i<0)delete S.prt[n];else S.prt[n]={...UI.prints[i],foil:!!(prtOf(n)&&prtOf(n).foil)&&!!UI.prints[i].pf};save();A.collCard({dataset:{n}})},
   prtFoil(e){const x=prtOf(e.dataset.n);if(x){x.foil=!!e.dataset.f;save();A.collCard(e)}},
   pull(){const d=deck();d.pulled=d.pulled||{};const all=[...d.cmd.map(n=>({n,q:1})),...main(d)];const have=all.filter(c=>owned(c.n));const need=all.filter(c=>!owned(c.n));
