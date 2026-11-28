@@ -231,6 +231,15 @@ body.kb nav.tabs{display:none}
 .grid button.foil::before{content:"✦";position:absolute;top:3px;right:4px;z-index:2;color:#fff;font-size:12px;text-shadow:0 0 3px #000,0 0 6px #000}
 @keyframes foilmove{from{background-position:0% 30%}to{background-position:100% 70%}}
 @media (prefers-reduced-motion:reduce){.grid button.foil::after,.cardwrap.foil::after{animation:none}}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px 8px}
+.rtile{display:flex;flex-direction:column;gap:4px;min-width:0}
+.rtile .info{position:relative;padding:0;border:0;background:var(--sunk,#0002);border-radius:5%/3.6%;overflow:hidden;aspect-ratio:488/680;width:100%;min-height:0;box-shadow:0 2px 6px #0006}
+.rtile .info img{display:block;width:100%;height:100%;object-fit:cover}
+.rtile .rname{display:flex;align-items:center;justify-content:center;height:100%;padding:6px;text-align:center;font-size:13px}
+.rtile .rown{position:absolute;left:4px;top:4px;background:#2e7d4fe6;color:#fff;font:600 10px/1 system-ui,sans-serif;padding:3px 5px;border-radius:4px}
+.rmeta{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:36px}.rmeta .small{font-size:12px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.rmeta .add{min-width:40px;min-height:36px;padding:4px 8px;flex:none}
+html.desk .rgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 .grid button.on{outline:3px solid var(--accent);outline-offset:-3px}
 #selbar{position:fixed;left:0;right:0;bottom:calc(57px + env(safe-area-inset-bottom,0px));z-index:7;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 16px #0003}
 #selbar .wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-block:8px}
@@ -461,9 +470,10 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.10.0';
+const VERSION='5.11.0';
 const NEWS=[
- ['5.10.0','Nov 28',['Similar cards now open inside the app. Tap a card in a deck, or hold a card in search or Fill results, then Similar cards (EDHREC). You get EDHREC\'s similar cards in your commander\'s colors, most similar first, with the usual + to add them to the same section. Open on EDHREC is still there as a backup.']],
+ ['5.11.0','Nov 28',['Pictures toggle on search, Fill and similar-card results: shows the cards as images in a grid, with Owned tags and the + button under each. The app remembers your choice. Tap a picture to see it bigger.']],
+ ['5.10.0','Nov 28',['Similar cards now open inside the app. Tap a card in a deck, or hold a card in search or Fill results, then Similar cards (EDHREC). You get EDHREC\'s similar cards in your commander\'s colors, most similar first, with the usual + to add them to the same section. Open on EDHREC is still there as a backup.','Open on EDHREC buttons are readable again.']],
  ['5.9.0','Nov 28',['New Cost reducers package in the Ramp section on the Packages tab. It finds cards that make your spells cheaper, like Goblin Electromancer or Urza\'s Incubator, in your commander\'s colors when you Fill a deck section with it.']],
  ['5.8.0','Nov 28',['Foils in decks: tap a card in a deck, then ✦ Foil next to Change printing. Foil cards get a rainbow shimmer and a ✦ in the deck grid, and the deck\'s value uses the foil price. The printing list shows regular and foil prices, and printings with no foil are marked. Cards you own as foil start as foil. Only that deck changes.']],
  ['5.7.0','Nov 27',['Change printing: tap a card in a deck, then Change printing to pick any paper printing from Scryfall, with pictures and prices. The deck shows that art, and a commander\'s printing is also used as its art in the life counter. It only changes that deck. Cards you own in a set printing show that printing until you pick another.']],
@@ -1179,13 +1189,14 @@ function shown(){let cs=R.cards;if(R.ownedOnly)cs=cs.filter(c=>owned(c.n));if(R.
 function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.loading){box.innerHTML='<div class="empty">Searching Scryfall…</div>';return}
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
-  const cs=shown();const d=deck();let head=R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'';
+  const cs=shown();const d=deck();const picChip=`<button class="chip ${S.resPics?'on':''}" data-act="rPics" aria-pressed="${!!S.resPics}">Pictures</button>`;
+  const chipRow=!(R.ctx.k==='deck'&&R.fill);let head=(chipRow&&cs.length?`<div class="chips">${picChip}</div>`:'')+(R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'');
   if(R.added&&R.added.length)head+=`<p class="small" style="margin:0 0 8px"><b>Added ${R.added.length}:</b> <span class="muted">${esc(R.added.join(', '))}</span></p>`;
-  if(R.ctx.k==='deck'&&R.fill&&R.ctx.ty){head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button></div><p class="muted small" style="margin:0">Cards you add are filed into your sections automatically.</p>`}
+  if(R.ctx.k==='deck'&&R.fill&&R.ctx.ty){head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${picChip}</div><p class="muted small" style="margin:0">Cards you add are filed into your sections automatically.</p>`}
   else if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
-    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
+    head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${picChip}${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
-  box.innerHTML=head+(cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}${makesInline(c)}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
+  box.innerHTML=head+(cs.length&&S.resPics?`<div class="rgrid">${cs.map(c=>{const st=status(c);return`<div class="rtile"><button class="info" data-act="peek" data-n="${esc(c.n)}">${c.img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(c,'normal'))}">`:`<span class="rname">${esc(c.n)}</span>`}${owned(c.n)?'<span class="rown">Owned</span>':''}</button><div class="rmeta"><span class="muted small">${esc(((R.meta&&R.meta[c.n])||'').replace(/^in /,'').replace(/ of decks/,''))}${c.p?((R.meta&&R.meta[c.n])?' · ':'')+money(c.p):''}</span><button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}" aria-label="${st.on?'In deck':'Add'} ${esc(c.n)}">${st.l}</button></div></div>`}).join('')}</div>`:cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}${makesInline(c)}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
 /* runs q; if it errors or finds nothing, tries each fallback in order and shows that fallback's note */
 async function runQuery(q,alts,first){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.won='';R.started=true;drawRes();
@@ -1668,6 +1679,7 @@ const A={
     sheet('Printings of '+n,`<p class="muted small" style="margin:0">${list.length} printing${list.length===1?'':'s'}, newest first. Prices are regular, then foil.</p>
      <div class="list"><button class="item" data-act="prtPick" data-i="-1"><span class="name">Any printing</span><span class="muted small">typical price</span></button>
      ${list.map((x,i)=>`<button class="item" data-act="prtPick" data-i="${i}"><span class="name" style="white-space:normal"><b>${esc(x.sn)}</b>${cur&&cur.s===x.s&&cur.cn===x.cn?' <span class="pill ok">Yours</span>':''}<br><span class="muted small">${esc(x.s.toUpperCase())} #${esc(x.cn)}${x.yr?' · '+x.yr:''}</span></span><span class="muted small num" style="text-align:right">${x.p?money(x.p):'–'}<br>${x.pf?money(x.pf):'–'}</span></button>`).join('')}</div>`)},
+  rPics(){S.resPics=!S.resPics;save();drawRes()},
   dFoil(e){const d=deck();const n=e.dataset.n;const f=!deckFoil(d,n);const c=d.cards.find(k=>k.n===n);if(c)c.foil=f;else{d.cmdFoil=d.cmdFoil||{};d.cmdFoil[n]=f}save();rerender();cardSheet(n);toast(f?'Marked foil in this deck':'Not foil in this deck')},
   async dPrtOpen(e){const n=e.dataset.n;const d=deck();sheet('Printings of '+n,'<div class="empty">Loading printings from Scryfall…</div>');const list=await scPrints(n);
     if(!list.length){sheet('Printings of '+n,'<div class="empty">Could not load printings. Check your connection and try again.</div>',`<button data-act="cardSheet" data-n="${esc(n)}">Back</button>`);return}
