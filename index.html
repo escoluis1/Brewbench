@@ -460,8 +460,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.8.0';
+const VERSION='5.9.0';
 const NEWS=[
+ ['5.9.0','Nov 28',['New Cost reducers package in the Ramp section on the Packages tab. It finds cards that make your spells cheaper, like Goblin Electromancer or Urza\'s Incubator, in your commander\'s colors when you Fill a deck section with it.']],
  ['5.8.0','Nov 28',['Foils in decks: tap a card in a deck, then ✦ Foil next to Change printing. Foil cards get a rainbow shimmer and a ✦ in the deck grid, and the deck\'s value uses the foil price. The printing list shows regular and foil prices, and printings with no foil are marked. Cards you own as foil start as foil. Only that deck changes.']],
  ['5.7.0','Nov 27',['Change printing: tap a card in a deck, then Change printing to pick any paper printing from Scryfall, with pictures and prices. The deck shows that art, and a commander\'s printing is also used as its art in the life counter. It only changes that deck. Cards you own in a set printing show that printing until you pick another.']],
  ['5.6.0','Nov 27',['New Ramp section on the Packages tab with 1-mana, 2-mana, 3-mana and 4-mana ramp packages. Each is a live Scryfall search for nonland ramp at that mana value, filtered to your commander\'s colors when you Fill a deck section with it. Packages now have an optional Section field, so you can group your own packages the same way. Cheap ramp and Mana rocks moved into the Ramp section too.']],
@@ -587,7 +588,7 @@ const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packa
 let S; let CARDS={};
 /* Ramp packages, one per mana value, grouped under a Ramp section on the Packages tab. Added once; edit or delete them freely. */
 const RAMP_PKGS=()=>[1,2,3,4].map(m=>({id:uid(),name:m+'-mana ramp',group:'Ramp',type:'scryfall',q:'otag:ramp -t:land mv='+m,cards:[]}));
-function norm(){S.loc=S.loc||{};S.packages=S.packages||[];if(!S.rampPk){S.rampPk=1;if(!S.packages.some(p=>p.group==='Ramp')){S.packages.forEach(p=>{if(!p.group&&/^(Cheap ramp|Mana rocks)$/.test(p.name))p.group='Ramp'});S.packages.push(...RAMP_PKGS())}}S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
+function norm(){S.loc=S.loc||{};S.packages=S.packages||[];if(!S.rampPk){S.rampPk=1;if(!S.packages.some(p=>p.group==='Ramp')){S.packages.forEach(p=>{if(!p.group&&/^(Cheap ramp|Mana rocks)$/.test(p.name))p.group='Ramp'});S.packages.push(...RAMP_PKGS())}}if(!S.costPk){S.costPk=1;if(!S.packages.some(p=>/otag:cost-reducer/.test(p.q||'')))S.packages.push({id:uid(),name:'Cost reducers',group:'Ramp',type:'scryfall',q:'otag:cost-reducer',cards:[]})}S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
   if(!S.mStd2){S.mStd2=1;S.template=STD()}
   if(!S.mInt){S.mInt=1;[S.template,...(S.decks||[]).map(d=>d.sections)].forEach(l=>l.forEach(x=>{if(x.q===INTERACT_OLD)x.q=INTERACT}))}S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
