@@ -470,8 +470,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.11.0';
+const VERSION='5.12.0';
 const NEWS=[
+ ['5.12.0','Nov 28',['MDFC category: in a deck, pick MDFCs from Add a section (or Edit sections → Add a section). It adds a section for modal double-faced cards with a land side (a spell you can also play as a land), with Fill and a target of 4. They still count toward your land total. There\'s also an MDFCs package in a new Lands section on the Packages tab.']],
  ['5.11.0','Nov 28',['Pictures toggle on search, Fill and similar-card results: shows the cards as images in a grid, with Owned tags and the + button under each. The app remembers your choice. Tap a picture to see it bigger.']],
  ['5.10.0','Nov 28',['Similar cards now open inside the app. Tap a card in a deck, or hold a card in search or Fill results, then Similar cards (EDHREC). You get EDHREC\'s similar cards in your commander\'s colors, most similar first, with the usual + to add them to the same section. Open on EDHREC is still there as a backup.','Open on EDHREC buttons are readable again.']],
  ['5.9.0','Nov 28',['New Cost reducers package in the Ramp section on the Packages tab. It finds cards that make your spells cheaper, like Goblin Electromancer or Urza\'s Incubator, in your commander\'s colors when you Fill a deck section with it.']],
@@ -600,7 +601,7 @@ const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packa
 let S; let CARDS={};
 /* Ramp packages, one per mana value, grouped under a Ramp section on the Packages tab. Added once; edit or delete them freely. */
 const RAMP_PKGS=()=>[1,2,3,4].map(m=>({id:uid(),name:m+'-mana ramp',group:'Ramp',type:'scryfall',q:'otag:ramp -t:land mv='+m,cards:[]}));
-function norm(){S.loc=S.loc||{};S.packages=S.packages||[];if(!S.rampPk){S.rampPk=1;if(!S.packages.some(p=>p.group==='Ramp')){S.packages.forEach(p=>{if(!p.group&&/^(Cheap ramp|Mana rocks)$/.test(p.name))p.group='Ramp'});S.packages.push(...RAMP_PKGS())}}if(!S.costPk){S.costPk=1;if(!S.packages.some(p=>/otag:cost-reducer/.test(p.q||'')))S.packages.push({id:uid(),name:'Cost reducers',group:'Ramp',type:'scryfall',q:'otag:cost-reducer',cards:[]})}S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
+function norm(){S.loc=S.loc||{};S.packages=S.packages||[];if(!S.rampPk){S.rampPk=1;if(!S.packages.some(p=>p.group==='Ramp')){S.packages.forEach(p=>{if(!p.group&&/^(Cheap ramp|Mana rocks)$/.test(p.name))p.group='Ramp'});S.packages.push(...RAMP_PKGS())}}if(!S.mdfcPk){S.mdfcPk=1;if(!S.packages.some(p=>/is:mdfc/.test(p.q||'')))S.packages.push({id:uid(),name:'MDFCs (spell or land)',group:'Lands',type:'scryfall',q:'is:mdfc t:land',cards:[]})}if(!S.costPk){S.costPk=1;if(!S.packages.some(p=>/otag:cost-reducer/.test(p.q||'')))S.packages.push({id:uid(),name:'Cost reducers',group:'Ramp',type:'scryfall',q:'otag:cost-reducer',cards:[]})}S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
   if(!S.mStd2){S.mStd2=1;S.template=STD()}
   if(!S.mInt){S.mInt=1;[S.template,...(S.decks||[]).map(d=>d.sections)].forEach(l=>l.forEach(x=>{if(x.q===INTERACT_OLD)x.q=INTERACT}))}S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
@@ -796,6 +797,7 @@ function vDecks(){
 
 /* themes that can be added to a deck as sections: [name, target, Scryfall search, pattern that suggests it from the commander's text] */
 const THEMES=[
+ ['MDFCs',4,'is:mdfc t:land'],
  ['Tokens',10,'o:create o:"creature token"',/create[^.]*token/i],['+1/+1 Counters',10,'o:"+1/+1 counter"',/\+1\/\+1 counter/i],['Proliferate',5,'o:proliferate',/proliferate|counters? on/i],
  ['Sacrifice Outlets',8,'otag:sacrifice-outlet',/sacrifice/i],['Death Triggers',8,'o:/whenever .* dies/',/\bdies\b/i],['Reanimation',8,'otag:reanimate',/graveyard/i],
  ['Lifegain',10,'o:"whenever you gain life"',/gains? [^.]*life|lifelink/i],['Artifacts',10,'t:artifact',/artifact/i],['Enchantments',10,'t:enchantment',/enchantment|aura/i],['Equipment',8,'t:equipment',/equip/i],
