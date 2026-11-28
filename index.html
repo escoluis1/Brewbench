@@ -470,8 +470,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.12.0';
+const VERSION='5.12.1';
 const NEWS=[
+ ['5.12.1','Nov 28',['The Pictures button on results now says List while pictures are showing, so it\'s clear how to switch back.']],
  ['5.12.0','Nov 28',['MDFC category: in a deck, pick MDFCs from Add a section (or Edit sections → Add a section). It adds a section for modal double-faced cards with a land side (a spell you can also play as a land), with Fill and a target of 4. They still count toward your land total. There\'s also an MDFCs package in a new Lands section on the Packages tab.']],
  ['5.11.0','Nov 28',['Pictures toggle on search, Fill and similar-card results: shows the cards as images in a grid, with Owned tags and the + button under each. The app remembers your choice. Tap a picture to see it bigger.']],
  ['5.10.0','Nov 28',['Similar cards now open inside the app. Tap a card in a deck, or hold a card in search or Fill results, then Similar cards (EDHREC). You get EDHREC\'s similar cards in your commander\'s colors, most similar first, with the usual + to add them to the same section. Open on EDHREC is still there as a backup.','Open on EDHREC buttons are readable again.']],
@@ -1191,7 +1192,7 @@ function shown(){let cs=R.cards;if(R.ownedOnly)cs=cs.filter(c=>owned(c.n));if(R.
 function drawRes(){const box=$('#res');if(!box||!R)return;
   if(R.loading){box.innerHTML='<div class="empty">Searching Scryfall…</div>';return}
   if(R.err){box.innerHTML=`<div class="empty">${esc(R.err)}</div>`;return}
-  const cs=shown();const d=deck();const picChip=`<button class="chip ${S.resPics?'on':''}" data-act="rPics" aria-pressed="${!!S.resPics}">Pictures</button>`;
+  const cs=shown();const d=deck();const picChip=`<button class="chip" data-act="rPics" aria-label="${S.resPics?'Show as a list':'Show as pictures'}">${S.resPics?'☰ List':'▦ Pictures'}</button>`;
   const chipRow=!(R.ctx.k==='deck'&&R.fill);let head=(chipRow&&cs.length?`<div class="chips">${picChip}</div>`:'')+(R.note?`<p class="muted small" style="margin:0">${esc(R.note)}</p>`:'');
   if(R.added&&R.added.length)head+=`<p class="small" style="margin:0 0 8px"><b>Added ${R.added.length}:</b> <span class="muted">${esc(R.added.join(', '))}</span></p>`;
   if(R.ctx.k==='deck'&&R.fill&&R.ctx.ty){head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${picChip}</div><p class="muted small" style="margin:0">Cards you add are filed into your sections automatically.</p>`}
