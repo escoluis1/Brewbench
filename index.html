@@ -470,8 +470,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.12.1';
+const VERSION='5.12.2';
 const NEWS=[
+ ['5.12.2','Nov 28',['Similar cards works now. EDHREC doesn\'t share its similar-cards list with apps, so the app looks up what the card does with Scryfall\'s function tags (board wipe, mana rock, tutor, removal and more) and shows other cards that do the same, the same card type and close in mana value, most played first. The top of the list says which tags it used.']],
  ['5.12.1','Nov 28',['The Pictures button on results now says List while pictures are showing, so it\'s clear how to switch back.']],
  ['5.12.0','Nov 28',['MDFC category: in a deck, pick MDFCs from Add a section (or Edit sections → Add a section). It adds a section for modal double-faced cards with a land side (a spell you can also play as a land), with Fill and a target of 4. They still count toward your land total. There\'s also an MDFCs package in a new Lands section on the Packages tab.']],
  ['5.11.0','Nov 28',['Pictures toggle on search, Fill and similar-card results: shows the cards as images in a grid, with Owned tags and the + button under each. The app remembers your choice. Tap a picture to see it bigger.']],
@@ -1175,7 +1176,7 @@ async function runShare(){const items=[...SHAREQ];SHAREQ.clear();const byDeck={}
 function sheet(title,body,foot){const el=$('#sheet');const was=!el.hidden;const ob=$('.body',el);const keep=was&&sheet.last===title&&ob?ob.scrollTop:0;sheet.last=title;UI.themeOpen=false;UI.tokOpen=false;UI.tyOpen=sheet.nextTy||'';sheet.nextTy='';el.hidden=false;
   el.innerHTML=`<div class="scrim" data-act="scrim"><div class="sheet ${was?'still':''} ${/type="search"/.test(body)?'tall':''}" role="dialog" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button data-act="close">Close</button></header><div class="body">${body}</div>${foot?`<div class="body" style="border-top:1px solid var(--line);flex:none">${foot}</div>`:''}</div></div>`;if(keep&&$('.body',el))$('.body',el).scrollTop=keep}
 function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';R=null;UI.themeOpen=false;sheet.last=''}
-function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p>${deck()?`<button data-act="simOf" data-n="${esc(n)}" style="pointer-events:auto">Similar cards (EDHREC)</button>`:''}<span style="color:#fff" class="small">Tap anywhere to close</span></div>`;
+function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTML=`<div class="peek" data-act="unpeek">${c.img?`<img alt="${esc(n)}" src="${esc(c.img)}">`:`<h2 style="color:#fff">${esc(n)}</h2>`}<p>${esc(c.t)}\n${esc(c.o)}</p>${deck()?`<button data-act="simOf" data-n="${esc(n)}" style="pointer-events:auto">Similar cards</button>`:''}<span style="color:#fff" class="small">Tap anywhere to close</span></div>`;
   const info=[c.p?money(c.p):'No price listed',owned(n)?'You own '+owned(n):'Not owned',R&&R.meta&&R.meta[n]].filter(Boolean);const b=document.createElement('b');b.className='num';b.style.cssText='color:#fff;font-size:16px;text-align:center';b.textContent=info.join(' · ');
   const im=$('.peek img',el)||$('.peek h2',el);im.after(b)}
 
@@ -1288,7 +1289,7 @@ function cardSheet(n){const d=deck();const c=card(n);const e=d.cards.find(k=>k.n
    ${c.gc?'<span class="pill over" style="align-self:flex-start">Game Changer</span>':''}
    <div class="otext">${esc(c.o)||'<span class="muted">No rules text.</span>'}</div>
    ${(c.pm||[]).length?`<div class="row"><span class="muted small">Makes</span>${prodPips(c)}</div>`:''}
-   <button data-act="simOf" data-n="${esc(n)}">Similar cards (EDHREC)</button>
+   <button data-act="simOf" data-n="${esc(n)}">Similar cards</button>
    ${e?`<label for="mv">Section</label><select id="mv" data-n="${esc(n)}">${opts.map(s=>`<option value="${s.id}" ${e.s===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>${e.s!=='m'&&d.sections.some(s=>s.id!==e.s)?`<label>Also counts toward</label><div class="chips">${d.sections.filter(s=>s.id!==e.s).map(s=>`<button class="chip ${(e.x||[]).includes(s.id)?'on':''}" data-act="xTog" data-n="${esc(n)}" data-sid="${s.id}">${esc(s.name)}</button>`).join('')}</div>`:''}`:'<p class="muted small" style="margin:0">This is your commander.</p>'}
    <div class="row wrapf"><span class="grow">Copies you own</span><button class="sm" data-act="ownDec" data-n="${esc(n)}" aria-label="Own one fewer">−</button><b class="num" id="ownN" style="min-width:22px;text-align:center">${owned(n)}</b><button class="sm" data-act="ownInc" data-n="${esc(n)}" aria-label="Own one more">+</button></div>
    ${e&&isBasic(n)?`<div class="row"><span class="grow">Copies in deck</span><button class="sm" data-act="qDec" data-n="${esc(n)}" aria-label="One fewer in deck">−</button><b class="num" style="min-width:22px;text-align:center">${e.q}</b><button class="sm" data-act="qInc" data-n="${esc(n)}" aria-label="One more in deck">+</button></div>`:''}
@@ -2025,27 +2026,28 @@ Object.assign(A,{
   async inbSkip(e){await inboxDrop(e.dataset.id);rerender();toast('Skipped')}
 });
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')inboxCheck()});
-/* ---- Similar cards from EDHREC, shown in the app with the same add buttons as Fill ---- */
+/* ---- Similar cards: find what the card does from Scryfall's function tags, then show other cards with the same tag, most played first ---- */
+const SIM_TAGS=[['board-wipe','board wipes'],['counterspell','counterspells'],['tutor','tutors'],['extra-turn','extra turns'],['mana-rock','mana rocks'],['mana-dork','mana creatures'],['cost-reducer','cost reducers'],['sacrifice-outlet','sacrifice outlets'],['reanimate','reanimation'],['flicker','flicker'],['graveyard-hate','graveyard hate'],['wheel','wheels'],['removal','removal'],['ramp','ramp'],['draw','card draw'],['burn','burn'],['lifegain','lifegain']];
 const SIM={};
-function simNames(j,self){const out=[];const seen=new Set([self.toLowerCase()]);const add=x=>{const n=x&&(x.name||(x.names&&x.names[0])||x.sanitized_name);if(typeof n==='string'&&!seen.has(n.toLowerCase())){seen.add(n.toLowerCase());out.push(n)}};
-  const walk=(o,d)=>{if(!o||typeof o!=='object'||d>7)return;if(Array.isArray(o)){o.forEach(x=>walk(x,d+1));return}
-    for(const[k,v]of Object.entries(o)){if(/similar/i.test(k)&&Array.isArray(v))v.forEach(add);else if(k==='header'&&typeof v==='string'&&/similar/i.test(v)&&Array.isArray(o.cardviews))o.cardviews.forEach(add);else walk(v,d+1)}};
-  walk(j,0);return out}
-async function simFetch(n){if(SIM[n])return SIM[n];const slug=edhSlug([n]);let names=[];
-  for(const s of[slug,slug+'/similar-cards']){const j=await edhFetch(s,'cards');if(j){names=simNames(j,n);if(names.length)break}}
-  if(names.length)SIM[n]=names;return names}
+async function simTags(n){if(SIM[n])return SIM[n];const nm=n.split(' // ')[0].replace(/"/g,'');const out=[];
+  for(const[t,l]of SIM_TAGS){if(out.length>=2)break;if(out.some(o=>o[0]==='mana-rock'||o[0]==='mana-dork')&&t==='ramp')continue;
+    try{const j=await sf('/cards/search?q='+encodeURIComponent('!"'+nm+'" otag:'+t));if(j.data&&j.data.length)out.push([t,l])}catch(e){}}
+  SIM[n]=out;return out}
 async function similarSheet(n){const d=deck();const e=d&&d.cards.find(k=>k.n===n);const sid=R&&R.ctx&&R.ctx.k==='deck'&&R.ctx.sid?R.ctx.sid:e?e.s:'u';
   const link=`<a class="btn" href="https://edhrec.com/cards/${edhSlug([n])}/similar-cards" target="_blank" rel="noopener">Open on EDHREC ↗</a>`;
   if(!d){sheet('Similar to '+n,'<div class="empty">Open a deck first, so the similar cards can be added to it.</div>'+link);return}
   const sec=sid==='u'?'Unsorted':sid==='m'?'Maybeboard':(secOf(d,sid)||{}).name||'Unsorted';
   R={ctx:{k:'deck',sid},cards:[],fill:true,ownedFirst:false,ownedOnly:false,loading:true,started:true,src:'sim'};const mine=R;
-  sheet('Similar to '+n,`<p class="muted small" style="margin:0">From EDHREC, most similar first, in your commander's colors. Tapping + adds to ${esc(sec)}.</p><div id="res"></div>`,link);drawRes();
-  let names=[];try{names=await simFetch(n)}catch(err){}
-  if(R!==mine)return;if(!names.length){R.loading=false;R.err='EDHREC did not send similar cards for this one. Use Open on EDHREC below.';drawRes();return}
-  try{const r=await byNames(names.slice(0,40));if(R!==mine)return;const id=ident(d);const order=new Map(names.map((x,i)=>[x.toLowerCase(),i]));
-    R.cards=r.cards.filter(c=>c&&(!d.cmd.length||c.ci.every(x=>id.includes(x)))).sort((a,b)=>(order.get(a.n.toLowerCase())??99)-(order.get(b.n.toLowerCase())??99));
-    R.note=R.cards.length?'':'None of the similar cards fit your commander\'s colors.';save()}catch(err){if(R!==mine)return;R.err=err.message}
-  R.loading=false;drawRes()}
+  sheet('Similar to '+n,`<p class="muted small" style="margin:0" id="simWhy">Working out what ${esc(n)} does…</p><div id="res"></div>`,link);drawRes();
+  const tags=await simTags(n);if(R!==mine)return;const c=card(n);const nm=n.split(' // ')[0].replace(/"/g,'');
+  if(!tags.length){R.loading=false;R.err='Scryfall has no function tag for this card that the app knows, so there is nothing to compare it with. Open on EDHREC below has a hand-made list.';$('#simWhy').textContent='';drawRes();return}
+  const mainT=['Creature','Instant','Sorcery','Artifact','Enchantment','Planeswalker','Land','Battle'].find(t=>(c.t||'').split(' // ')[0].includes(t));const mv=typeof c.cmc==='number'&&c.t?c.cmc:null;
+  const base=tags.map(t=>'otag:'+t[0]).join(' ')+' -!"'+nm+'"'+idf(d);const list=[];
+  if(mainT&&mv!=null)list.push({q:base+' t:'+mainT.toLowerCase()+' mv>='+Math.max(0,mv-1)+' mv<='+(mv+1),note:''});
+  if(mainT)list.push({q:base+' t:'+mainT.toLowerCase(),note:''});list.push({q:base,note:''});
+  if(tags.length>1){const one='otag:'+tags[0][0]+' -!"'+nm+'"'+idf(d);if(mainT)list.push({q:one+' t:'+mainT.toLowerCase(),note:''});list.push({q:one,note:''})}
+  const w=$('#simWhy');if(w)w.innerHTML=`Cards that are also <b>${tags.map(t=>esc(t[1])).join(' + ')}</b>${mainT?' ('+esc(mainT.toLowerCase())+(mv!=null?', close to '+mv+' mana':'')+')':''} in your commander's colors, most played first. + adds to ${esc(sec)}.`;
+  await runQuery(list[0].q,list.slice(1),list[0])}
 Object.assign(A,{simOf(e){const p=$('#peek');if(p)p.hidden=true;similarSheet(e.dataset.n)}});
 /* ================= deck tester ================= */
 let T=null;const TOK={};
