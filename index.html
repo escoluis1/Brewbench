@@ -240,6 +240,7 @@ body.kb nav.tabs{display:none}
 .rmeta{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:36px}.rmeta .small{font-size:12px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
 .rmeta .add{min-width:40px;min-height:36px;padding:4px 8px;flex:none}
 html.desk .rgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.add.part{border-style:dashed!important;opacity:.7}
 .grid button.on{outline:3px solid var(--accent);outline-offset:-3px}
 #selbar{position:fixed;left:0;right:0;bottom:calc(57px + env(safe-area-inset-bottom,0px));z-index:7;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 16px #0003}
 #selbar .wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-block:8px}
@@ -470,8 +471,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.13.0';
+const VERSION='5.13.1';
 const NEWS=[
+ ['5.13.1','Nov 28',['In search and Fill results, a card that\'s already in another section of your deck now shows a dashed ✓ instead of the word Share. Tapping it still makes the card count toward this section too, and a message says so. Pictures view shows shorter stats under each card.']],
  ['5.13.0','Nov 28',['Favorite cards: tap ☆ Favorite on any card (in a deck, in your collection, or when you hold a card in search results). Favorites live in a Favorite cards package on the Packages tab, so you can Fill a section from them.','The Game Changers tile on a deck now has Add Game Changers: every Game Changer in your commander\'s colors, most played first, with + to add. Cards you add are filed into your sections automatically.']],
  ['5.12.2','Nov 28',['Similar cards works now. EDHREC doesn\'t share its similar-cards list with apps, so the app looks up what the card does with Scryfall\'s function tags (board wipe, mana rock, tutor, removal and more) and shows other cards that do the same, the same card type and close in mana value, most played first. The top of the list says which tags it used.']],
  ['5.12.1','Nov 28',['The Pictures button on results now says List while pictures are showing, so it\'s clear how to switch back.']],
@@ -1185,7 +1187,7 @@ function peek(n){const c=card(n);const el=$('#peek');el.hidden=false;el.innerHTM
 /* results list shared by search, fill, commander pick, collection add, package add */
 let R=null;
 function status(c){const x=R.ctx;const d=deck();
-  if(x.k==='deck'){const e=d.cards.find(k=>k.n===c.n);return d.cmd.includes(c.n)?{l:'Cmdr',on:1}:e?((e.s===x.sid||(e.x||[]).includes(x.sid)||x.sid==='u'||x.sid==='m'||isBasic(c.n))?{l:isBasic(c.n)?'×'+e.q:'✓',on:1}:{l:'Share'}):{l:'+'}}
+  if(x.k==='deck'){const e=d.cards.find(k=>k.n===c.n);return d.cmd.includes(c.n)?{l:'Cmdr',on:1}:e?((e.s===x.sid||(e.x||[]).includes(x.sid)||x.sid==='u'||x.sid==='m'||isBasic(c.n))?{l:isBasic(c.n)?'×'+e.q:'✓',on:1}:{l:'✓',part:1}):{l:'+'}}
   if(x.k==='cmd')return d.cmd.includes(c.n)?{l:'✓',on:1}:{l:'Pick'};
   if(x.k==='opp')return{l:'Pick'};
   if(x.k==='coll')return owned(c.n)?{l:'×'+owned(c.n),on:1}:{l:'+'};
@@ -1202,7 +1204,7 @@ function drawRes(){const box=$('#res');if(!box||!R)return;
   else if(R.ctx.k==='deck'&&R.fill){const s=secOf(d,R.ctx.sid);const need=s?Math.max(0,s.target-cnt(inSec(d,s.id))):0;
     head+=`<div class="chips"><button class="chip ${R.ownedFirst?'on':''}" data-act="rOwnedFirst">Owned first</button><button class="chip ${R.ownedOnly?'on':''}" data-act="rOwnedOnly">Owned only</button>${picChip}${(R.mkOpts||[]).map(([k,l])=>`<button class="chip ${R.mk===k?'on':''}" data-act="rMk" data-k="${k}">${l}</button>`).join('')}</div>
      <button class="pri" data-act="fillTarget" ${need?'':'disabled'}>${need?`Add top ${Math.min(need,cs.filter(c=>!inDeck(d,c.n)).length)} to reach ${s.target}`:'Section is at its target'}</button>`}
-  box.innerHTML=head+(cs.length&&S.resPics?`<div class="rgrid">${cs.map(c=>{const st=status(c);return`<div class="rtile"><button class="info" data-act="peek" data-n="${esc(c.n)}">${c.img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(c,'normal'))}">`:`<span class="rname">${esc(c.n)}</span>`}${owned(c.n)?'<span class="rown">Owned</span>':''}</button><div class="rmeta"><span class="muted small">${esc(((R.meta&&R.meta[c.n])||'').replace(/^in /,'').replace(/ of decks/,''))}${c.p?((R.meta&&R.meta[c.n])?' · ':'')+money(c.p):''}</span><button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}" aria-label="${st.on?'In deck':'Add'} ${esc(c.n)}">${st.l}</button></div></div>`}).join('')}</div>`:cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}${makesInline(c)}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}" data-act="pick" data-n="${esc(c.n)}">${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
+  box.innerHTML=head+(cs.length&&S.resPics?`<div class="rgrid">${cs.map(c=>{const st=status(c);return`<div class="rtile"><button class="info" data-act="peek" data-n="${esc(c.n)}">${c.img?`<img loading="lazy" alt="${esc(c.n)}" src="${esc(img(c,'normal'))}">`:`<span class="rname">${esc(c.n)}</span>`}${owned(c.n)?'<span class="rown">Owned</span>':''}</button><div class="rmeta"><span class="muted small">${esc(((R.meta&&R.meta[c.n])||'').replace(/^in /,'').replace(/ of decks/,'').replace(/synergy /,''))}${c.p?((R.meta&&R.meta[c.n])?' · ':'')+money(c.p):''}</span><button class="add ${st.on?'in':''}${st.part?' part':''}" data-act="pick" data-n="${esc(c.n)}" aria-label="${st.on?'In deck':st.part?'In your deck in another section. Tap to also count it here:':'Add'} ${esc(c.n)}">${st.l}</button></div></div>`}).join('')}</div>`:cs.length?`<div class="list">${cs.map(c=>{const st=status(c);return`<div class="res"><button class="info" data-act="peek" data-n="${esc(c.n)}"><div><span class="dot ${owned(c.n)?'own':''}" style="display:inline-block;margin-right:6px"></span>${esc(c.n)}</div><div class="muted small">${esc((R.meta&&R.meta[c.n])||c.t)}${c.p?' · '+money(c.p):''}${makesInline(c)}</div></button>${costOrMana(c)}<button class="add ${st.on?'in':''}${st.part?' part':''}" data-act="pick" data-n="${esc(c.n)}" ${st.part?'aria-label="In your deck in another section. Tap to also count it here"':''}>${st.l}</button></div>`}).join('')}</div>`:`<div class="empty">${R.started?'No cards found.':'Type a card name. Scryfall search terms like <b>t:dragon</b> or <b>o:haste</b> work too.'}</div>`);
 }
 /* runs q; if it errors or finds nothing, tries each fallback in order and shows that fallback's note */
 async function runQuery(q,alts,first){alts=(alts||[]).filter(Boolean);if(!R)return;const mine=R;R.loading=true;R.err='';R.note='';R.won='';R.started=true;drawRes();
@@ -1275,7 +1277,7 @@ function pick(n){const x=R.ctx;const d=deck();
     if(!e||isBasic(n)){addCard(d,n,x.sid);if(x.ty&&!e)queuePlace(d,n);
       if(R.search){if(!R.added.includes(n))R.added.push(n);const inp=$('#q');if(inp&&!/[:<>=]/.test(inp.value)){inp.value='';R.cards=[];R.started=false;inp.focus()}}}
     else if(sp)removeCard(d,n);
-    else{e.x=e.x||[];if(e.s===x.sid){if(e.x.length)e.s=e.x.shift();else removeCard(d,n)}else if(e.x.includes(x.sid))e.x=e.x.filter(i=>i!==x.sid);else if(e.s==='u'||e.s==='m')e.s=x.sid;else e.x.push(x.sid);save()}}
+    else{e.x=e.x||[];if(e.s===x.sid){if(e.x.length)e.s=e.x.shift();else removeCard(d,n)}else if(e.x.includes(x.sid))e.x=e.x.filter(i=>i!==x.sid);else if(e.s==='u'||e.s==='m')e.s=x.sid;else{e.x.push(x.sid);const sn=(secOf(d,x.sid)||{}).name;if(sn)toast(n+' now also counts toward '+sn)}save()}}
   else if(x.k==='cmd'){if(d.cmd.includes(n))d.cmd=d.cmd.filter(k=>k!==n);else{if(d.cmd.length>=2)d.cmd.shift();d.cmd.push(n);removeCard(d,n)}save()}
   else if(x.k==='coll'){S.coll[n]=owned(n)+1;const l=$('#addLoc')&&$('#addLoc').value.trim();if(l)S.loc[n]=l;save()}
   else if(x.k==='pkg'){const p=S.packages.find(p=>p.id===x.pid);p.cards=p.cards.includes(n)?p.cards.filter(k=>k!==n):[...p.cards,n];save()}
