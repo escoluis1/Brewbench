@@ -454,8 +454,9 @@ html.desk .tc.dragging{opacity:.35}
 const KEY='brewbench.v1';
 /* Versions are MAJOR.MINOR.PATCH, like Site Map Builder. Every change gets an entry at the top of NEWS:
    new feature or redesign -> MINOR (5.4.0), fix or small tweak -> PATCH (5.3.1), big overhaul -> MAJOR (6.0.0). Dates are short: 'Nov 27'. */
-const VERSION='5.5.0';
+const VERSION='5.6.0';
 const NEWS=[
+ ['5.6.0','Nov 27',['New Ramp section on the Packages tab with 1-mana, 2-mana, 3-mana and 4-mana ramp packages. Each is a live Scryfall search for nonland ramp at that mana value, filtered to your commander\'s colors when you Fill a deck section with it. Packages now have an optional Section field, so you can group your own packages the same way. Cheap ramp and Mana rocks moved into the Ramp section too.']],
  ['5.5.0','Nov 27',['Shared games. When you save a game with a friend you added by friend code, they get a copy. It shows on their Play tab under Games your friends logged, with Add to my games or Skip, and is added from their side: you become their opponent with the deck you played. The other players are matched to their opponents by name, or added. Your game notes are not sent.']],
  ['5.4.0','Nov 27',['Release notes now follow the Site Map Builder style: three-part version numbers (major.minor.patch), a version tag next to the app name in Setup, and one short paragraph per release with its date. Setup → What\'s new opens to show every release.']],
  ['5.3.1','Nov 27',['The random first-player highlight now shows the same on every player, art or not.']],
@@ -576,7 +577,9 @@ const STD=()=>[SEC('Ramp',10,'otag:ramp'),SEC('Card Advantage',12,'otag:draw'),S
 const newStd=d=>d.sections.some(x=>/disruption/i.test(x.name));
 const blank=()=>({v:1,seen:VERSION,cards:{},decks:[],archetypes:seedArch(),packages:seedPkgs(),coll:{},loc:{}});
 let S; let CARDS={};
-function norm(){S.loc=S.loc||{};S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
+/* Ramp packages, one per mana value, grouped under a Ramp section on the Packages tab. Added once; edit or delete them freely. */
+const RAMP_PKGS=()=>[1,2,3,4].map(m=>({id:uid(),name:m+'-mana ramp',group:'Ramp',type:'scryfall',q:'otag:ramp -t:land mv='+m,cards:[]}));
+function norm(){S.loc=S.loc||{};S.packages=S.packages||[];if(!S.rampPk){S.rampPk=1;if(!S.packages.some(p=>p.group==='Ramp')){S.packages.forEach(p=>{if(!p.group&&/^(Cheap ramp|Mana rocks)$/.test(p.name))p.group='Ramp'});S.packages.push(...RAMP_PKGS())}}S.prt=S.prt||{};if(!S.template)S.template=STD();(S.decks||[]).forEach(d=>{d.themes=d.themes||[];d.sections.forEach(applyRole)});S.template.forEach(applyRole);
   if(!S.mStd2){S.mStd2=1;S.template=STD()}
   if(!S.mInt){S.mInt=1;[S.template,...(S.decks||[]).map(d=>d.sections)].forEach(l=>l.forEach(x=>{if(x.q===INTERACT_OLD)x.q=INTERACT}))}S.games=S.games||[];S.players=S.players||[];if(!S.players.some(p=>p.id==='me'))S.players.unshift({id:'me',name:'Me'});S.players.forEach(p=>{p.decks=p.decks||[];p.notes=p.notes||'';p.tag=p.tag||''});
   if(!S.m38){S.m38=1;(S.archetypes||[]).forEach(a=>a.sections.forEach(s=>{if(s.name==='Lands'&&s.target===37)s.target=38}))}}
@@ -976,10 +979,12 @@ function secHtml(d,s){
     ${s.id==='u'&&n>1&&!UI.sel?'<button class="ghost small" style="padding:4px 12px 10px" data-act="selStart" data-u="1">Select several to assign</button>':''}${closed?'':(cs.length?rows:s.id==='u'?'<p class="muted small" style="margin:0;padding:0 12px 10px">Add cards here without choosing a section. Tap Sort when you want them filed into sections, or tap a card to place it yourself.</p>':'')}</section>`;
 }
 
+const pkgGroups=()=>{const m=new Map();S.packages.forEach(p=>{const g=(p.group||'').trim();if(!m.has(g))m.set(g,[]);m.get(g).push(p)});
+  return[...m.entries()].map(([g,ps])=>[g,ps.slice().sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))]).sort((a,b)=>!a[0]-!b[0]||a[0].localeCompare(b[0]))};
 function vPkgs(){
   page('<h1>Packages</h1>','<button class="pri" data-act="newPkg">New package</button>',`
    <p class="muted small" style="margin:0">A package is a group of cards you can drop into any deck section with <b>Fill</b>. Scryfall packages run a saved search in your commander's colors. Custom packages are your own picks.</p>
-   <div class="list">${S.packages.map(p=>`<button class="item" data-act="editPkg" data-id="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')||'<div class="empty">No packages yet.</div>'}</div>`);
+   ${S.packages.length?pkgGroups().map(([g,ps])=>`${g?`<h2>${esc(g)}</h2>`:pkgGroups().length>1?'<h2>Other</h2>':''}<div class="list">${ps.map(p=>`<button class="item" data-act="editPkg" data-id="${p.id}"><span class="name"><b>${esc(p.name)}</b><br><span class="muted small">${p.type==='scryfall'?'Scryfall · '+esc(p.q):'Custom · '+p.cards.length+' cards'}</span></span><span class="muted">›</span></button>`).join('')}</div>`).join(''):'<div class="empty">No packages yet.</div>'}`);
 }
 
 const COLORS=['White','Blue','Black','Red','Green','Multicolor','Colorless','Land'];
@@ -1280,6 +1285,7 @@ function drawEd(){const sum=ED.rows.reduce((a,r)=>a+(+r.target||0),0);
 
 function pkgSheet(p){sheet(p.id?'Edit package':'New package',`
    <label for="pName">Name</label><input id="pName" value="${esc(p.name)}">
+   <label for="pGroup">Section (optional)</label><input id="pGroup" list="pGroups" value="${esc(p.group||'')}" placeholder="e.g. Ramp, Removal" autocomplete="off"><datalist id="pGroups">${[...new Set(S.packages.map(x=>x.group).filter(Boolean))].map(g=>`<option value="${esc(g)}"></option>`).join('')}</datalist>
    <label for="pType">Kind</label><select id="pType"><option value="scryfall" ${p.type==='scryfall'?'selected':''}>Scryfall search (live results)</option><option value="custom" ${p.type==='custom'?'selected':''}>Custom (my own picks)</option></select>
    <div id="pS" ${p.type==='scryfall'?'':'hidden'}><label for="pQ">Scryfall search</label><input id="pQ" value="${esc(p.q)}" placeholder="e.g. otag:ramp mv<=2"><p class="muted small">Your commander's colors are added automatically when you use it in a deck.</p></div>
    <div id="pC" ${p.type==='custom'?'':'hidden'}><label for="pCards">Cards, one per line</label><textarea id="pCards">${esc(p.cards.join('\n'))}</textarea>${p.id?`<button data-act="pkgSearch" data-id="${p.id}">Search and add cards</button>`:'<p class="muted small">Save first, then you can also add cards by search.</p>'}</div>`,
@@ -1593,7 +1599,7 @@ const A={
   newPkg(){pkgSheet({id:'',name:'',type:'scryfall',q:'',cards:[]})},
   editPkg(e){pkgSheet(S.packages.find(p=>p.id===e.dataset.id))},
   pkgSave(e){let p=S.packages.find(p=>p.id===e.dataset.id);if(!p){p={id:uid(),cards:[]};S.packages.push(p)}
-    p.name=$('#pName').value.trim()||'Untitled package';p.type=$('#pType').value;p.q=$('#pQ').value.trim();
+    p.name=$('#pName').value.trim()||'Untitled package';p.group=$('#pGroup').value.trim();p.type=$('#pType').value;p.q=$('#pQ').value.trim();
     if(p.type==='custom')p.cards=[...new Set(parseList($('#pCards').value).map(i=>i.n))];save();closeSheet();rerender()},
   pkgDel(e){S.packages=S.packages.filter(p=>p.id!==e.dataset.id);save();closeSheet();rerender()},
   pkgSearch(e){const p=S.packages.find(p=>p.id===e.dataset.id);p.cards=[...new Set(parseList($('#pCards').value).map(i=>i.n))];save();openSearch({k:'pkg',pid:p.id},'Add to '+p.name)},
